@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+frontend/dist
+data/*.sqlite3*
+PPT_IDEA
+*.pdf
+*.log

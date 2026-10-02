@@ -32,6 +32,7 @@ const jwtSecretEphemeral = configuredJwtSecret.length < 32 || configuredJwtSecre
 
 export interface Settings {
   host: string;
+  trustProxy: boolean;
   port: number;
   frontendOrigins: string[];
   publicApiBaseUrl: string;
@@ -53,12 +54,14 @@ export interface Settings {
   n8nWebhookSecret: string;
   mochaTradeApiUrl: string;
   mockPartnerDelayMs: number;
+  loginAttemptsPerMinute: number;
   maxDocumentBytes: number;
   maxAudioBytes: number;
 }
 
 export const settings: Settings = {
   host: readString('HOST', '127.0.0.1'),
+  trustProxy: readBool('TRUST_PROXY'),
   port: readInt('PORT', 8000),
   frontendOrigins: readString('FRONTEND_ORIGINS', 'http://localhost:5173')
     .split(',')
@@ -83,6 +86,7 @@ export const settings: Settings = {
   n8nWebhookSecret: readString('N8N_WEBHOOK_SECRET'),
   mochaTradeApiUrl: readString('MOCHA_TRADE_API_URL'),
   mockPartnerDelayMs: readInt('MOCK_PARTNER_DELAY_MS', 3500),
+  loginAttemptsPerMinute: readInt('LOGIN_ATTEMPTS_PER_MINUTE', 10),
   maxDocumentBytes: 5 * 1024 * 1024,
   maxAudioBytes: 10 * 1024 * 1024,
 };

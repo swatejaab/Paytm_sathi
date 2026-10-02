@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { authenticateDemoUser, getPrincipal, issueAccessToken, publicUser, requireAuth } from '../auth';
 import { recordAudit } from '../db';
 import { HttpError, parseBody } from '../errors';
+import { settings } from '../config';
 import { fixtures } from '../fixtures';
+import { rateLimit } from '../rateLimit';
 
 export const authRouter = Router();
 
@@ -13,7 +15,13 @@ authRouter.get('/auth/demo-users', (_req, res) => {
   res.json({ users: fixtures.users.map(publicUser) });
 });
 
-authRouter.post('/auth/login', (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 60_000,
+  max: () => settings.loginAttemptsPerMinute,
+  key: (req) => `${req.ip}:${String((req.body as { user_id?: unknown } | undefined)?.user_id ?? '')}`,
+});
+
+authRouter.post('/auth/login', loginLimiter, (req, res) => {
   const body = parseBody(loginSchema, req.body);
   const user = authenticateDemoUser(body.user_id, body.passcode);
   recordAudit({ actor: body.user_id, event: 'login', decision: user ? 'allow' : 'deny' });

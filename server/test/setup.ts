@@ -7,3 +7,4 @@ process.env.OPENAI_ENABLED = 'false';
 process.env.OPENAI_API_KEY = '';
 process.env.SARVAM_ENABLED = 'false';
 process.env.SARVAM_API_KEY = '';
+process.env.LOGIN_ATTEMPTS_PER_MINUTE = '10000';
