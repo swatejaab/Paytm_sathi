@@ -50,6 +50,9 @@ export interface Settings {
   sarvamEnabled: boolean;
   sarvamApiKey: string;
   sarvamSttModel: string;
+  sarvamTranslateModel: string;
+  sarvamTtsModel: string;
+  sarvamTtsSpeaker: string;
   n8nWebhookUrl: string;
   n8nWebhookSecret: string;
   mochaTradeApiUrl: string;
@@ -82,6 +85,9 @@ export const settings: Settings = {
   sarvamEnabled: readBool('SARVAM_ENABLED'),
   sarvamApiKey: readString('SARVAM_API_KEY'),
   sarvamSttModel: readString('SARVAM_STT_MODEL', 'saaras:v4'),
+  sarvamTranslateModel: readString('SARVAM_TRANSLATE_MODEL', 'mayura:v1'),
+  sarvamTtsModel: readString('SARVAM_TTS_MODEL', 'bulbul:v2'),
+  sarvamTtsSpeaker: readString('SARVAM_TTS_SPEAKER', 'anushka'),
   n8nWebhookUrl: readString('N8N_WEBHOOK_URL'),
   n8nWebhookSecret: readString('N8N_WEBHOOK_SECRET'),
   mochaTradeApiUrl: readString('MOCHA_TRADE_API_URL'),

@@ -330,3 +330,14 @@ pre { white-space: pre-wrap; font-size: 12px; background: #f6f9fc; padding: 10px
 .agent-step-body { flex: 1; min-width: 0; }
 .agent-step-body p { margin: 2px 0 6px; }
 .tool-chip { padding: 1px 7px; border-radius: 6px; background: #eef3f9; color: var(--navy); font-size: 11.5px; }
+
+/* Voice and multi-language chat */
+.mic-btn { flex: 0 0 auto; min-width: 46px; font-size: 18px; }
+.mic-recording { background: var(--red-soft); border-color: #f3c2c2; color: var(--red); animation: pulse 1.2s infinite; }
+.message-body { min-width: 0; }
+.message-body p { margin: 0; }
+.message-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.speak-btn { font-size: 15px; }
+.original summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.voice-consents .checkbox { margin: 4px 0; }
+.case-switcher { display: flex; flex-direction: column; gap: 6px; }

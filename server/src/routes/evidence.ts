@@ -15,14 +15,22 @@ import {
 } from '../documents';
 import { HttpError, parseBody } from '../errors';
 import {
+  allowedNumbers,
   analyzeCaseWithOpenAI,
+  answerCaseQuestion,
+  inventedNumbers,
   IntegrationDisabledError,
   IntegrationInputError,
   IntegrationRequestError,
+  speakWithSarvam,
   transcribeWithSarvam,
   type AnalysisEvidence,
 } from '../integrations';
 import type { CaseRecord, UploadedDocument } from '../types';
+import { explainDecision } from '../agent/explainer';
+import { addMessage } from '../caseStore';
+import { isLanguageCode, LANGUAGE_CODES, LANGUAGES } from '../languages';
+import { redactContactIdentifiers } from '../redaction';
 import { redecideAfterDocuments } from '../workflow';
 
 export const evidenceRouter = Router();
@@ -218,14 +226,114 @@ evidenceRouter.post('/voice/transcribe', requireAuth('voice:transcribe'), audioU
   }
   if (!req.file) throw new HttpError(422, 'Attach an audio recording in the "file" field.');
   try {
+    const requested = String(req.body?.language_code ?? '');
     const result = await transcribeWithSarvam(
       req.file.buffer,
       safeFilename(req.file.originalname, 'voice-note.wav'),
       normalizeContentType(req.file.mimetype),
+      isLanguageCode(requested) ? requested : 'unknown',
     );
     recordAudit({ actor: principal.sub, event: 'voice_transcription', detail: { provider: 'sarvam', consent: true } });
     res.json(result);
   } catch (error) {
     mapIntegrationError(error);
   }
+});
+
+const speakSchema = z
+  .object({ text: z.string().trim().min(1).max(1500), language_code: z.enum(LANGUAGE_CODES), consent: z.literal(true) })
+  .strict();
+
+evidenceRouter.post('/voice/speak', requireAuth('voice:transcribe'), async (req, res) => {
+  const principal = getPrincipal(req);
+  const body = parseBody(speakSchema, req.body);
+  try {
+    const result = await speakWithSarvam(redactContactIdentifiers(body.text), body.language_code);
+    recordAudit({ actor: principal.sub, event: 'voice_synthesis', detail: { provider: 'sarvam', language: body.language_code } });
+    res.json(result);
+  } catch (error) {
+    mapIntegrationError(error);
+  }
+});
+
+const chatSchema = z
+  .object({
+    message: z.string().trim().min(2).max(1000),
+    language: z.enum(LANGUAGE_CODES).optional(),
+    confirm_external_processing: z.literal(true),
+  })
+  .strict();
+
+// Facts the assistant may use: the deterministic decision, evidence citations, and the case status. No raw documents.
+function chatFacts(record: CaseRecord) {
+  const decision = record.decision;
+  return {
+    event: record.event_type,
+    status: record.status,
+    story: redactContactIdentifiers(record.customer_message),
+    calculation: decision?.calculation ?? null,
+    facts: decision?.facts.map(({ label, value, unit, source }) => ({ label, value, unit, source: source.ref })) ?? [],
+    options: decision?.options.map((option) => ({
+      title: option.title,
+      recommended: option.recommended,
+      feasible: option.feasible,
+      score: option.scores.total,
+      summary: option.summary,
+      metrics: option.metrics,
+      trade_offs: option.trade_offs,
+      blocked_by: option.guardrails.filter((guardrail) => !guardrail.passed).map((guardrail) => guardrail.detail),
+    })) ?? [],
+    explanation: decision?.explanation ?? null,
+    missing_documents: record.evidence?.missing_documents ?? [],
+    citations: (record.evidence?.retrieved_evidence ?? []).map((passage) => ({
+      document: passage.document_name,
+      clause: passage.clause_id,
+      page: passage.page,
+      title: passage.title,
+    })),
+    latest_timeline: record.timeline.slice(-5).map((entry) => entry.title),
+  };
+}
+
+evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req, res) => {
+  const principal = getPrincipal(req);
+  const caseId = String(req.params.caseId);
+  const body = parseBody(chatSchema, req.body);
+  const record = loadCaseForOwner(principal, caseId, 'ai:analyze');
+  const languageCode = body.language ?? record.preferred_language;
+  const languageName = isLanguageCode(languageCode)
+    ? LANGUAGES[languageCode]
+    : record.language === 'hinglish'
+      ? 'Hinglish (Hindi in Latin script)'
+      : 'English';
+  const facts = chatFacts(record);
+
+  let answer: string;
+  let source: 'openai' | 'saathi' = 'openai';
+  try {
+    const result = await answerCaseQuestion(body.message, facts, languageName);
+    const invented = inventedNumbers(result.answer, allowedNumbers(facts));
+    if (invented.length) {
+      // Numeric guard: the model may only repeat numbers the decision service produced.
+      source = 'saathi';
+      answer = explainDecision(record) || 'I can only answer from your case facts. A Saathi specialist can help with this question.';
+      recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', count: invented.length } });
+    } else {
+      answer = result.answer;
+    }
+  } catch (error) {
+    mapIntegrationError(error);
+  }
+
+  const latest = loadCaseForOwner(principal, caseId, 'ai:analyze');
+  addMessage(latest, 'user', body.message);
+  addMessage(latest, 'assistant', answer, { source, ...(isLanguageCode(languageCode) ? { language: languageCode } : {}) });
+  recordAudit({
+    case_id: caseId,
+    actor: principal.sub,
+    event: 'external_ai_chat',
+    detail: { provider: 'openai', consent_purpose: 'answer_case_question_with_openai', answered_by: source },
+  });
+  updateCase(latest);
+  res.json(latest);
 });

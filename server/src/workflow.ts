@@ -9,7 +9,12 @@ const READ_CONSENT = 'prepare_resolution_options' as const;
 // Case workflow entry points. The bounded agent graph (agent/graph.ts) does the work;
 // the persisted case record is its durable checkpoint, so each trigger resumes the right case.
 
-export async function createCase(principal: Principal, message: string, consentGranted: boolean): Promise<CaseRecord> {
+export async function createCase(
+  principal: Principal,
+  message: string,
+  consentGranted: boolean,
+  preferredLanguage?: string,
+): Promise<CaseRecord> {
   const now = nowIso();
   const record: CaseRecord = {
     case_id: newId('SA'),
@@ -17,6 +22,7 @@ export async function createCase(principal: Principal, message: string, consentG
     event_type: 'general_financial_support',
     urgency: 'low',
     language: 'en',
+    ...(preferredLanguage ? { preferred_language: preferredLanguage } : {}),
     status: 'intake',
     customer_message: message.trim(),
     assistant_message: '',

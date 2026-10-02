@@ -91,8 +91,12 @@ export const api = {
   listCases: () => request<{ cases: CaseSummary[] }>('/api/cases'),
   supportCases: () => request<{ cases: CaseSummary[] }>('/api/support/cases'),
   getCase: (caseId: string) => request<CaseRecord>(`/api/cases/${caseId}`),
-  createCase: (message: string, consent: boolean) =>
-    post<CaseRecord>('/api/cases/intake', { message, consent_to_read_case_data: consent }),
+  createCase: (message: string, consent: boolean, language?: string) =>
+    post<CaseRecord>('/api/cases/intake', { message, consent_to_read_case_data: consent, ...(language ? { language } : {}) }),
+  chat: (caseId: string, message: string, language?: string) =>
+    post<CaseRecord>(`/api/cases/${caseId}/chat`, { message, confirm_external_processing: true, ...(language ? { language } : {}) }),
+  speak: (text: string, language_code: string) =>
+    post<{ audio_base64: string; mime_type: string }>('/api/voice/speak', { text, language_code, consent: true }),
   setConsent: (caseId: string, granted: boolean) =>
     post<CaseRecord>(`/api/cases/${caseId}/consents`, { purpose: 'prepare_resolution_options', granted }),
   confirmTransaction: (caseId: string, transaction_id: string, recognized: boolean) =>
@@ -110,9 +114,10 @@ export const api = {
     return request<{ document_name: string; page_count: number }>(`/api/cases/${caseId}/documents`, { method: 'POST', body: form });
   },
   analyze: (caseId: string) => post<{ analysis: unknown }>(`/api/cases/${caseId}/analyze`, { confirm_external_processing: true }),
-  transcribe: (audio: Blob, filename: string) => {
+  transcribe: (audio: Blob, filename: string, language?: string) => {
     const form = new FormData();
     form.append('consent_to_transcribe', 'true');
+    if (language) form.append('language_code', language);
     form.append('file', audio, filename);
     return request<{ transcript: string; language_code: string | null }>('/api/voice/transcribe', { method: 'POST', body: form });
   },

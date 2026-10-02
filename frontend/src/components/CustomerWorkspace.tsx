@@ -30,13 +30,26 @@ export function CustomerWorkspace({ integrations }: { integrations: IntegrationS
     [refreshCases],
   );
 
-  const submit = async (message: string, consent: boolean) => {
+  const submit = async (message: string, consent: boolean, language: string) => {
     setBusy(true);
     setError(null);
     try {
-      updateCase(await api.createCase(message, consent));
+      updateCase(await api.createCase(message, consent, language || undefined));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'I could not save this case. No financial action was started.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ask = async (message: string, language: string) => {
+    if (!activeCase) return;
+    setBusy(true);
+    setError(null);
+    try {
+      updateCase(await api.chat(activeCase.case_id, message, language || undefined));
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Saathi AI could not answer. Your case is unchanged.');
     } finally {
       setBusy(false);
     }
@@ -60,6 +73,7 @@ export function CustomerWorkspace({ integrations }: { integrations: IntegrationS
         error={error}
         integrations={integrations}
         onSubmit={submit}
+        onAsk={ask}
         onOpenCase={openCase}
         onNewCase={() => setActiveCase(null)}
       />

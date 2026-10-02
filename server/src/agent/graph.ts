@@ -1,5 +1,5 @@
 import { Annotation, END, START, StateGraph, type LangGraphRunnableConfig } from '@langchain/langgraph';
-import { addMessage, addTimeline, EVENT_LABELS, hasConsent, supersedePendingActions } from '../caseStore';
+import { addTimeline, EVENT_LABELS, hasConsent, supersedePendingActions } from '../caseStore';
 import {
   calculateEmiShortfall,
   classifyEvent,
@@ -25,6 +25,7 @@ import { invokeTool } from '../mcp/gateway';
 import { recordAudit } from '../db';
 import type { AgentNodeId, AgentTrigger, CaseRecord, EvidencePassage, Playbook, Principal, Transaction } from '../types';
 import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionMessage } from './explainer';
+import { addLocalizedMessage } from './localize';
 import { RunTracer } from './trace';
 
 const READ_CONSENT = 'prepare_resolution_options' as const;
@@ -118,7 +119,7 @@ const classifier = node('classifier', (_state, context) => {
   const classification = classifyEvent(record.customer_message);
   record.event_type = classification.event_type;
   record.urgency = classification.urgency;
-  record.language = detectLanguage(record.customer_message);
+  record.language = record.preferred_language ? 'en' : detectLanguage(record.customer_message);
   addTimeline(record, {
     status: 'intake',
     title: 'Case opened',
@@ -129,10 +130,10 @@ const classifier = node('classifier', (_state, context) => {
   return { summary: `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency, language ${record.language}.` };
 });
 
-const consentGate = node('consent_gate', (state, { record, grantConsent }) => {
+const consentGate = node('consent_gate', async (state, { record, grantConsent }) => {
   if (state.grant_consent && !hasConsent(record, READ_CONSENT)) grantConsent?.();
   if (hasConsent(record, READ_CONSENT)) return { summary: 'Consent "prepare resolution options" is active.' };
-  if (state.trigger === 'intake') addMessage(record, 'assistant', consentNeededMessage(record.language));
+  if (state.trigger === 'intake') await addLocalizedMessage(record, consentNeededMessage(record.language));
   return { summary: 'No consent yet; nothing was read.', paused: 'awaiting_consent' };
 });
 
@@ -207,7 +208,7 @@ const billAuditor = node('bill_auditor', (state, context) => {
   return { update: { gathered: { bill, coverage } }, summary: `${findings.join('; ')}. Coverage estimate ${formatInr(coverage.estimated_coverage_inr)} (confidence ${coverage.confidence}).` };
 });
 
-const transactionAuditor = node('transaction_auditor', (state, context) => {
+const transactionAuditor = node('transaction_auditor', async (state, context) => {
   const { record } = context;
   if (!state.transaction_id) {
     const stated = parseStatedAmount(record.customer_message);
@@ -221,9 +222,8 @@ const transactionAuditor = node('transaction_auditor', (state, context) => {
     }
     record.pending_question = { type: 'confirm_transaction', prompt: 'Which payment do you not recognize?', candidates };
     addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${candidates.length} candidate debit(s).`, actor: 'saathi' });
-    addMessage(
+    await addLocalizedMessage(
       record,
-      'assistant',
       pickTransactionMessage(record.language, candidates.length, stated, Boolean(stated && candidates.some((candidate) => candidate.amount_inr === stated))),
     );
     return { summary: `${candidates.length} candidate debit(s); waiting for the customer to pick one.`, paused: 'awaiting_transaction' };
@@ -399,20 +399,20 @@ const decision = node('decision', (state, context) => {
   return { summary: `${detail}. ${feasible}/${decided.options.length} options pass guardrails; best: ${best?.title ?? 'none'}.` };
 });
 
-const explainer = node('explainer', (_state, { record }) => {
-  const message = explainDecision(record);
-  addMessage(record, 'assistant', message);
-  return { summary: `Explained in ${record.language === 'hinglish' ? 'Hinglish' : 'English'} using decision facts only.` };
+const explainer = node('explainer', async (_state, { record }) => {
+  await addLocalizedMessage(record, explainDecision(record));
+  const language = record.messages.at(-1)?.language ?? (record.language === 'hinglish' ? 'Hinglish' : 'English');
+  return { summary: `Explained in ${language} using decision facts only.` };
 });
 
-const humanReview = node('human_review', (state, { record }) => {
+const humanReview = node('human_review', async (state, { record }) => {
   addTimeline(record, {
     status: 'human_review',
     title: 'Routed to a specialist',
     detail: `Saathi could not complete the automated step: ${state.error}`,
     actor: 'saathi',
   });
-  addMessage(record, 'assistant', 'I could not complete this step safely, so I routed your case to a Saathi specialist with your passport.');
+  await addLocalizedMessage(record, 'I could not complete this step safely, so I routed your case to a Saathi specialist with your passport.');
   return { summary: `Failure routed to a specialist: ${state.error}` };
 });
 

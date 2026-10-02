@@ -238,18 +238,28 @@ export interface AgentNodeInfo {
   decides_money: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  at: string;
+  original?: string;
+  language?: string;
+  source?: 'saathi' | 'openai';
+}
+
 export interface CaseRecord {
   case_id: string;
   customer_id: string;
   event_type: EventType;
   urgency: 'high' | 'medium' | 'low';
   language?: 'en' | 'hinglish';
+  preferred_language?: string;
   agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;
   created_at: string;
   updated_at: string;
-  messages: { role: 'user' | 'assistant'; content: string; at: string }[];
+  messages: ChatMessage[];
   consents: ConsentRecord[];
   evidence: {
     demo_only: boolean;

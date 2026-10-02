@@ -48,3 +48,18 @@ export function factValue(fact: Fact): string {
 export function sourceLabel(source: Fact['source']): string {
   return [source.ref, source.document].filter(Boolean).join(' / ');
 }
+
+export const LANGUAGES: { code: string; label: string }[] = [
+  { code: '', label: 'Auto (English / Hinglish)' },
+  { code: 'en-IN', label: 'English' },
+  { code: 'hi-IN', label: 'हिन्दी Hindi' },
+  { code: 'bn-IN', label: 'বাংলা Bengali' },
+  { code: 'ta-IN', label: 'தமிழ் Tamil' },
+  { code: 'te-IN', label: 'తెలుగు Telugu' },
+  { code: 'mr-IN', label: 'मराठी Marathi' },
+  { code: 'gu-IN', label: 'ગુજરાતી Gujarati' },
+  { code: 'kn-IN', label: 'ಕನ್ನಡ Kannada' },
+  { code: 'ml-IN', label: 'മലയാളം Malayalam' },
+  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ Punjabi' },
+  { code: 'od-IN', label: 'ଓଡ଼ିଆ Odia' },
+];

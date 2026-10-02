@@ -6,6 +6,7 @@ import { loadCaseForRead } from '../caseStore';
 import { listAudit, listCases } from '../db';
 import { parseBody } from '../errors';
 import { buildPassport } from '../passport';
+import { LANGUAGE_CODES } from '../languages';
 import type { CaseRecord } from '../types';
 import { confirmTransaction, createCase, requestHandoff, setConsent } from '../workflow';
 
@@ -15,6 +16,7 @@ const intakeSchema = z
   .object({
     message: z.string().trim().min(8).max(2000),
     consent_to_read_case_data: z.boolean().default(false),
+    language: z.enum(LANGUAGE_CODES).optional(),
   })
   .strict();
 const consentSchema = z.object({ purpose: z.literal('prepare_resolution_options'), granted: z.boolean() }).strict();
@@ -39,7 +41,7 @@ function summarize(record: CaseRecord) {
 
 caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(intakeSchema, req.body);
-  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data));
+  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data, body.language));
 });
 
 caseRouter.get('/cases', requireAuth('case:read'), (req, res) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { EVENT_LABELS, STATUS_LABELS } from '../format';
+import { EVENT_LABELS, LANGUAGES, STATUS_LABELS } from '../format';
 import type { CaseRecord, CaseSummary, IntegrationStatus } from '../types';
-import { VoiceNote } from './VoiceNote';
+import { MicButton, SpeakButton } from './Voice';
 
 const DEMOS = [
   {
@@ -27,14 +27,37 @@ interface Props {
   busy: boolean;
   error: string | null;
   integrations: IntegrationStatus;
-  onSubmit: (message: string, consent: boolean) => Promise<void>;
+  onSubmit: (message: string, consent: boolean, language: string) => Promise<void>;
+  onAsk: (message: string, language: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
   onNewCase: () => void;
 }
 
-export function Conversation({ activeCase, cases, busy, error, integrations, onSubmit, onOpenCase, onNewCase }: Props) {
+const readPref = (key: string, fallback: string) => {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writePref = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // preferences are a convenience only
+  }
+};
+
+export function Conversation({ activeCase, cases, busy, error, integrations, onSubmit, onAsk, onOpenCase, onNewCase }: Props) {
   const [draft, setDraft] = useState('');
   const [consent, setConsent] = useState(false);
+  const [language, setLanguage] = useState(() => readPref('saathi.language', ''));
+  const [voiceConsent, setVoiceConsent] = useState(false);
+  const [aiConsent, setAiConsent] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const followUp = Boolean(activeCase && integrations.openai_available);
+  const speakLanguage = (message: { language?: string }) =>
+    message.language || language || activeCase?.preferred_language || 'en-IN';
   const endRef = useRef<HTMLDivElement>(null);
 
   const messages = activeCase?.messages ?? [
@@ -48,14 +71,29 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
   const send = async (message: string) => {
     const text = message.trim();
     if (text.length < 8 || busy) return;
-    await onSubmit(text, consent);
+    setNotice(null);
+    await onSubmit(text, consent, language);
     setDraft('');
   };
+
+  const ask = async () => {
+    const text = draft.trim();
+    if (text.length < 2 || busy) return;
+    if (!aiConsent) {
+      setNotice('Tick "Allow Saathi AI to answer from my case facts" to ask follow-up questions.');
+      return;
+    }
+    setNotice(null);
+    await onAsk(text, language);
+    setDraft('');
+  };
+
+  const submitDraft = () => void (followUp ? ask() : send(draft));
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      void send(draft);
+      submitDraft();
     }
   };
 
@@ -68,6 +106,21 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
           <p className="muted">One conversation. Evidence-backed next steps. You stay in control.</p>
         </div>
         <div className="case-switcher">
+          <select
+            value={language}
+            onChange={(event) => {
+              setLanguage(event.target.value);
+              writePref('saathi.language', event.target.value);
+            }}
+            aria-label="Conversation language"
+            title="Saathi listens, replies, and speaks in this language"
+          >
+            {LANGUAGES.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.label}
+              </option>
+            ))}
+          </select>
           <select
             value={activeCase?.case_id ?? ''}
             onChange={(event) => (event.target.value ? onOpenCase(event.target.value) : onNewCase())}
@@ -108,7 +161,21 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
             <span className="avatar" aria-hidden>
               {message.role === 'assistant' ? 'S' : 'You'}
             </span>
-            <p>{message.content}</p>
+            <div className="message-body">
+              <p>{message.content}</p>
+              {message.role === 'assistant' && (
+                <div className="message-meta">
+                  {integrations.sarvam_available && <SpeakButton text={message.content} language={speakLanguage(message)} />}
+                  {message.source === 'openai' && <small className="muted">AI answer from your case facts</small>}
+                  {message.original && (
+                    <details className="original">
+                      <summary>Original (English)</summary>
+                      <small>{message.original}</small>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ))}
         {busy && (
@@ -121,23 +188,48 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
       </div>
 
       {error && <p className="alert alert-error">{error}</p>}
+      {notice && <p className="alert alert-warn">{notice}</p>}
 
       <div className="composer">
+        <MicButton
+          available={integrations.sarvam_available}
+          consent={voiceConsent}
+          language={language}
+          disabled={busy}
+          onTranscript={(text) => setDraft((current) => (current ? current + ' ' + text : text))}
+          onError={setNotice}
+        />
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Papa hospital mein hain... what happened?"
+          placeholder={followUp ? 'Ask about this case, e.g. "Why is this plan recommended?"' : 'Papa hospital mein hain... what happened?'}
           rows={2}
           maxLength={2000}
         />
-        <button className="btn btn-primary" disabled={busy || draft.trim().length < 8} onClick={() => void send(draft)}>
-          Start case
+        <button className="btn btn-primary" disabled={busy || draft.trim().length < (followUp ? 2 : 8)} onClick={submitDraft}>
+          {followUp ? 'Ask Saathi' : 'Start case'}
         </button>
       </div>
-      <p className="muted small">Each message opens a new case. Use synthetic details only.</p>
-
-      <VoiceNote available={integrations.sarvam_available} disabled={busy} onTranscript={(text) => setDraft(text)} />
+      <div className="voice-consents">
+        {integrations.sarvam_available && (
+          <label className="checkbox">
+            <input type="checkbox" checked={voiceConsent} onChange={(event) => setVoiceConsent(event.target.checked)} />
+            Allow voice processing by Sarvam (speech-to-text and read-aloud). Audio is not stored.
+          </label>
+        )}
+        {followUp && (
+          <label className="checkbox">
+            <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />
+            Allow Saathi AI (OpenAI) to answer from my case facts. Contact details are redacted; it cannot change numbers or approve anything.
+          </label>
+        )}
+      </div>
+      <p className="muted small">
+        {followUp
+          ? 'Questions go to this case. Choose "New case" above to start another. Use synthetic details only.'
+          : 'Each message opens a new case. Use synthetic details only.'}
+      </p>
     </section>
   );
 }

@@ -190,6 +190,9 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   at: string;
+  original?: string;
+  language?: string;
+  source?: 'saathi' | 'openai';
 }
 
 export interface TimelineEntry {
@@ -321,6 +324,7 @@ export interface CaseRecord {
   event_type: EventType;
   urgency: Urgency;
   language?: Language;
+  preferred_language?: string;
   agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;

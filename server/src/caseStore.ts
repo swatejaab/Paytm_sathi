@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { assertScope } from './auth';
 import { findCase, nowIso, updateCase } from './db';
 import { HttpError } from './errors';
-import type { Actor, CaseRecord, CaseStatus, ConsentPurpose, EventType, Principal } from './types';
+import type { Actor, CaseRecord, ChatMessage, CaseStatus, ConsentPurpose, EventType, Principal } from './types';
 
 export const EVENT_LABELS: Record<EventType, string> = {
   hospitalization: 'Hospitalization',
@@ -28,8 +28,13 @@ export function addTimeline(
   });
 }
 
-export function addMessage(record: CaseRecord, role: 'user' | 'assistant', content: string): void {
-  record.messages.push({ role, content, at: nowIso() });
+export function addMessage(
+  record: CaseRecord,
+  role: 'user' | 'assistant',
+  content: string,
+  extra: Pick<ChatMessage, 'original' | 'language' | 'source'> = {},
+): void {
+  record.messages.push({ role, content, at: nowIso(), ...extra });
   if (role === 'assistant') record.assistant_message = content;
 }
 
