@@ -1,0 +1,23 @@
+{
+  "name": "paytm-saathi",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Paytm Saathi: event-first financial resolution demo (React + Node.js).",
+  "workspaces": [
+    "server",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w frontend",
+    "start": "npm run start -w server",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w frontend"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

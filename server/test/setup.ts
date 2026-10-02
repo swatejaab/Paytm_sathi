@@ -1,0 +1,9 @@
+process.env.SAATHI_DB_PATH = ':memory:';
+process.env.MOCK_PARTNER_DELAY_MS = '5';
+process.env.JWT_SECRET_KEY = 'unit-test-jwt-secret-that-is-long-enough-123456';
+process.env.N8N_WEBHOOK_URL = '';
+process.env.N8N_WEBHOOK_SECRET = 'unit-test-callback-secret';
+process.env.OPENAI_ENABLED = 'false';
+process.env.OPENAI_API_KEY = '';
+process.env.SARVAM_ENABLED = 'false';
+process.env.SARVAM_API_KEY = '';

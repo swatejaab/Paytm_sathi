@@ -1,0 +1,34 @@
+{
+  "label": "Synthetic sample offers for the demo. Not live credit offers; no lender or Mochatrade API is connected.",
+  "partner": "Synthetic lender (Mochatrade adapter placeholder)",
+  "affordability_rules": {
+    "max_total_emi_to_income": 0.4,
+    "max_new_emi_share_of_free_cash": 0.5
+  },
+  "offers": [
+    {
+      "offer_id": "OFFER-GAP-3M",
+      "kind": "exact_gap",
+      "product": "Exact-gap medical plan",
+      "annual_rate_pct": 14,
+      "tenure_months": 3,
+      "processing_fee_pct": 1,
+      "min_amount_inr": 5000,
+      "max_amount_inr": 100000,
+      "disbursal_days": 0,
+      "disburse_to": "hospital"
+    },
+    {
+      "offer_id": "OFFER-PL-12M",
+      "kind": "personal",
+      "product": "Personal loan",
+      "annual_rate_pct": 18,
+      "tenure_months": 12,
+      "processing_fee_pct": 2,
+      "min_amount_inr": 25000,
+      "max_amount_inr": 300000,
+      "disbursal_days": 1,
+      "disburse_to": "hospital"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "label": "Synthetic demo identities for local hackathon use only. Passcodes are not secrets and must never be reused.",
+  "users": [
+    {
+      "user_id": "demo-customer-01",
+      "display_name": "Riya Sharma (demo)",
+      "role": "customer",
+      "passcode": "2468"
+    },
+    {
+      "user_id": "demo-customer-02",
+      "display_name": "Arjun Mehta (demo)",
+      "role": "customer",
+      "passcode": "1357"
+    },
+    {
+      "user_id": "support-agent-01",
+      "display_name": "Saathi Support Desk (demo)",
+      "role": "support",
+      "passcode": "9999"
+    }
+  ]
+}

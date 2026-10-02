@@ -20,6 +20,9 @@
     "document_id": "POLICY-DEMO-001",
     "document_type": "policy",
     "file_name": "synthetic_health_policy.json",
+    "insurer": "Synthetic insurer (demo)",
+    "coverage_clause_id": "3.1",
+    "coverage_confidence": 0.91,
     "clauses": [
       {
         "clause_id": "3.1",
@@ -45,10 +48,11 @@
     ],
     "estimated_coverage_inr": 55000
   },
-  "customer_context": {
-    "customer_id": "demo-customer-01",
-    "available_to_pay_inr": 10000,
-    "source": "Synthetic demo profile"
+  "claim_documents": {
+    "clause_id": "5.4",
+    "page": 9,
+    "required": ["Itemized final bill", "Discharge summary", "Prescriptions", "Investigation reports", "Payment receipts"],
+    "available": ["Itemized final bill", "Prescriptions", "Investigation reports", "Payment receipts"]
   },
   "missing_documents": ["Discharge summary"],
   "expected_calculation": {

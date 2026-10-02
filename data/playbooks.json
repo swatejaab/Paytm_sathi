@@ -1,0 +1,43 @@
+{
+  "label": "Synthetic Saathi playbooks for the demo knowledge index. Not legal or regulatory advice.",
+  "playbooks": [
+    {
+      "playbook_id": "PB-HOSP-CLAIM-01",
+      "event_type": "hospitalization",
+      "title": "Hospital bill with an insurance funding gap",
+      "source": "Saathi demo playbook v1",
+      "steps": [
+        "Collect the itemized final bill and the health policy schedule.",
+        "Check eligible inpatient expenses, room category limits, and claim document requirements.",
+        "Calculate verified coverage and what the family can pay now before considering credit.",
+        "Borrow only the remaining gap, and only if the EMI passes the affordability guardrail.",
+        "Submit the claim with the full document set and track partner status until closure."
+      ]
+    },
+    {
+      "playbook_id": "PB-UPI-UNAUTH-01",
+      "event_type": "upi_dispute",
+      "title": "Unrecognized UPI debit",
+      "source": "Saathi demo playbook v1",
+      "steps": [
+        "Confirm the debit is unfamiliar and note the transaction reference, time, and counterparty.",
+        "Block or pause UPI in the payment app and change the UPI PIN.",
+        "Report the incident to the bank or payment app as soon as possible; prompt reporting can limit customer liability under bank rules.",
+        "Report cyber fraud on the national helpline 1930 or at cybercrime.gov.in.",
+        "Track the dispute reference until the payment network closes it."
+      ]
+    },
+    {
+      "playbook_id": "PB-EMI-SHORT-01",
+      "event_type": "emi_shortfall",
+      "title": "EMI shortfall this month",
+      "source": "Saathi demo playbook v1",
+      "steps": [
+        "Confirm the EMI amount, due date, and the expected shortfall.",
+        "Check whether essential spending can be deferred without penalties.",
+        "Ask the lender about restructuring or a revised due date before taking new credit.",
+        "Route to a specialist when income loss or distress is reported."
+      ]
+    }
+  ]
+}

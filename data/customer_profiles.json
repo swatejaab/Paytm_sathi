@@ -1,0 +1,27 @@
+{
+  "label": "Synthetic financial profiles. Not real customer data.",
+  "profiles": {
+    "demo-customer-01": {
+      "profile_id": "PROFILE-DEMO-01",
+      "source": "Synthetic demo customer profile",
+      "available_to_pay_inr": 10000,
+      "monthly_income_inr": 90000,
+      "monthly_essential_expenses_inr": 52000,
+      "existing_emi_inr": 12000,
+      "emergency_savings_inr": 18000,
+      "minimum_emergency_buffer_inr": 15000,
+      "account_balance_inr": 23400
+    },
+    "demo-customer-02": {
+      "profile_id": "PROFILE-DEMO-02",
+      "source": "Synthetic demo customer profile",
+      "available_to_pay_inr": 10000,
+      "monthly_income_inr": 120000,
+      "monthly_essential_expenses_inr": 60000,
+      "existing_emi_inr": 0,
+      "emergency_savings_inr": 90000,
+      "minimum_emergency_buffer_inr": 30000,
+      "account_balance_inr": 64200
+    }
+  }
+}
