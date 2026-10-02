@@ -1,0 +1,33 @@
+{
+  "label": "Synthetic hospital demonstration case",
+  "customer": {
+    "customer_id": "demo-customer-01",
+    "display_name": "Demo customer"
+  },
+  "bill": {
+    "total_inr": 80000,
+    "source": "sample_hospital_bill.pdf",
+    "lines": [
+      { "line": 4, "description": "Room and nursing", "amount_inr": 30000 },
+      { "line": 5, "description": "Diagnostics", "amount_inr": 10000 },
+      { "line": 6, "description": "Procedure", "amount_inr": 25000 },
+      { "line": 7, "description": "Pharmacy and supplies", "amount_inr": 15000 }
+    ]
+  },
+  "policy": {
+    "policy_id": "POLICY-DEMO-01",
+    "estimated_coverage_inr": 55000,
+    "source": "sample_health_policy.pdf",
+    "clause": "Section 3.1",
+    "note": "Synthetic estimate for the demo only; not an insurer coverage decision."
+  },
+  "financial_context": {
+    "available_to_pay_inr": 10000,
+    "source": "Synthetic demo customer profile"
+  },
+  "recommendation": {
+    "title": "Claim + 3-month plan",
+    "months": 3,
+    "alternatives": ["Use emergency savings", "Borrow for the full bill"]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "fixture_id": "SAATHI-HOSPITAL-DOCS-V1",
+  "demo_only": true,
+  "description": "Synthetic documents for the Paytm Saathi hackathon demo. Not a real policy or claim decision.",
+  "bill": {
+    "document_id": "BILL-DEMO-001",
+    "document_type": "bill",
+    "file_name": "synthetic_hospital_bill.json",
+    "page": 1,
+    "currency": "INR",
+    "total_inr": 80000,
+    "lines": [
+      { "line": 4, "description": "Room and nursing", "amount_inr": 30000 },
+      { "line": 5, "description": "Diagnostics", "amount_inr": 10000 },
+      { "line": 6, "description": "Procedure", "amount_inr": 25000 },
+      { "line": 7, "description": "Pharmacy and supplies", "amount_inr": 15000 }
+    ]
+  },
+  "policy": {
+    "document_id": "POLICY-DEMO-001",
+    "document_type": "policy",
+    "file_name": "synthetic_health_policy.json",
+    "clauses": [
+      {
+        "clause_id": "3.1",
+        "page": 4,
+        "title": "Eligible inpatient expenses",
+        "text": "For the synthetic demonstration only, eligible inpatient hospital expenses are considered subject to the limits and exclusions in this sample policy.",
+        "estimated_coverage_inr": 55000
+      },
+      {
+        "clause_id": "3.2",
+        "page": 4,
+        "title": "Room category limit",
+        "text": "Room and nursing expenses are subject to the room category limit selected in the policy schedule. Excess room charges may affect related claim amounts.",
+        "estimated_coverage_inr": null
+      },
+      {
+        "clause_id": "5.4",
+        "page": 9,
+        "title": "Claim documents",
+        "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts.",
+        "estimated_coverage_inr": null
+      }
+    ],
+    "estimated_coverage_inr": 55000
+  },
+  "customer_context": {
+    "customer_id": "demo-customer-01",
+    "available_to_pay_inr": 10000,
+    "source": "Synthetic demo profile"
+  },
+  "missing_documents": ["Discharge summary"],
+  "expected_calculation": {
+    "bill_total_inr": 80000,
+    "coverage_estimate_inr": 55000,
+    "customer_contribution_inr": 10000,
+    "exact_gap_inr": 15000
+  }
+}
