@@ -33,7 +33,9 @@ export interface SourceRef {
     | 'lender_offer'
     | 'customer_statement'
     | 'playbook'
-    | 'document_checklist';
+    | 'document_checklist'
+    | 'loan_account'
+    | 'salary_schedule';
   ref: string;
   document?: string | null;
 }
@@ -278,6 +280,7 @@ export type AgentNodeId =
   | 'policy_rag'
   | 'bill_auditor'
   | 'transaction_auditor'
+  | 'emi_auditor'
   | 'decision'
   | 'explainer'
   | 'human_review'

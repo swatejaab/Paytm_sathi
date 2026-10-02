@@ -1,0 +1,41 @@
+{
+  "label": "Synthetic loan accounts and salary schedules for the demo. Not real customer data.",
+  "partner": "Synthetic lender (Mochatrade adapter placeholder)",
+  "accounts": {
+    "demo-customer-01": {
+      "salary": {
+        "source": "Synthetic payroll schedule",
+        "usual_credit_day": 1,
+        "expected_date": "2026-10-10",
+        "amount_inr": 90000,
+        "status": "delayed"
+      },
+      "committed_before_due_inr": 16000,
+      "committed_note": "Rent and school fee already scheduled before the EMI date",
+      "loans": [
+        {
+          "loan_id": "LN-TW-4471",
+          "product": "Two-wheeler loan",
+          "emi_inr": 12000,
+          "next_due_date": "2026-10-05",
+          "outstanding_principal_inr": 214000,
+          "due_date_shift": { "allowed": true, "max_days": 10, "fee_inr": 250 },
+          "bounce_charge_inr": 590,
+          "late_fee_inr_per_day": 50
+        }
+      ]
+    },
+    "demo-customer-02": {
+      "salary": {
+        "source": "Synthetic payroll schedule",
+        "usual_credit_day": 1,
+        "expected_date": "2026-10-01",
+        "amount_inr": 120000,
+        "status": "credited"
+      },
+      "committed_before_due_inr": 0,
+      "committed_note": "",
+      "loans": []
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { AffordabilityRules, BillLine, FinancialProfile, LenderOffer } from './fixtures';
+import type { AffordabilityRules, BillLine, FinancialProfile, LenderOffer, LoanAccount, LoanContext } from './fixtures';
 import type {
   Decision,
   EventType,
@@ -667,6 +667,269 @@ export function computeUpiDecision(input: UpiDecisionInput): Decision {
     recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
     explanation: explain(options),
     warnings: signals.length ? [`Fraud signals: ${signals.join(', ')}.`] : [],
+    requires_verification: !gate.passed,
+    commission_considered: false,
+    weights: { ...SCORE_WEIGHTS },
+  };
+}
+
+const daysBetween = (from: string, to: string): number =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+const addDays = (date: string, days: number): string =>
+  new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+export interface EmiDecisionInput {
+  caseId: string;
+  urgency: Urgency;
+  loan: LoanAccount;
+  context: Omit<LoanContext, 'loans'>;
+  profile: FinancialProfile;
+  bridgeOffer: LenderOffer | null;
+  rules: AffordabilityRules;
+  lender: string;
+  playbook: Playbook | null;
+}
+
+export function calculateEmiShortfall(input: { emi_inr: number; account_balance_inr: number; committed_before_due_inr: number }) {
+  const values = [input.emi_inr, input.account_balance_inr, input.committed_before_due_inr];
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) throw new Error('EMI inputs must be non-negative numbers.');
+  const availableBeforeDue = Math.max(input.account_balance_inr - input.committed_before_due_inr, 0);
+  return {
+    emi_inr: input.emi_inr,
+    available_before_due_inr: availableBeforeDue,
+    shortfall_inr: Math.max(input.emi_inr - availableBeforeDue, 0),
+    formula: 'max(emi - max(account_balance - committed_before_due, 0), 0)',
+  };
+}
+
+export function computeEmiDecision(input: EmiDecisionInput): Decision {
+  const { loan, context, profile } = input;
+  const shortfall = calculateEmiShortfall({
+    emi_inr: loan.emi_inr,
+    account_balance_inr: profile.account_balance_inr,
+    committed_before_due_inr: context.committed_before_due_inr,
+  });
+  const gap = shortfall.shortfall_inr;
+  const loanSource = { type: 'loan_account' as const, ref: loan.loan_id, document: input.lender };
+  const salaryDelayDays = Math.max(daysBetween(loan.next_due_date, context.salary.expected_date), 0);
+  const facts: Fact[] = [
+    { name: 'emi_inr', label: `${loan.product} EMI`, value: loan.emi_inr, unit: 'INR', source: loanSource, confidence: 0.99 },
+    { name: 'next_due_date', label: 'EMI due date', value: loan.next_due_date, source: loanSource, confidence: 0.99 },
+    {
+      name: 'account_balance_inr',
+      label: 'Account balance',
+      value: profile.account_balance_inr,
+      unit: 'INR',
+      source: { type: 'customer_profile', ref: profile.profile_id, document: profile.source },
+      confidence: 0.95,
+    },
+    {
+      name: 'committed_before_due_inr',
+      label: 'Already committed before the due date',
+      value: context.committed_before_due_inr,
+      unit: 'INR',
+      source: { type: 'customer_profile', ref: context.committed_note || 'Scheduled payments', document: profile.source },
+      confidence: 0.9,
+    },
+    {
+      name: 'salary_expected_date',
+      label: `Salary expected (${context.salary.status})`,
+      value: context.salary.expected_date,
+      source: { type: 'salary_schedule', ref: context.salary.source },
+      confidence: 0.8,
+    },
+    {
+      name: 'shortfall_inr',
+      label: 'EMI shortfall',
+      value: gap,
+      unit: 'INR',
+      source: { type: 'calculation', ref: shortfall.formula },
+      confidence: 0.95,
+    },
+  ];
+  const gate = confidenceGate(facts, { required: false });
+
+  if (gap === 0) {
+    const options = rankOptions([
+      {
+        option_id: 'pay_on_time',
+        title: 'Pay the EMI on time',
+        summary: `Your available balance of ${formatInr(shortfall.available_before_due_inr)} covers the ${formatInr(loan.emi_inr)} EMI.`,
+        steps: ['Keep the balance in your account until the due date'],
+        metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 0, risk: 'low' },
+        guardrails: [{ rule: 'Balance covers the EMI', passed: true, blocking: true, detail: 'No shortfall this month.' }],
+        trade_offs: ['Nothing to do; no new cost or credit.'],
+        writes: [],
+        handoff: false,
+        self_serve: true,
+      },
+      humanSupportDraft(input.urgency),
+    ]);
+    return {
+      formula_version: FORMULA_VERSION,
+      computed_at: new Date().toISOString(),
+      event_type: 'emi_shortfall',
+      calculation: null,
+      facts,
+      options,
+      recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
+      explanation: `There is no shortfall: ${formatInr(shortfall.available_before_due_inr)} is available for the ${formatInr(loan.emi_inr)} EMI.`,
+      warnings: [],
+      requires_verification: false,
+      commission_considered: false,
+      weights: { ...SCORE_WEIGHTS },
+    };
+  }
+
+  const lateDays = salaryDelayDays;
+  const bounceCost = loan.bounce_charge_inr + loan.late_fee_inr_per_day * lateDays;
+  const requestedDate = addDays(context.salary.expected_date, 1);
+  const shiftDays = daysBetween(loan.next_due_date, requestedDate);
+  const drafts: OptionDraft[] = [
+    {
+      option_id: 'shift_due_date',
+      title: 'Move the EMI date past payday',
+      summary: `Ask the lender to move the ${formatInr(loan.emi_inr)} EMI from ${loan.next_due_date} to ${requestedDate}, the day after your salary arrives.`,
+      steps: [`Approve the due-date request (${formatInr(loan.due_date_shift.fee_inr)} fee)`, 'Pay the EMI after your salary is credited'],
+      metrics: { borrow_inr: 0, extra_cost_inr: loan.due_date_shift.fee_inr, monthly_emi_inr: 0, time_to_funds_days: 1, effort_steps: 1, risk: 'low' },
+      guardrails: [
+        gate,
+        {
+          rule: 'Lender allows a due-date change',
+          passed: loan.due_date_shift.allowed,
+          blocking: true,
+          detail: loan.due_date_shift.allowed
+            ? `Up to ${loan.due_date_shift.max_days} days for ${formatInr(loan.due_date_shift.fee_inr)}.`
+            : 'This loan does not allow due-date changes.',
+        },
+        {
+          rule: 'Salary arrives inside the allowed shift',
+          passed: shiftDays <= loan.due_date_shift.max_days,
+          blocking: true,
+          detail: `Salary is expected ${salaryDelayDays} day(s) after the due date; the request needs ${shiftDays} of the ${loan.due_date_shift.max_days} allowed days.`,
+        },
+      ],
+      trade_offs: ['No new credit and no bounce on your record.', 'Depends on the lender approving the request (simulated).'],
+      writes: [
+        {
+          tool: 'lending.request_due_date_change',
+          partner: input.lender,
+          amount_inr: loan.due_date_shift.fee_inr,
+          summary: `Move EMI on ${loan.loan_id} from ${loan.next_due_date} to ${requestedDate}`,
+          input: {
+            case_id: input.caseId,
+            loan_id: loan.loan_id,
+            current_due_date: loan.next_due_date,
+            requested_due_date: requestedDate,
+            fee_inr: loan.due_date_shift.fee_inr,
+          },
+        },
+      ],
+      handoff: false,
+      self_serve: false,
+    },
+  ];
+
+  const savingsAfter = profile.emergency_savings_inr - gap;
+  const keepsBuffer = savingsAfter >= profile.minimum_emergency_buffer_inr;
+  drafts.push({
+    option_id: 'use_savings',
+    title: `Cover the ${formatInr(gap)} from savings`,
+    summary: `Move ${formatInr(gap)} from emergency savings to pay the EMI on time.`,
+    steps: [`Transfer ${formatInr(gap)} from savings before ${loan.next_due_date}`],
+    metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 1, risk: keepsBuffer ? 'low' : 'high' },
+    guardrails: [
+      {
+        rule: 'Savings cover the shortfall',
+        passed: profile.emergency_savings_inr >= gap,
+        blocking: true,
+        detail: `Emergency savings are ${formatInr(profile.emergency_savings_inr)}; the shortfall is ${formatInr(gap)}.`,
+      },
+      {
+        rule: 'Emergency buffer protected',
+        passed: keepsBuffer,
+        blocking: false,
+        detail: `Savings would fall to ${formatInr(Math.max(savingsAfter, 0))} against a ${formatInr(profile.minimum_emergency_buffer_inr)} buffer, in a month when salary is late.`,
+      },
+    ],
+    trade_offs: ['No fees or credit.', keepsBuffer ? 'Your emergency buffer stays intact.' : 'It drains your emergency buffer while salary is delayed.'],
+    writes: [],
+    handoff: false,
+    self_serve: true,
+  });
+
+  if (input.bridgeOffer && gap >= input.bridgeOffer.min_amount_inr && gap <= input.bridgeOffer.max_amount_inr) {
+    const offer = input.bridgeOffer;
+    const emi = calculateEmi(gap, offer.annual_rate_pct, offer.tenure_months);
+    const fee = Math.round((gap * offer.processing_fee_pct) / 100);
+    const affordability = checkAffordability(profile, emi.emi_inr, input.rules);
+    drafts.push({
+      option_id: 'bridge_loan',
+      title: `Borrow only the ${formatInr(gap)} shortfall`,
+      summary: `A ${offer.tenure_months}-month bridge of ${formatInr(gap)}, repaid as ${formatInr(emi.emi_inr)} after payday.`,
+      steps: [`Approve the ${formatInr(gap)} bridge`, 'Pay the EMI on time', `Repay ${formatInr(emi.emi_inr)} next month`],
+      metrics: {
+        borrow_inr: gap,
+        extra_cost_inr: emi.total_interest_inr + fee,
+        monthly_emi_inr: emi.emi_inr,
+        time_to_funds_days: offer.disbursal_days,
+        effort_steps: 2,
+        risk: 'medium',
+      },
+      guardrails: [
+        gate,
+        { rule: 'Affordability', passed: affordability.affordable, blocking: true, detail: affordability.detail },
+        { rule: 'Exact-gap borrowing', passed: true, blocking: true, detail: `Borrows only the ${formatInr(gap)} shortfall, not the whole EMI.` },
+      ],
+      trade_offs: [`Costs ${formatInr(emi.total_interest_inr + fee)} in interest and fees.`, 'Adds a new credit line for one month.'],
+      writes: [
+        {
+          tool: 'lending.submit_application',
+          partner: input.lender,
+          amount_inr: gap,
+          summary: `Apply for a ${formatInr(gap)} ${offer.product}`,
+          input: { case_id: input.caseId, offer_id: offer.offer_id, amount_inr: gap, tenure_months: offer.tenure_months, disburse_to: offer.disburse_to },
+        },
+      ],
+      handoff: false,
+      self_serve: false,
+    });
+  }
+
+  drafts.push({
+    option_id: 'let_it_bounce',
+    title: 'Let the EMI bounce',
+    summary: `Pay after salary arrives and accept the bounce charge and late fees.`,
+    steps: [],
+    metrics: { borrow_inr: 0, extra_cost_inr: bounceCost, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 0, risk: 'high' },
+    guardrails: [
+      {
+        rule: 'Credit record protected',
+        passed: false,
+        blocking: false,
+        detail: `A bounce costs about ${formatInr(bounceCost)} (${formatInr(loan.bounce_charge_inr)} charge + ${lateDays} day(s) late fee) and can be reported to credit bureaus.`,
+      },
+    ],
+    trade_offs: ['No action now, but the most expensive path with credit-record risk.'],
+    writes: [],
+    handoff: false,
+    self_serve: true,
+  });
+  // A specialist callback does not fund the EMI, so waiting is time-critical before the due date.
+  drafts.push(humanSupportDraft('high', `The EMI is due ${loan.next_due_date}; the shortfall stays open until a specialist responds.`));
+
+  const options = rankOptions(drafts);
+  return {
+    formula_version: FORMULA_VERSION,
+    computed_at: new Date().toISOString(),
+    event_type: 'emi_shortfall',
+    calculation: null,
+    facts,
+    options,
+    recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
+    explanation: `EMI ${formatInr(loan.emi_inr)} - ${formatInr(shortfall.available_before_due_inr)} available before ${loan.next_due_date} = ${formatInr(gap)} shortfall. ${explain(options)}`,
+    warnings: context.salary.status === 'delayed' ? [`Salary is delayed to ${context.salary.expected_date}.`] : [],
     requires_verification: !gate.passed,
     commission_considered: false,
     weights: { ...SCORE_WEIGHTS },

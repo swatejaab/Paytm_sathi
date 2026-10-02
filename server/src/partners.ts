@@ -92,6 +92,11 @@ function mockMessages(action: CaseAction, request: PartnerRequest): { acknowledg
         acknowledged: `Lender received the ${formatInr(request.amount_inr)} application`,
         completed: `Lender approved and paid ${formatInr(request.amount_inr)} to the ${String(input.disburse_to ?? 'hospital')} (simulated)`,
       };
+    case 'lending.request_due_date_change':
+      return {
+        acknowledged: `Lender received the request to move the EMI to ${String(input.requested_due_date ?? 'the new date')}`,
+        completed: `Lender moved the EMI on ${String(input.loan_id ?? 'the loan')} to ${String(input.requested_due_date ?? 'the new date')} (simulated)`,
+      };
     case 'payments.open_dispute':
       return {
         acknowledged: `Dispute ${request.reference} registered with the payment network`,

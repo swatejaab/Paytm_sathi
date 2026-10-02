@@ -204,6 +204,7 @@ export type AgentNodeId =
   | 'policy_rag'
   | 'bill_auditor'
   | 'transaction_auditor'
+  | 'emi_auditor'
   | 'decision'
   | 'explainer'
   | 'human_review'

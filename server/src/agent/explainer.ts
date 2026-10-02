@@ -30,6 +30,14 @@ export function explainDecision(record: CaseRecord): string {
     );
   }
 
+  const factValue = (name: string) => decision.facts.find((fact) => fact.name === name)?.value;
+  const shortfall = factValue('shortfall_inr');
+  if (hinglish && typeof shortfall === 'number' && shortfall > 0) {
+    parts.push(
+      `EMI ${formatInr(Number(factValue('emi_inr')))} hai, due date ${String(factValue('next_due_date'))} se pehle ${formatInr(Number(factValue('account_balance_inr')) - Number(factValue('committed_before_due_inr')))} available hai, toh ${formatInr(shortfall)} kam pad rahe hain.`,
+    );
+  }
+
   if (hinglish) {
     if (best) {
       parts.push(`Sabse accha raasta: ${best.title} (${best.scores.total}/100). ${best.summary}`);

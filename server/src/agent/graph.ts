@@ -1,7 +1,9 @@
 import { Annotation, END, START, StateGraph, type LangGraphRunnableConfig } from '@langchain/langgraph';
 import { addMessage, addTimeline, EVENT_LABELS, hasConsent, supersedePendingActions } from '../caseStore';
 import {
+  calculateEmiShortfall,
   classifyEvent,
+  computeEmiDecision,
   computeHospitalDecision,
   computeHumanOnlyDecision,
   computeUpiDecision,
@@ -9,7 +11,15 @@ import {
   parseStatedAmount,
 } from '../decision';
 import { sampleHospitalDocuments } from '../documents';
-import { fixtures, PARTNERS, type AffordabilityRules, type FinancialProfile, type LenderOffer, type SampleDocuments } from '../fixtures';
+import {
+  fixtures,
+  PARTNERS,
+  type AffordabilityRules,
+  type FinancialProfile,
+  type LenderOffer,
+  type LoanContext,
+  type SampleDocuments,
+} from '../fixtures';
 import { GatewayError } from '../mcp/errors';
 import { invokeTool } from '../mcp/gateway';
 import { recordAudit } from '../db';
@@ -38,6 +48,7 @@ interface Gathered {
   coverage?: Coverage;
   playbook?: Playbook | null;
   transaction?: Transaction;
+  loans?: LoanContext;
 }
 
 const AgentState = Annotation.Root({
@@ -246,6 +257,69 @@ const transactionAuditor = node('transaction_auditor', (state, context) => {
   };
 });
 
+const emiAuditor = node('emi_auditor', (state, context) => {
+  const { record } = context;
+  const loans = callTool<LoanContext>(context, 'lending.get_loans');
+  const loan = loans.loans[0];
+  const playbook = state.gathered.playbook ?? null;
+  record.evidence = {
+    demo_only: true,
+    documents: [],
+    retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
+    missing_documents: [],
+    playbook,
+    notice: 'Synthetic loan account, salary schedule, and playbook; lender outcomes are simulated.',
+  };
+  addTimeline(record, {
+    status: 'evidence_ready',
+    title: 'Evidence gathered',
+    detail: loan
+      ? `${loan.product} ${loan.loan_id}: EMI ${formatInr(loan.emi_inr)} due ${loan.next_due_date}; salary ${loans.salary.status}, expected ${loans.salary.expected_date}.`
+      : 'No active loan or EMI on record.',
+    actor: 'saathi',
+  });
+  return {
+    update: { gathered: { loans } },
+    summary: loan
+      ? `EMI ${formatInr(loan.emi_inr)} due ${loan.next_due_date}; ${formatInr(loans.committed_before_due_inr)} already committed; salary ${loans.salary.status} to ${loans.salary.expected_date}.`
+      : 'No active EMI found.',
+  };
+});
+
+function emiDecision(state: State, context: RunContext): string {
+  const { record } = context;
+  const loans = state.gathered.loans ?? callTool<LoanContext>(context, 'lending.get_loans');
+  const loan = loans.loans[0];
+  const playbook = state.gathered.playbook ?? null;
+  if (!loan) {
+    record.decision = computeHumanOnlyDecision({ eventType: record.event_type, urgency: record.urgency, playbook });
+    record.decision.explanation = 'I could not find an active loan or EMI on your account, so a specialist will continue from your passport.';
+    return 'No active EMI; specialist route';
+  }
+  const profile = state.gathered.profile ?? callTool<FinancialProfile>(context, 'payments.get_balance');
+  const { shortfall_inr: shortfall } = calculateEmiShortfall({
+    emi_inr: loan.emi_inr,
+    account_balance_inr: profile.account_balance_inr,
+    committed_before_due_inr: loans.committed_before_due_inr,
+  });
+  const offerSet = shortfall > 0
+    ? callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: shortfall })
+    : null;
+  const { loans: _loans, ...loanContext } = loans;
+  record.decision = computeEmiDecision({
+    caseId: record.case_id,
+    urgency: record.urgency,
+    loan,
+    context: loanContext,
+    profile,
+    bridgeOffer: offerSet?.offers.find((offer) => offer.kind === 'bridge') ?? null,
+    rules: offerSet?.rules ?? fixtures.lending.affordability_rules,
+    lender: fixtures.loans.partner,
+    playbook,
+  });
+  return `Formula ${record.decision.formula_version}; shortfall ${formatInr(shortfall)}`;
+}
+
 function hospitalDecision(state: State, context: RunContext): string {
   const { record } = context;
   const bill = state.gathered.bill ?? callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
@@ -298,6 +372,8 @@ const decision = node('decision', (state, context) => {
       paymentsPartner: PARTNERS.payments,
     });
     detail = `Formula ${record.decision.formula_version}`;
+  } else if (record.event_type === 'emi_shortfall') {
+    detail = emiDecision(state, context);
   } else {
     const playbook = state.gathered.playbook ?? null;
     record.evidence = {
@@ -349,6 +425,7 @@ const graph = new StateGraph(AgentState)
   .addNode('policy_rag', policyRag)
   .addNode('bill_auditor', billAuditor)
   .addNode('transaction_auditor', transactionAuditor)
+  .addNode('emi_auditor', emiAuditor)
   .addNode('decision', decision)
   .addNode('explainer', explainer)
   .addNode('human_review', humanReview)
@@ -372,9 +449,14 @@ const graph = new StateGraph(AgentState)
   )
   .addConditionalEdges(
     'policy_rag',
-    (state, config) => (failed(state) ? 'human_review' : contextOf(config).record.event_type === 'hospitalization' ? 'bill_auditor' : 'decision'),
-    ['human_review', 'bill_auditor', 'decision'],
+    (state, config) => {
+      if (failed(state)) return 'human_review';
+      const eventType = contextOf(config).record.event_type;
+      return eventType === 'hospitalization' ? 'bill_auditor' : eventType === 'emi_shortfall' ? 'emi_auditor' : 'decision';
+    },
+    ['human_review', 'bill_auditor', 'emi_auditor', 'decision'],
   )
+  .addConditionalEdges('emi_auditor', (state) => (failed(state) ? 'human_review' : 'decision'), ['human_review', 'decision'])
   .addConditionalEdges('bill_auditor', (state) => (failed(state) ? 'human_review' : 'decision'), ['human_review', 'decision'])
   .addConditionalEdges(
     'transaction_auditor',

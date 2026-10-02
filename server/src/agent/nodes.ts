@@ -48,6 +48,12 @@ export const AGENT_NODES: AgentNodeInfo[] = [
     decides_money: 'No. Extracts structured facts.',
   },
   {
+    id: 'emi_auditor',
+    label: 'EMI auditor',
+    responsibility: 'Load the loan, due date, and salary schedule; check what is committed before the EMI date.',
+    decides_money: 'No. Extracts structured facts.',
+  },
+  {
     id: 'decision',
     label: 'Decision service',
     responsibility: 'Deterministic coverage, exact gap, affordability, guardrails, and option scoring.',

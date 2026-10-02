@@ -66,7 +66,7 @@ export interface FinancialProfile {
 
 export interface LenderOffer {
   offer_id: string;
-  kind: 'exact_gap' | 'personal';
+  kind: 'exact_gap' | 'personal' | 'bridge';
   product: string;
   annual_rate_pct: number;
   tenure_months: number;
@@ -75,6 +75,24 @@ export interface LenderOffer {
   max_amount_inr: number;
   disbursal_days: number;
   disburse_to: 'hospital' | 'customer';
+}
+
+export interface LoanAccount {
+  loan_id: string;
+  product: string;
+  emi_inr: number;
+  next_due_date: string;
+  outstanding_principal_inr: number;
+  due_date_shift: { allowed: boolean; max_days: number; fee_inr: number };
+  bounce_charge_inr: number;
+  late_fee_inr_per_day: number;
+}
+
+export interface LoanContext {
+  salary: { source: string; usual_credit_day: number; expected_date: string; amount_inr: number; status: 'credited' | 'delayed' };
+  committed_before_due_inr: number;
+  committed_note: string;
+  loans: LoanAccount[];
 }
 
 export interface AffordabilityRules {
@@ -95,6 +113,7 @@ export const fixtures = {
   ),
   payments: readJson<{ partner: string; accounts: Record<string, { transactions: Transaction[] }> }>('payments.json'),
   playbooks: readJson<{ playbooks: Playbook[] }>('playbooks.json').playbooks,
+  loans: readJson<{ partner: string; accounts: Record<string, LoanContext> }>('loans.json'),
 };
 
 export const PARTNERS = {

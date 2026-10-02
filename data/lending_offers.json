@@ -29,6 +29,18 @@
       "max_amount_inr": 300000,
       "disbursal_days": 1,
       "disburse_to": "hospital"
+    },
+    {
+      "offer_id": "OFFER-BRIDGE-1M",
+      "kind": "bridge",
+      "product": "One-month EMI bridge",
+      "annual_rate_pct": 16,
+      "tenure_months": 1,
+      "processing_fee_pct": 1,
+      "min_amount_inr": 2000,
+      "max_amount_inr": 25000,
+      "disbursal_days": 0,
+      "disburse_to": "customer"
     }
   ]
 }

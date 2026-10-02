@@ -242,6 +242,21 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       checkAffordability(profileFor(caseRecord.customer_id), input.monthly_emi_inr, fixtures.lending.affordability_rules),
   },
   {
+    name: 'lending.get_loans',
+    server: 'lender',
+    kind: 'read',
+    scope: 'case:read',
+    consent: READ_CONSENT,
+    description: 'Return active loans, upcoming EMIs, and the salary schedule for the case owner.',
+    fixture: 'loans.json',
+    input: caseOnly,
+    handler: ({ caseRecord }) => {
+      const account = fixtures.loans.accounts[caseRecord.customer_id];
+      if (!account) throw new GatewayError('not_found', 'No synthetic loan account exists for this customer.');
+      return account;
+    },
+  },
+  {
     name: 'knowledge.search_policy',
     server: 'knowledge',
     kind: 'read',
@@ -330,6 +345,31 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       })
       .strict(),
     handler: () => submitted('APP', PARTNERS.lender),
+  },
+  {
+    name: 'lending.request_due_date_change',
+    server: 'lender',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Ask the (simulated) lender to move an EMI due date.',
+    fixture: 'simulated lender adapter (Mochatrade placeholder)',
+    input: z
+      .object({
+        case_id: caseId,
+        loan_id: z.string().min(3).max(40),
+        current_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        requested_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        fee_inr: inr,
+      })
+      .strict(),
+    handler: ({ caseRecord }, input: { loan_id: string; current_due_date: string; requested_due_date: string; fee_inr: number }) => {
+      const loan = fixtures.loans.accounts[caseRecord.customer_id]?.loans.find((candidate) => candidate.loan_id === input.loan_id);
+      if (!loan || loan.next_due_date !== input.current_due_date || loan.due_date_shift.fee_inr !== input.fee_inr) {
+        throw new GatewayError('invalid_input', 'The due-date request must match the customer loan and its published fee.');
+      }
+      return submitted('DDC', PARTNERS.lender);
+    },
   },
   {
     name: 'payments.open_dispute',
