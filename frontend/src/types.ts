@@ -197,11 +197,53 @@ export interface AiAnalysis {
   model?: string;
 }
 
+export type AgentNodeId =
+  | 'classifier'
+  | 'consent_gate'
+  | 'context_retriever'
+  | 'policy_rag'
+  | 'bill_auditor'
+  | 'transaction_auditor'
+  | 'decision'
+  | 'explainer'
+  | 'human_review'
+  | 'action_preparer'
+  | 'action_tracker';
+
+export interface AgentStep {
+  node: AgentNodeId;
+  label: string;
+  status: 'ok' | 'error' | 'paused';
+  started_at: string;
+  duration_ms: number;
+  summary: string;
+  tools: string[];
+}
+
+export interface AgentRun {
+  run_id: string;
+  trigger: string;
+  graph: string;
+  started_at: string;
+  finished_at: string | null;
+  outcome: string;
+  steps: AgentStep[];
+}
+
+export interface AgentNodeInfo {
+  id: AgentNodeId;
+  label: string;
+  responsibility: string;
+  decides_money: string;
+}
+
 export interface CaseRecord {
   case_id: string;
   customer_id: string;
   event_type: EventType;
   urgency: 'high' | 'medium' | 'low';
+  language?: 'en' | 'hinglish';
+  agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;
   created_at: string;

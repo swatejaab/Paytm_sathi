@@ -269,11 +269,56 @@ export interface ResolutionPassport {
   notice: string;
 }
 
+export type Language = 'en' | 'hinglish';
+
+export type AgentNodeId =
+  | 'classifier'
+  | 'consent_gate'
+  | 'context_retriever'
+  | 'policy_rag'
+  | 'bill_auditor'
+  | 'transaction_auditor'
+  | 'decision'
+  | 'explainer'
+  | 'human_review'
+  | 'action_preparer'
+  | 'action_tracker';
+
+export type AgentTrigger =
+  | 'intake'
+  | 'consent_granted'
+  | 'transaction_confirmed'
+  | 'documents_updated'
+  | 'action_prepared'
+  | 'action_approved';
+
+export interface AgentStep {
+  node: AgentNodeId;
+  label: string;
+  status: 'ok' | 'error' | 'paused';
+  started_at: string;
+  duration_ms: number;
+  summary: string;
+  tools: string[];
+}
+
+export interface AgentRun {
+  run_id: string;
+  trigger: AgentTrigger;
+  graph: string;
+  started_at: string;
+  finished_at: string | null;
+  outcome: string;
+  steps: AgentStep[];
+}
+
 export interface CaseRecord {
   case_id: string;
   customer_id: string;
   event_type: EventType;
   urgency: Urgency;
+  language?: Language;
+  agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;
   assistant_message: string;

@@ -1,4 +1,5 @@
 import type {
+  AgentNodeInfo,
   AuditEvent,
   CaseRecord,
   CaseSummary,
@@ -100,6 +101,7 @@ export const api = {
   passport: (caseId: string) => request<Passport>(`/api/cases/${caseId}/passport`),
   audit: (caseId: string) => request<{ events: AuditEvent[] }>(`/api/cases/${caseId}/audit`),
   tools: () => request<{ tools: ToolInfo[] }>('/api/mcp/tools'),
+  agentGraph: () => request<{ graph: string; engine: string; nodes: AgentNodeInfo[] }>('/api/agent/graph'),
   evidence: (caseId: string) => request<EvidenceResponse>(`/api/cases/${caseId}/evidence`),
   uploadDocument: (caseId: string, documentType: 'bill' | 'policy', file: File) => {
     const form = new FormData();

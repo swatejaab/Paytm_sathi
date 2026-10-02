@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { EVENT_LABELS, STATUS_FLOW, STATUS_LABELS } from '../format';
 import type { CaseRecord, IntegrationStatus } from '../types';
+import { AgentView } from './AgentView';
 import { AuditView } from './AuditView';
 import { EvidenceView } from './EvidenceView';
 import { PassportView } from './PassportView';
 import { PlanView } from './PlanView';
 import { TimelineView } from './TimelineView';
 
-type Tab = 'plan' | 'evidence' | 'timeline' | 'passport' | 'audit';
+type Tab = 'plan' | 'evidence' | 'agents' | 'timeline' | 'passport' | 'audit';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'plan', label: 'Plan' },
   { id: 'evidence', label: 'Evidence' },
+  { id: 'agents', label: 'Agents' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'passport', label: 'Passport' },
   { id: 'audit', label: 'Trust ledger' },
@@ -162,6 +164,7 @@ export function CasePanel({ caseRecord, onChange, integrations, readOnly }: Prop
         {tab === 'evidence' && (
           <EvidenceView caseRecord={caseRecord} integrations={integrations} readOnly={readOnly} busy={busy} run={run} />
         )}
+        {tab === 'agents' && <AgentView caseRecord={caseRecord} />}
         {tab === 'timeline' && <TimelineView caseRecord={caseRecord} />}
         {tab === 'passport' && <PassportView caseRecord={caseRecord} />}
         {tab === 'audit' && <AuditView caseRecord={caseRecord} />}

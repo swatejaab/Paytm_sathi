@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { traceStandalone } from './agent/trace';
 import { signApprovalToken } from './auth';
 import { addMessage, addTimeline, hasConsent, loadCaseForOwner, newId, supersedePendingActions } from './caseStore';
 import { nowIso, recordAudit, updateCase } from './db';
@@ -66,6 +67,12 @@ export function prepareAction(principal: Principal, caseId: string, optionId: st
       : `Waiting for your approval of ${payload.steps.length} partner step(s).`,
     actor: 'saathi',
   });
+  traceStandalone(
+    record,
+    'action_prepared',
+    'action_preparer',
+    `Prepared ${payload.steps.length} step(s) for "${option.title}"; payload ${action.payload_hash.slice(0, 12)} awaits approval.`,
+  );
   recordAudit({
     case_id: record.case_id,
     actor: principal.sub,
@@ -158,6 +165,13 @@ export function approveAction(
     });
   }
   action.status = 'in_progress';
+  traceStandalone(
+    record,
+    'action_approved',
+    'action_tracker',
+    `Gateway verified approval token and payload hash; ${action.partner_requests.length} write(s) submitted.`,
+    action.partner_requests.map((request) => request.tool),
+  );
   const total = action.payload.steps.reduce((sum, step) => sum + step.amount_inr, 0);
   addTimeline(record, {
     status: 'in_progress',

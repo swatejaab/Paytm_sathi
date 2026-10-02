@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { getPrincipal, requireAuth } from '../auth';
-import { addTimeline, hasConsent, loadCaseForOwner, loadCaseForRead, newId } from '../caseStore';
+import { addTimeline, loadCaseForOwner, loadCaseForRead, newId } from '../caseStore';
 import { settings } from '../config';
 import { nowIso, recordAudit, updateCase } from '../db';
 import {
@@ -22,9 +22,8 @@ import {
   transcribeWithSarvam,
   type AnalysisEvidence,
 } from '../integrations';
-import { GatewayError } from '../mcp/errors';
 import type { CaseRecord, UploadedDocument } from '../types';
-import { decideHospital } from '../workflow';
+import { redecideAfterDocuments } from '../workflow';
 
 export const evidenceRouter = Router();
 
@@ -150,13 +149,7 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length },
   });
 
-  if (record.event_type === 'hospitalization' && record.decision && hasConsent(record, 'prepare_resolution_options')) {
-    try {
-      decideHospital(record, principal);
-    } catch (error) {
-      if (!(error instanceof GatewayError)) throw error;
-    }
-  }
+  await redecideAfterDocuments(principal, record);
   updateCase(record);
 
   res.status(201).json({

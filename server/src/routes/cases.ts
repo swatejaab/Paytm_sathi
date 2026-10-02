@@ -37,9 +37,9 @@ function summarize(record: CaseRecord) {
   };
 }
 
-caseRouter.post('/cases/intake', requireAuth('case:create'), (req, res) => {
+caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(intakeSchema, req.body);
-  res.status(201).json(createCase(getPrincipal(req), body.message, body.consent_to_read_case_data));
+  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data));
 });
 
 caseRouter.get('/cases', requireAuth('case:read'), (req, res) => {
@@ -65,14 +65,14 @@ caseRouter.get('/cases/:caseId/audit', requireAuth('case:read', 'case:read:any')
   res.json({ case_id: record.case_id, events: listAudit(record.case_id) });
 });
 
-caseRouter.post('/cases/:caseId/consents', requireAuth('consent:manage'), (req, res) => {
+caseRouter.post('/cases/:caseId/consents', requireAuth('consent:manage'), async (req, res) => {
   const body = parseBody(consentSchema, req.body);
-  res.json(setConsent(getPrincipal(req), String(req.params.caseId), body.granted));
+  res.json(await setConsent(getPrincipal(req), String(req.params.caseId), body.granted));
 });
 
-caseRouter.post('/cases/:caseId/transaction-confirmation', requireAuth('case:read'), (req, res) => {
+caseRouter.post('/cases/:caseId/transaction-confirmation', requireAuth('case:read'), async (req, res) => {
   const body = parseBody(confirmationSchema, req.body);
-  res.json(confirmTransaction(getPrincipal(req), String(req.params.caseId), body.transaction_id, body.recognized));
+  res.json(await confirmTransaction(getPrincipal(req), String(req.params.caseId), body.transaction_id, body.recognized));
 });
 
 caseRouter.post('/cases/:caseId/handoff', requireAuth('case:read'), (req, res) => {

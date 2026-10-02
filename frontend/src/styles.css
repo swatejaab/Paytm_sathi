@@ -315,3 +315,18 @@ pre { white-space: pre-wrap; font-size: 12px; background: #f6f9fc; padding: 10px
   .passport-grid { grid-template-columns: 1fr; }
   .workspace, .login { padding: 16px; }
 }
+
+/* Agent graph runs */
+.agent-runs { list-style: none; margin: 10px 0 0; padding: 0; }
+.agent-run { padding: 0; overflow: hidden; }
+.agent-run-head { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: inherit; }
+.agent-run-head:hover { background: var(--cyan-soft); }
+.agent-steps { list-style: none; margin: 0; padding: 4px 14px 12px; border-top: 1px solid var(--line); }
+.agent-step { display: flex; gap: 12px; position: relative; padding: 10px 0 0; }
+.agent-step:not(:last-child)::before { content: ""; position: absolute; left: 6px; top: 26px; bottom: -10px; width: 2px; background: var(--line); }
+.agent-step-dot { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; background: var(--green); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); z-index: 1; }
+.agent-step-paused .agent-step-dot { background: var(--amber); }
+.agent-step-error .agent-step-dot { background: var(--red); }
+.agent-step-body { flex: 1; min-width: 0; }
+.agent-step-body p { margin: 2px 0 6px; }
+.tool-chip { padding: 1px 7px; border-radius: 6px; background: #eef3f9; color: var(--navy); font-size: 11.5px; }

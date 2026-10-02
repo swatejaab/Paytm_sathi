@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth';
 import { n8nConfigured, openaiAvailable, sarvamAvailable, settings } from '../config';
+import { graphMermaid } from '../agent/graph';
+import { AGENT_NODES, GRAPH_VERSION } from '../agent/nodes';
 import { listToolCatalog } from '../mcp/tools';
 
 export const systemRouter = Router();
@@ -22,4 +24,8 @@ systemRouter.get('/integrations/status', (_req, res) => {
 
 systemRouter.get('/mcp/tools', requireAuth('tools:list'), (_req, res) => {
   res.json({ tools: listToolCatalog() });
+});
+
+systemRouter.get('/agent/graph', requireAuth('tools:list'), (_req, res) => {
+  res.json({ graph: GRAPH_VERSION, engine: 'langgraph.js', nodes: AGENT_NODES, mermaid: graphMermaid() });
 });
