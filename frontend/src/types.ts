@@ -8,7 +8,7 @@ export type CaseStatus =
   | 'in_progress'
   | 'resolved'
   | 'human_review';
-export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'general_financial_support';
+export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'protection' | 'general_financial_support';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 export interface SessionUser {

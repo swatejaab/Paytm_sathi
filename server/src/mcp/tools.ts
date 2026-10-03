@@ -3,6 +3,7 @@ import { hasConsent, newId } from '../caseStore';
 import { assessCoverage, type CoverageBillLine } from '../coverage';
 import { SCORE_ACTIONS, scoreReport, simulateAction, type ScoreAction } from '../credit';
 import { calculateEmi, checkAffordability } from '../decision';
+import { householdContext, termPremium } from '../insurance';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
 import { fixtures, PARTNERS } from '../fixtures';
@@ -444,7 +445,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z
       .object({
         case_id: caseId,
-        event_type: z.enum(['hospitalization', 'upi_dispute', 'emi_shortfall', 'failed_refund', 'general_financial_support']),
+        event_type: z.enum(['hospitalization', 'upi_dispute', 'emi_shortfall', 'failed_refund', 'protection', 'general_financial_support']),
       })
       .strict(),
     handler: (_context, input: { event_type: EventType }) => guidanceFor(input.event_type),
@@ -575,6 +576,32 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     fixture: 'simulated support CRM',
     input: z.object({ case_id: caseId, queue: z.enum(['saathi_specialists']), priority: z.enum(['high', 'medium', 'low']) }).strict(),
     handler: () => submitted('HND', 'Paytm Support CRM (simulated)'),
+  },
+  {
+    name: 'insurer.apply_term_plan',
+    server: 'insurer',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Submit a term life proposal to the (simulated) insurer at the quoted premium.',
+    fixture: 'simulated insurer adapter',
+    input: z
+      .object({
+        case_id: caseId,
+        sum_assured_inr: inr.min(1_000_000).max(50_000_000),
+        term_years: z.number().int().min(10).max(40),
+        annual_premium_inr: inr.positive(),
+      })
+      .strict(),
+    handler: ({ customer_id }, input: { sum_assured_inr: number; annual_premium_inr: number }) => {
+      const household = householdContext(customer_id);
+      if (!household || input.sum_assured_inr % 500_000 !== 0) throw new GatewayError('invalid_input', 'Cover must be in steps of INR 5 lakh.');
+      // The insurer re-quotes independently; the approved premium must match its own rate table.
+      if (termPremium(input.sum_assured_inr, household.age) !== input.annual_premium_inr) {
+        throw new GatewayError('invalid_input', 'The premium does not match the insurer quote. Prepare the plan again.');
+      }
+      return submitted('TRM', PARTNERS.insurer);
+    },
   },
   {
     name: 'payments.raise_refund_trace',

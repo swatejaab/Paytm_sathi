@@ -4,7 +4,7 @@ import { alertsFor, dismissAlert, setAlertsEnabled } from '../alerts';
 import { getPrincipal, requireAuth } from '../auth';
 import { HttpError, parseBody } from '../errors';
 import { assessAffordability, parseIndianAmount, purchaseCategory } from '../afford';
-import { recordAudit } from '../db';
+import { getPreferences, recordAudit, savePreferences, standingConsents } from '../db';
 import { buildForecast } from '../forecast';
 import { SCORE_ACTIONS, type ScoreAction } from '../credit';
 import { invokeAccountTool } from '../mcp/gateway';
@@ -85,4 +85,19 @@ alertRouter.post('/credit/score', requireAuth('case:create'), async (req, res) =
 alertRouter.post('/credit/simulate', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(simulateSchema, req.body);
   res.json(await invokeAccountTool('bureau.simulate_score', { action: body.action }, { principal: getPrincipal(req), consent: true }));
+});
+
+alertRouter.get('/consents', requireAuth('case:create'), (req, res) => {
+  res.json(standingConsents(getPrincipal(req).sub));
+});
+
+const consentPrefsSchema = z.object({ records: z.boolean().optional(), ai: z.boolean().optional(), voice: z.boolean().optional() }).strict();
+
+alertRouter.post('/consents', requireAuth('case:create'), (req, res) => {
+  const body = parseBody(consentPrefsSchema, req.body);
+  const principal = getPrincipal(req);
+  const preferences = getPreferences(principal.sub);
+  savePreferences(principal.sub, { ...preferences, consents: { ...preferences.consents, ...body } });
+  recordAudit({ actor: principal.sub, event: 'standing_consent_updated', detail: body });
+  res.json(standingConsents(principal.sub));
 });

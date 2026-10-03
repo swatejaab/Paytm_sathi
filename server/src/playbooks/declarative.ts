@@ -74,7 +74,7 @@ function buildOption(option: DeclarativeOption, scope: Scope, caseId: string, pa
         ? option.metrics.risk.true
         : option.metrics.risk.false;
   const extraCost =
-    typeof option.metrics.extra_cost_inr === 'number' ? option.metrics.extra_cost_inr : Number(evaluate(option.metrics.extra_cost_inr, scope));
+    typeof option.metrics.extra_cost_inr === 'number' ? option.metrics.extra_cost_inr : Number(evaluate(option.metrics.extra_cost_inr.replace(/^=/, ''), scope));
 
   return {
     option_id: option.id,

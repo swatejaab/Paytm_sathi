@@ -29,6 +29,7 @@ import { translateWithSarvam } from '../integrations';
 import { runDeclarativeDecision } from '../playbooks/declarative';
 import { classifyWithPlaybooks, playbookForCase } from '../playbooks/registry';
 import type { CoverageAssessment } from '../coverage';
+import { householdContext } from '../insurance';
 import { addLocalizedMessage } from './localize';
 import { RunTracer } from './trace';
 
@@ -440,7 +441,7 @@ const decision = node('decision', async (state, context) => {
     record.decision = runDeclarativeDecision(activePlaybook, {
       caseId: record.case_id,
       urgency: record.urgency,
-      context: { transaction: transaction ?? {}, profile: state.gathered.profile ?? {} },
+      context: { transaction: transaction ?? {}, profile: state.gathered.profile ?? {}, household: householdContext(record.customer_id) ?? {} },
       partner: PARTNERS.payments,
     });
     detail = `Declarative playbook ${activePlaybook.id} (${record.decision.formula_version})`;

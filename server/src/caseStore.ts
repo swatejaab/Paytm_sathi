@@ -9,6 +9,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   upi_dispute: 'Unrecognized UPI payment',
   emi_shortfall: 'EMI shortfall',
   failed_refund: 'Failed UPI refund',
+  protection: 'Term life cover',
   general_financial_support: 'General financial support',
 };
 

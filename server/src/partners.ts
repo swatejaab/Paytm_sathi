@@ -97,6 +97,11 @@ function mockMessages(action: CaseAction, request: PartnerRequest): { acknowledg
         acknowledged: `Lender received the request to move the EMI to ${String(input.requested_due_date ?? 'the new date')}`,
         completed: `Lender moved the EMI on ${String(input.loan_id ?? 'the loan')} to ${String(input.requested_due_date ?? 'the new date')} (simulated)`,
       };
+    case 'insurer.apply_term_plan':
+      return {
+        acknowledged: `Insurer received your term proposal ${request.reference}; e-KYC and medicals next`,
+        completed: `Term policy issued: ${formatInr(Number(input.sum_assured_inr ?? 0))} cover for ${String(input.term_years ?? '')} years (simulated)`,
+      };
     case 'payments.create_link':
       return {
         acknowledged: `Paytm payment link ${request.reference} sent for ${formatInr(request.amount_inr)}`,

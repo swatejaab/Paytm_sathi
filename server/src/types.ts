@@ -17,7 +17,7 @@ export type CaseStatus =
   | 'resolved'
   | 'human_review';
 
-export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'general_financial_support';
+export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'protection' | 'general_financial_support';
 export type Urgency = 'high' | 'medium' | 'low';
 export type RiskLevel = 'low' | 'medium' | 'high';
 export type ConsentPurpose = 'prepare_resolution_options';

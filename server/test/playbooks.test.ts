@@ -24,6 +24,7 @@ describe('playbook registry', () => {
       'failed_upi_refund',
       'general_support',
       'hospital_bill',
+      'term_life',
       'upi_fraud',
     ]);
     assert.equal(classifyWithPlaybooks(REFUND_MESSAGE).playbook.id, 'failed_upi_refund');
@@ -110,5 +111,31 @@ describe('playbook registry', () => {
       () => invokeTool('payments.raise_refund_trace', steps[0]!.input, { principal: riya, caseRecord: stored, approval: { token: token2, action } }),
       (error: unknown) => error instanceof GatewayError && /exceeds the regulatory/.test(error.message),
     );
+  });
+});
+
+describe('term life and remembered consent', () => {
+  it('sizes the protection gap and recommends full cover for a family', async () => {
+    const token = await login();
+    const record = await createCase(token, 'I want to buy a term life insurance');
+    assert.equal(record.playbook_id, 'term_life');
+    const facts = Object.fromEntries(record.decision!.facts.map((fact) => [fact.name, fact.value]));
+    assert.deepEqual([facts.gap_inr, facts.recommended_cover_inr, facts.premium_inr], [5884100, 6000000, 6600]);
+    assert.equal(record.decision!.recommended_option_id, 'buy_recommended');
+  });
+
+  it('tells a customer with no dependents that term cover is optional', async () => {
+    const token = await login('demo-customer-02', '1357');
+    const record = await createCase(token, 'Should I buy term life insurance?');
+    assert.equal(record.decision!.recommended_option_id, 'keep_current');
+  });
+
+  it('applies a remembered records consent to new cases', async () => {
+    const token = await login('demo-customer-02', '1357');
+    await api().post('/api/consents').set(bearer(token)).send({ records: true });
+    const record = await createCase(token, 'Papa hospital mein hain. Bill INR 80,000 hai.', false);
+    assert.equal(record.status, 'options_ready');
+    assert.ok(record.timeline.some((entry) => entry.title === 'Consent applied (remembered choice)'));
+    await api().post('/api/consents').set(bearer(token)).send({ records: false });
   });
 });

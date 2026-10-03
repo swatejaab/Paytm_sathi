@@ -8,6 +8,7 @@ const FUNCTIONS: Record<string, (...args: Value[]) => Value> = {
   max: (...args) => Math.max(...args.map(Number)),
   min: (...args) => Math.min(...args.map(Number)),
   round: (value) => Math.round(Number(value)),
+  ceil_to: (value, step) => Math.ceil(Number(value) / Number(step)) * Number(step),
   days_between: (from, to) =>
     Math.round((Date.parse(`${String(to).slice(0, 10)}T00:00:00Z`) - Date.parse(`${String(from).slice(0, 10)}T00:00:00Z`)) / 86_400_000),
 };

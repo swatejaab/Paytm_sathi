@@ -1,6 +1,6 @@
 import { runAgent } from './agent/graph';
 import { addMessage, addTimeline, hasConsent, loadCaseForOwner, newId, supersedePendingActions } from './caseStore';
-import { insertCase, nowIso, recordAudit, updateCase } from './db';
+import { insertCase, nowIso, recordAudit, standingConsents, updateCase } from './db';
 import { HttpError } from './errors';
 import type { CaseRecord, ParsedBillLine, Principal } from './types';
 
@@ -41,17 +41,24 @@ export async function createCase(
   };
   addMessage(record, 'user', record.customer_message);
   insertCase(record);
-  await runAgent(record, principal, 'intake', consentGranted ? { grantConsent: () => grantConsentRecord(record, principal) } : {});
+  // A remembered "records" consent applies to new cases; it is still recorded on this case and revocable.
+  const standing = !consentGranted && standingConsents(principal.sub).records;
+  await runAgent(
+    record,
+    principal,
+    'intake',
+    consentGranted || standing ? { grantConsent: () => grantConsentRecord(record, principal, standing) } : {},
+  );
   updateCase(record);
   return record;
 }
 
-function grantConsentRecord(record: CaseRecord, principal: Principal): void {
+function grantConsentRecord(record: CaseRecord, principal: Principal, standing = false): void {
   record.consents.push({ purpose: READ_CONSENT, status: 'granted', granted_at: nowIso(), revoked_at: null, actor: principal.sub });
-  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'consent_granted', detail: { purpose: READ_CONSENT } });
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'consent_granted', detail: { purpose: READ_CONSENT, standing } });
   addTimeline(record, {
-    title: 'Consent granted',
-    detail: 'Purpose: prepare resolution options. Saathi may read case-relevant synthetic records only.',
+    title: standing ? 'Consent applied (remembered choice)' : 'Consent granted',
+    detail: `Purpose: prepare resolution options. Saathi may read case-relevant synthetic records only.${standing ? ' Turn this off any time in Profile.' : ''}`,
     actor: 'customer',
   });
 }

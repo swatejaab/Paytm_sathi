@@ -11,6 +11,7 @@ interface TwinExtras {
   insurance: { policy: string; kind: string; cover_inr: number; premium_inr: number; renewal_date: string; insurer: string }[];
   goals: { goal: string; target_inr: number; saved_inr: number; target_date: string }[];
   obligations: { title: string; kind: string; amount_inr: number; due_date: string }[];
+  household?: { age: number; dependents: number; note?: string };
 }
 
 const extras = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'twin.json'), 'utf8')) as {
@@ -163,6 +164,7 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
         months_left: months,
       };
     }),
+    household: more.household ?? null,
     notice: 'Synthetic demo data. Saathi reads these records for you; nothing here is shared without your consent.',
   };
 }

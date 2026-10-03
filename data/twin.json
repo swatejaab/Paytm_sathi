@@ -88,7 +88,12 @@
           "amount_inr": 18400,
           "due_date": "2026-10-24"
         }
-      ]
+      ],
+      "household": {
+        "age": 34,
+        "dependents": 3,
+        "note": "Spouse, one child, and one parent depend on Riya's income"
+      }
     },
     "demo-customer-02": {
       "investments": [
@@ -151,7 +156,12 @@
           "amount_inr": 10000,
           "due_date": "2026-10-15"
         }
-      ]
+      ],
+      "household": {
+        "age": 29,
+        "dependents": 0,
+        "note": "Single, no financial dependents"
+      }
     }
   }
 }

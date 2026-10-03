@@ -9,7 +9,7 @@ import type { CaseRecord, EventType, Playbook, Urgency } from '../types';
 // the MCP tools it may use (the gateway grants nothing more), its rules engine, and its actions.
 
 const PLAYBOOK_DIR = path.join(DATA_DIR, 'playbooks');
-const EVENT_TYPES = ['hospitalization', 'upi_dispute', 'emi_shortfall', 'failed_refund', 'general_financial_support'] as const;
+const EVENT_TYPES = ['hospitalization', 'upi_dispute', 'emi_shortfall', 'failed_refund', 'protection', 'general_financial_support'] as const;
 
 const guardSchema = z.object({
   expr: z.string(),

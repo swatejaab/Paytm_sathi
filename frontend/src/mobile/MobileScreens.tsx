@@ -39,6 +39,7 @@ const EVENT_ICON: Record<EventType, IconName> = {
   hospitalization: 'hospital',
   upi_dispute: 'shield',
   failed_refund: 'refund',
+  protection: 'shield',
   emi_shortfall: 'calendar',
   general_financial_support: 'headset',
 };

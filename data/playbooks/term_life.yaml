@@ -1,0 +1,82 @@
+# Term life cover: how much protection the family needs, the gap, an indicative premium, and an
+# approval-gated application through the insurer contract. Fully declarative.
+id: term_life
+version: 1
+title: Term life cover check
+event_type: protection
+urgency: low
+priority: 12
+triggers:
+  any: [term insurance, term life, term plan, life insurance, life cover, life policy, jeevan bima, टर्म, जीवन बीमा]
+engine: declarative
+auditor: null
+tools:
+  read: [payments.get_balance, knowledge.search_playbook]
+  write: [insurer.apply_term_plan, crm.handoff_to_agent]
+exit: policy issued or customer keeps current cover
+
+rules:
+  version: term-cover-v1
+  # Income replacement: 10x annual income when someone depends on you, plus loans, minus liquid assets.
+  facts:
+    - { name: dependents, label: People who depend on your income, expr: household.dependents, source: customer_profile, ref: Financial Twin household }
+    - { name: annual_income_inr, label: Annual income, unit: INR, expr: household.annual_income_inr, source: customer_profile, ref: Financial Twin cash flow }
+    - { name: cover_need_inr, label: Cover your family needs, unit: INR, expr: "max(household.annual_income_inr * min(household.dependents, 1) * 10 + household.liabilities_inr - household.liquid_assets_inr, 0)", source: calculation }
+    - { name: existing_cover_inr, label: Life cover you already have, unit: INR, expr: household.life_cover_inr, source: customer_profile, ref: Insurance on file }
+    - { name: gap_inr, label: Protection gap, unit: INR, expr: "max(cover_need_inr - existing_cover_inr, 0)", source: calculation }
+    - { name: recommended_cover_inr, label: Recommended new cover, unit: INR, expr: "ceil_to(gap_inr, 500000)", source: calculation }
+    - { name: half_cover_inr, label: Starter cover, unit: INR, expr: "max(ceil_to(recommended_cover_inr / 2, 500000), 1000000)", source: calculation }
+    - { name: term_years, label: Policy term (to age 60), expr: "max(60 - household.age, 10)", source: calculation }
+    - { name: premium_inr, label: Indicative yearly premium, unit: INR, expr: "ceil_to(recommended_cover_inr / 100000 * household.premium_rate_per_lakh, 10)", source: calculation }
+    - { name: half_premium_inr, label: Indicative yearly premium (starter), unit: INR, expr: "ceil_to(half_cover_inr / 100000 * household.premium_rate_per_lakh, 10)", source: calculation }
+
+options:
+  - id: buy_recommended
+    title: "Add INR {recommended_cover_inr} term cover"
+    summary: "Closes your full protection gap for about INR {premium_inr} a year for {term_years} years."
+    steps: [Approve the application, Complete e-KYC and a short medical with the insurer]
+    guards:
+      - { expr: "dependents > 0", rule: Someone depends on your income, pass: "{dependents} people rely on your income.", fail: No one depends on your income, so term cover is optional. }
+      - { expr: "gap_inr > 0", rule: There is a protection gap, pass: "You are short of INR {gap_inr} in cover.", fail: Your existing cover already meets the need. }
+      - { expr: "premium_inr / 12 <= household.free_cash_monthly_inr * 0.1", rule: Premium is affordable, pass: Under 10% of your monthly free cash., fail: The premium would take more than 10% of your free cash. }
+    metrics: { extra_cost_inr: "=premium_inr", time_to_funds_days: 7, effort_steps: 2, risk: low }
+    trade_offs: [Full protection for your family., The insurer makes the final underwriting decision (simulated).]
+    writes:
+      - tool: insurer.apply_term_plan
+        amount: premium_inr
+        summary: "Apply for INR {recommended_cover_inr} term cover for {term_years} years"
+        input: { sum_assured_inr: "=recommended_cover_inr", term_years: "=term_years", annual_premium_inr: "=premium_inr" }
+
+  - id: buy_starter
+    title: "Start with INR {half_cover_inr} cover"
+    summary: "Closes part of the gap for about INR {half_premium_inr} a year; top up later."
+    steps: [Approve the application, Complete e-KYC with the insurer]
+    guards:
+      - { expr: "dependents > 0", rule: Someone depends on your income, pass: "{dependents} people rely on your income.", fail: No one depends on your income, so term cover is optional. }
+      - { expr: "gap_inr > 0", rule: There is a protection gap, pass: "You are short of INR {gap_inr} in cover.", fail: Your existing cover already meets the need. }
+    metrics: { extra_cost_inr: "=half_premium_inr", time_to_funds_days: 7, effort_steps: 2, risk: high }
+    trade_offs: [Cheaper today., Leaves part of the gap uncovered.]
+    writes:
+      - tool: insurer.apply_term_plan
+        amount: half_premium_inr
+        summary: "Apply for INR {half_cover_inr} term cover for {term_years} years"
+        input: { sum_assured_inr: "=half_cover_inr", term_years: "=term_years", annual_premium_inr: "=half_premium_inr" }
+
+  - id: keep_current
+    title: Keep your current cover
+    summary: "Your existing life cover is INR {existing_cover_inr}."
+    steps: [Review again after a life event such as marriage or a child]
+    guards:
+      - { expr: "gap_inr == 0", blocking: false, rule: Family is fully protected, pass: Your cover meets the need., fail: "Your family would be short of INR {gap_inr}." }
+    metrics: { extra_cost_inr: 0, time_to_funds_days: 0, effort_steps: 0, risk: { expr: "gap_inr > 0", "true": high, "false": low } }
+    trade_offs: [No new cost.]
+    self_serve: true
+
+guidance:
+  title: Term life cover check
+  source: Saathi demo playbook v1
+  steps:
+    - Cover needed is roughly 10 times annual income when someone depends on you, plus outstanding loans, minus savings and investments.
+    - Subtract life cover you already have; buy pure term cover for the gap, not investment-linked plans.
+    - Choose a term that runs to your retirement age.
+    - Disclose health and habits honestly; the insurer underwrites and decides.

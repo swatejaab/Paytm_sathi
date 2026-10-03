@@ -129,9 +129,22 @@ export function claimPartnerEvent(eventId: string): boolean {
   return Number(result.changes) === 1;
 }
 
+export interface StandingConsents {
+  records: boolean;
+  ai: boolean;
+  voice: boolean;
+}
+
 export interface UserPreferences {
   alerts_enabled?: boolean;
   dismissed_alerts?: string[];
+  // Choices the customer asked Saathi to remember; each is revocable and still recorded per case.
+  consents?: Partial<StandingConsents>;
+}
+
+export function standingConsents(userId: string): StandingConsents {
+  const saved = getPreferences(userId).consents ?? {};
+  return { records: Boolean(saved.records), ai: Boolean(saved.ai), voice: Boolean(saved.voice) };
 }
 
 export function getPreferences(userId: string): UserPreferences {
