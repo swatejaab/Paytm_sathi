@@ -498,3 +498,39 @@ html, body { overflow-x: hidden; }
 }
 
 .chart-payday-label { fill: var(--green); font-size: 11.5px; font-weight: 700; }
+
+/* Credit score */
+.credit-gauge { position: relative; width: 220px; max-width: 100%; margin: 4px auto 0; }
+.credit-gauge svg { width: 100%; display: block; }
+.gauge-track { fill: none; stroke: #e8eef6; stroke-width: 14; stroke-linecap: round; }
+.gauge-fill { fill: none; stroke-width: 14; stroke-linecap: round; transition: stroke-dasharray .6s ease; }
+.gauge-fill.tone-excellent { stroke: #0f8a5a; }
+.gauge-fill.tone-good { stroke: #16a36b; }
+.gauge-fill.tone-fair { stroke: #e08a00; }
+.gauge-fill.tone-poor { stroke: #d64545; }
+.gauge-scale { fill: var(--muted); font-size: 10px; }
+.gauge-center { position: absolute; left: 0; right: 0; bottom: 14px; display: grid; justify-items: center; }
+.gauge-center strong { font-size: 40px; line-height: 1; color: var(--navy); }
+.credit-band { margin-top: 4px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.credit-band.tone-excellent, .credit-band.tone-good { background: var(--green-soft); color: var(--green); }
+.credit-band.tone-fair { background: var(--amber-soft); color: var(--amber); }
+.credit-band.tone-poor { background: var(--red-soft); color: var(--red); }
+.credit-factors { list-style: none; margin: 6px 0 0; padding: 0; display: grid; }
+.credit-factors li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eef3f9; }
+.credit-factors li:last-child { border-bottom: 0; }
+.factor-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.factor-dot.good { background: var(--green); }
+.factor-dot.fair { background: var(--amber); }
+.factor-dot.poor { background: var(--red); }
+.factor-main { flex: 1; display: grid; }
+.factor-status { font-size: 12px; font-weight: 800; }
+.factor-status.good { color: var(--green); }
+.factor-status.fair { color: var(--amber); }
+.factor-status.poor { color: var(--red); }
+.credit-sim h4 { margin: 4px 0 8px; font-size: 14px; }
+.mode-chip.selected { border-color: var(--cyan); background: var(--cyan-soft); }
+.sim-result { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; }
+.sim-result.up { background: var(--green-soft); }
+.sim-result.down { background: var(--red-soft); }
+.sim-result.up strong { color: var(--green); }
+.sim-result.down strong { color: var(--red); }

@@ -1,5 +1,7 @@
 import type {
   AgentNodeInfo,
+  CreditScore,
+  ScoreSimulation,
   AffordabilityAssessment,
   CashForecast,
   PlaybookInfo,
@@ -139,6 +141,8 @@ export const api = {
     request<CashForecast>(
       `/api/forecast?salary_delay_days=${salaryDelayDays}${skip.length ? `&skip=${encodeURIComponent(skip.join(','))}` : ''}`,
     ),
+  creditScore: () => post<CreditScore>('/api/credit/score', { consent: true }),
+  simulateScore: (action: ScoreSimulation['action']) => post<ScoreSimulation>('/api/credit/simulate', { consent: true, action }),
   afford: (question: string) => post<AffordabilityAssessment>('/api/afford', { question }),
   alerts: () => request<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts'),
   setAlerts: (enabled: boolean) => post<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts/settings', { enabled }),

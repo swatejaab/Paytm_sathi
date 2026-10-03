@@ -6,7 +6,7 @@ import { MobileCase } from './MobileCase';
 import { MobileHome } from './MobileHome';
 import { MobileLogin } from './MobileLogin';
 import { MobileSaathi } from './MobileSaathi';
-import { MobileActivity, MobileInsights, MobileProfile } from './MobileScreens';
+import { MobileActivity, MobileInsights, MobileProfile, type InsightSection } from './MobileScreens';
 
 type Tab = 'home' | 'saathi' | 'insights' | 'activity' | 'profile';
 
@@ -29,7 +29,7 @@ interface Props {
 // The app view: a mobile banking experience with bottom navigation. Shown in a phone frame on desktops.
 export function MobileApp({ session, integrations, onLogin, onLogout, onWebView }: Props) {
   const [tab, setTab] = useState<Tab>('home');
-  const [insight, setInsight] = useState<'forecast' | 'afford'>('forecast');
+  const [insight, setInsight] = useState<InsightSection>('forecast');
   const [activeCase, setActiveCase] = useState<CaseRecord | null>(null);
   const [caseOpen, setCaseOpen] = useState(false);
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);

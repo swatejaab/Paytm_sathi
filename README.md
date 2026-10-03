@@ -124,6 +124,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 9a0. Playbook registry | `data/playbooks/*.yaml`, `playbooks/registry.ts` (zod-validated, triggers, tool allowlist), `playbooks/declarative.ts` + `expressions.ts` |
 | 9a1. Cash-flow Copilot | `forecast.ts` (`GET /api/forecast`): day-by-day balance, crunch day, safe-to-spend, priced fixes, cheapest plan with and without a new loan, salary-delay and skip what-ifs; `ForecastCard.tsx` chart |
 | 9a2. Can I afford it? | `afford.ts` (`POST /api/afford`): parses "1.2 lakh" / "15L", compares cash, card EMI, personal or vehicle loan (with down payments), and waiting against the buffer, forecast, and affordability rules |
+| 9a3. Credit score (bureau MCP) | `bureau.v1` MCP server (`bureau.get_credit_report`, `bureau.simulate_score`) behind an account-level gateway path (explicit consent per request, owner only, audited); `credit.ts` transparent 300-900 estimate (payment history, card use, age, mix, enquiries) and a what-if simulator; `CreditScoreCard.tsx` |
 | 9a. Financial Twin + Home | `twin.ts` (`GET /api/twin`): sourced assets, liabilities, cash flow, obligations inbox, insurance, goals; `HomeView.tsx` |
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |

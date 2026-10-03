@@ -98,3 +98,46 @@ export async function invokeTool<T = unknown>(name: string, rawInput: Record<str
     throw error;
   }
 }
+
+// Account-level reads (not tied to a case), such as a soft credit check. Only allowlisted read tools,
+// only for the signed-in customer's own data, only with explicit consent on that request; always audited.
+const ACCOUNT_TOOLS = new Set(['bureau.get_credit_report', 'bureau.simulate_score']);
+
+export async function invokeAccountTool<T = unknown>(
+  name: string,
+  rawInput: Record<string, unknown>,
+  options: { principal: Principal; consent: boolean },
+): Promise<T> {
+  const { principal } = options;
+  const tool = toolRegistry.get(name);
+  const audit = (decision: 'allow' | 'deny', detail: Record<string, unknown>) =>
+    recordAudit({
+      case_id: null,
+      actor: principal.sub,
+      event: 'mcp_tool_call',
+      tool: name,
+      scope: tool?.scope ?? null,
+      decision,
+      detail: { server: tool?.server ?? null, kind: tool?.kind ?? null, account_level: true, ...detail },
+    });
+  const denial = (code: GatewayDenyCode, reason: string): GatewayError => {
+    audit('deny', { code, reason });
+    return new GatewayError(code, reason);
+  };
+  if (!tool || !ACCOUNT_TOOLS.has(name) || tool.kind !== 'read' || tool.server === 'identity') {
+    throw denial('unknown_tool', `Tool ${name} is not available outside a case.`);
+  }
+  const parsed = tool.input.safeParse(rawInput);
+  if (!parsed.success) throw denial('invalid_input', parsed.error.issues.map((issue) => issue.message).join('; '));
+  if (principal.role !== 'customer') throw denial('case_scope', 'Only the account owner can read their own credit report.');
+  if (!principal.scopes.includes(tool.scope)) throw denial('scope', `Missing scope ${tool.scope}.`);
+  if (!options.consent) throw denial('consent_required', 'A soft credit check needs your explicit consent.');
+  try {
+    const result = await callPartnerTool<T>(tool.server, name, parsed.data, { customer_id: principal.sub, case_id: 'ACCOUNT' });
+    audit('allow', { purpose: 'self_check' });
+    return result;
+  } catch (error) {
+    if (error instanceof GatewayError) throw denial(error.code, error.message);
+    throw error;
+  }
+}

@@ -15,6 +15,7 @@ const PATHS = {
   scale: 'M12 4v16 M7 20h10 M5 8h14 M5 8l-3 6a3 3 0 006 0z M19 8l-3 6a3 3 0 006 0z',
   trend: 'M3 17l6-6 4 4 8-8 M15 7h6v6',
   folder: 'M3 6h6l2 2h10v11H3z',
+  gauge: 'M4 17a8 8 0 1116 0 M12 17l4-5 M12 17h.01',
   headset: 'M4 15v-3a8 8 0 1116 0v3 M4 15h3v5H4z M17 15h3v5h-3z',
   mic: 'M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3z M5 11a7 7 0 0014 0 M12 18v3',
   send: 'M4 12l16-8-6 16-3-7z',

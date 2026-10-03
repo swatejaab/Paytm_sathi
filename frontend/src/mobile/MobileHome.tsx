@@ -16,7 +16,7 @@ export const JOURNEYS = {
 interface Props {
   user: SessionUser;
   onAsk: (message?: string) => void;
-  onOpen: (tab: 'insights' | 'activity', section?: 'forecast' | 'afford') => void;
+  onOpen: (tab: 'insights' | 'activity', section?: 'forecast' | 'afford' | 'credit') => void;
 }
 
 const UPCOMING_ICON: Record<string, IconName> = {
@@ -54,7 +54,7 @@ export function MobileHome({ user, onAsk, onOpen }: Props) {
     { icon: 'calendar', label: 'EMI help', tone: 'violet', action: () => onAsk(JOURNEYS.emi) },
     { icon: 'scale', label: 'Can I afford?', tone: 'green', action: () => onOpen('insights', 'afford') },
     { icon: 'trend', label: 'Cash forecast', tone: 'cyan', action: () => onOpen('insights', 'forecast') },
-    { icon: 'folder', label: 'My cases', tone: 'slate', action: () => onOpen('activity') },
+    { icon: 'gauge', label: 'Credit score', tone: 'slate', action: () => onOpen('insights', 'credit') },
     { icon: 'headset', label: 'Talk to expert', tone: 'pink', action: () => onAsk(JOURNEYS.expert) },
   ];
 

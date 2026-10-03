@@ -6,6 +6,8 @@ import { HttpError, parseBody } from '../errors';
 import { assessAffordability, parseIndianAmount, purchaseCategory } from '../afford';
 import { recordAudit } from '../db';
 import { buildForecast } from '../forecast';
+import { SCORE_ACTIONS, type ScoreAction } from '../credit';
+import { invokeAccountTool } from '../mcp/gateway';
 import { buildTwin } from '../twin';
 
 export const alertRouter = Router();
@@ -68,4 +70,19 @@ alertRouter.post('/afford', requireAuth('case:create'), (req, res) => {
   if (!result) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
   recordAudit({ actor: principal.sub, event: 'affordability_checked', detail: { amount_inr: amount, verdict: result.verdict } });
   res.json(result);
+});
+
+const creditSchema = z.object({ consent: z.literal(true) }).strict();
+const simulateSchema = z
+  .object({ consent: z.literal(true), action: z.enum(Object.keys(SCORE_ACTIONS) as [ScoreAction, ...ScoreAction[]]) })
+  .strict();
+
+alertRouter.post('/credit/score', requireAuth('case:create'), async (req, res) => {
+  parseBody(creditSchema, req.body);
+  res.json(await invokeAccountTool('bureau.get_credit_report', { purpose: 'self_check' }, { principal: getPrincipal(req), consent: true }));
+});
+
+alertRouter.post('/credit/simulate', requireAuth('case:create'), async (req, res) => {
+  const body = parseBody(simulateSchema, req.body);
+  res.json(await invokeAccountTool('bureau.simulate_score', { action: body.action }, { principal: getPrincipal(req), consent: true }));
 });

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { AffordCard } from '../components/AffordCard';
+import { CreditScoreCard } from '../components/CreditScoreCard';
 import { ForecastCard } from '../components/ForecastCard';
 import { EVENT_LABELS, LANGUAGES, STATUS_LABELS } from '../format';
 import type { CaseSummary, EventType, SessionUser } from '../types';
 import { Icon, type IconName } from './Icon';
 import { initials } from './MobileLogin';
 
-export function MobileInsights({ section, onSection, onAsk }: { section: 'forecast' | 'afford'; onSection: (value: 'forecast' | 'afford') => void; onAsk: (message: string) => void }) {
+export type InsightSection = 'forecast' | 'afford' | 'credit';
+
+export function MobileInsights({ section, onSection, onAsk }: { section: InsightSection; onSection: (value: InsightSection) => void; onAsk: (message: string) => void }) {
   return (
     <div className="m-page">
       <header className="m-topbar">
@@ -18,13 +21,16 @@ export function MobileInsights({ section, onSection, onAsk }: { section: 'foreca
       </header>
       <nav className="m-segment">
         <button className={section === 'forecast' ? 'active' : ''} onClick={() => onSection('forecast')}>
-          Cash forecast
+          Cash flow
         </button>
         <button className={section === 'afford' ? 'active' : ''} onClick={() => onSection('afford')}>
-          Can I afford it?
+          Afford?
+        </button>
+        <button className={section === 'credit' ? 'active' : ''} onClick={() => onSection('credit')}>
+          Credit score
         </button>
       </nav>
-      <div className="m-page-body">{section === 'forecast' ? <ForecastCard onAsk={onAsk} /> : <AffordCard />}</div>
+      <div className="m-page-body">{section === 'forecast' ? <ForecastCard onAsk={onAsk} /> : section === 'afford' ? <AffordCard /> : <CreditScoreCard />}</div>
     </div>
   );
 }

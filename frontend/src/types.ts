@@ -505,3 +505,24 @@ export interface AffordabilityAssessment {
   warning: string | null;
   method: string;
 }
+
+export interface CreditScore {
+  bureau: string;
+  soft_pull: boolean;
+  report: { report_id: string; as_of: string };
+  score: number;
+  band: string;
+  tone: 'excellent' | 'good' | 'fair' | 'poor';
+  factors: { id: string; label: string; value: string; points: number; max_points: number; status: 'good' | 'fair' | 'poor'; detail: string; tip: string }[];
+  model: string;
+}
+
+export interface ScoreSimulation {
+  action: 'pay_card_to_10' | 'take_small_loan' | 'miss_one_emi' | 'close_oldest_card';
+  label: string;
+  before: number;
+  after: number;
+  delta: number;
+  band_after: string;
+  changed: { id: string; label: string; delta: number }[];
+}

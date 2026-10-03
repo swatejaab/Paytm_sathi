@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from './config';
 import type { CoverageSchedule } from './coverage';
+import type { CreditReport } from './credit';
 import type { Role, Transaction } from './types';
 
 export interface BillLine {
@@ -118,6 +119,7 @@ export const fixtures = {
   ),
   payments: readJson<{ partner: string; accounts: Record<string, { transactions: Transaction[] }> }>('payments.json'),
   loans: readJson<{ partner: string; accounts: Record<string, LoanContext> }>('loans.json'),
+  credit: readJson<{ bureau: string; reports: Record<string, CreditReport> }>('credit_reports.json'),
 };
 
 export const PARTNERS = {

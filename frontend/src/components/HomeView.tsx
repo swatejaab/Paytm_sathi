@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { inr } from '../format';
 import type { FinancialTwin } from '../types';
 import { AffordCard } from './AffordCard';
+import { CreditScoreCard } from './CreditScoreCard';
 import { AlertsPanel } from './AlertsPanel';
 import { ForecastCard } from './ForecastCard';
 
@@ -189,6 +190,7 @@ export function HomeView({ displayName, onAsk }: Props) {
 
       <ForecastCard onAsk={onAsk} />
       <AffordCard />
+      <CreditScoreCard />
 
       <section className="card home-section">
         <h3>Your money</h3>

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
 import { assessCoverage, type CoverageBillLine } from '../coverage';
+import { SCORE_ACTIONS, scoreReport, simulateAction, type ScoreAction } from '../credit';
 import { calculateEmi, checkAffordability } from '../decision';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
@@ -9,7 +10,7 @@ import { guidanceFor } from '../playbooks/registry';
 import type { CaseRecord, ConsentPurpose, EventType, Principal } from '../types';
 import { GatewayError } from './errors';
 
-export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'aa' | 'crm' | 'knowledge';
+export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'aa' | 'crm' | 'bureau' | 'knowledge';
 
 // Partner MCP servers only ever learn which customer a call is for; the case record and principal stay in Saathi.
 export interface ToolContext {
@@ -361,6 +362,48 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         avg_monthly_outflow_inr: profile.monthly_essential_expenses_inr + profile.existing_emi_inr,
         months_analysed: 3,
         source: 'Simulated FIP data via Account Aggregator',
+      };
+    },
+  },
+  {
+    name: 'bureau.get_credit_report',
+    server: 'bureau',
+    kind: 'read',
+    scope: 'case:read',
+    consent: null,
+    description: "Soft-pull the customer's credit report and score (simulated bureau, 300-900). Account-level: needs explicit consent per request.",
+    fixture: 'credit_reports.json',
+    input: z.object({ purpose: z.enum(['self_check']) }).strict(),
+    handler: ({ customer_id }) => {
+      const report = fixtures.credit.reports[customer_id];
+      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      return { bureau: fixtures.credit.bureau, soft_pull: true, report, ...scoreReport(report) };
+    },
+  },
+  {
+    name: 'bureau.simulate_score',
+    server: 'bureau',
+    kind: 'read',
+    scope: 'case:read',
+    consent: null,
+    description: 'Estimate how one action would move the credit score, using the same transparent model.',
+    fixture: 'credit_reports.json',
+    input: z.object({ action: z.enum(Object.keys(SCORE_ACTIONS) as [ScoreAction, ...ScoreAction[]]) }).strict(),
+    handler: ({ customer_id }, input: { action: ScoreAction }) => {
+      const report = fixtures.credit.reports[customer_id];
+      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      const before = scoreReport(report);
+      const after = scoreReport(simulateAction(report, input.action));
+      return {
+        action: input.action,
+        label: SCORE_ACTIONS[input.action],
+        before: before.score,
+        after: after.score,
+        delta: after.score - before.score,
+        band_after: after.band,
+        changed: after.factors
+          .map((factor) => ({ id: factor.id, label: factor.label, delta: Math.round(factor.points - before.factors.find((old) => old.id === factor.id)!.points) }))
+          .filter((factor) => factor.delta !== 0),
       };
     },
   },

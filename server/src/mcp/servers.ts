@@ -5,7 +5,7 @@ import { TOOL_DEFINITIONS, type McpServer as ServerId } from './tools';
 
 // Partner-side MCP servers (simulated), one per standard contract. Each runs the same handlers the
 // production partner would expose; Saathi reaches them only through its gateway (an MCP client).
-export const PARTNER_SERVERS: Exclude<ServerId, 'identity'>[] = ['insurer', 'hospital', 'payments', 'lender', 'aa', 'crm', 'knowledge'];
+export const PARTNER_SERVERS: Exclude<ServerId, 'identity'>[] = ['insurer', 'hospital', 'payments', 'lender', 'aa', 'crm', 'bureau', 'knowledge'];
 
 export const CONTRACT_NAMES: Record<Exclude<ServerId, 'identity'>, string> = {
   insurer: 'insurer.v1',
@@ -14,6 +14,7 @@ export const CONTRACT_NAMES: Record<Exclude<ServerId, 'identity'>, string> = {
   lender: 'lender.v1',
   aa: 'aa.v1',
   crm: 'crm.v1',
+  bureau: 'bureau.v1',
   knowledge: 'knowledge.v1',
 };
 
