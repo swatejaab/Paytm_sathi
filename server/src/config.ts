@@ -86,9 +86,10 @@ export const settings: Settings = {
   sarvamEnabled: readBool('SARVAM_ENABLED'),
   sarvamApiKey: readString('SARVAM_API_KEY'),
   sarvamSttModel: readString('SARVAM_STT_MODEL', 'saaras:v4'),
-  sarvamTranslateModel: readString('SARVAM_TRANSLATE_MODEL', 'mayura:v1'),
-  sarvamTtsModel: readString('SARVAM_TTS_MODEL', 'bulbul:v2'),
-  sarvamTtsSpeaker: readString('SARVAM_TTS_SPEAKER', 'anushka'),
+  sarvamTranslateModel: readString('SARVAM_TRANSLATE_MODEL', 'sarvam-translate:v1'),
+  // Empty means Sarvam's current default voice model and speaker (older bulbul versions get retired).
+  sarvamTtsModel: readString('SARVAM_TTS_MODEL'),
+  sarvamTtsSpeaker: readString('SARVAM_TTS_SPEAKER'),
   n8nWebhookUrl: readString('N8N_WEBHOOK_URL'),
   n8nWebhookSecret: readString('N8N_WEBHOOK_SECRET'),
   mochaTradeApiUrl: readString('MOCHA_TRADE_API_URL'),

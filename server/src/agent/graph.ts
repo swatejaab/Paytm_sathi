@@ -25,6 +25,8 @@ import { invokeTool } from '../mcp/gateway';
 import { recordAudit } from '../db';
 import type { AgentNodeId, AgentTrigger, CaseRecord, EvidencePassage, Playbook, Principal, Transaction } from '../types';
 import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionMessage } from './explainer';
+import { sarvamAvailable } from '../config';
+import { translateWithSarvam } from '../integrations';
 import { addLocalizedMessage } from './localize';
 import { RunTracer } from './trace';
 
@@ -114,9 +116,21 @@ function playbookPassage(playbook: Playbook): EvidencePassage {
   };
 }
 
-const classifier = node('classifier', (_state, context) => {
+// Messages in Indic scripts are translated to English for the keyword rules only; the original stays the customer's words.
+async function rulesText(record: CaseRecord): Promise<string> {
+  if (!/[^\u0000-\u024f\s\d.,!?₹'"()-]/.test(record.customer_message) || !sarvamAvailable()) return record.customer_message;
+  try {
+    return `${record.customer_message} ${await translateWithSarvam(record.customer_message, 'en-IN')}`;
+  } catch {
+    return record.customer_message;
+  }
+}
+
+const classifier = node('classifier', async (_state, context) => {
   const { record } = context;
-  const classification = classifyEvent(record.customer_message);
+  const text = await rulesText(record);
+  if (text !== record.customer_message) record.message_for_rules = text;
+  const classification = classifyEvent(text);
   record.event_type = classification.event_type;
   record.urgency = classification.urgency;
   record.language = record.preferred_language ? 'en' : detectLanguage(record.customer_message);
@@ -187,7 +201,7 @@ const billAuditor = node('bill_auditor', (state, context) => {
   const findings = [
     lineTotal === bill.total_inr ? `Lines reconcile to ${formatInr(bill.total_inr)}` : `Lines total ${formatInr(lineTotal)}, not ${formatInr(bill.total_inr)}`,
   ];
-  const stated = parseStatedAmount(record.customer_message);
+  const stated = parseStatedAmount(record.message_for_rules ?? record.customer_message);
   if (stated && stated !== bill.total_inr) findings.push(`customer stated ${formatInr(stated)}`);
   if (missing.length) findings.push(`missing: ${missing.join(', ')}`);
 
@@ -211,7 +225,7 @@ const billAuditor = node('bill_auditor', (state, context) => {
 const transactionAuditor = node('transaction_auditor', async (state, context) => {
   const { record } = context;
   if (!state.transaction_id) {
-    const stated = parseStatedAmount(record.customer_message);
+    const stated = parseStatedAmount(record.message_for_rules ?? record.customer_message);
     let candidates = callTool<Transaction[]>(context, 'payments.list_transactions', {
       direction: 'debit',
       limit: 5,
@@ -373,7 +387,7 @@ function hospitalDecision(state: State, context: RunContext): string {
     offers,
     rules: offerSets[0]?.rules ?? fixtures.lending.affordability_rules,
     partners: { insurer: PARTNERS.insurer, lender: PARTNERS.lender, hospital: PARTNERS.hospital },
-    statedAmountInr: parseStatedAmount(record.customer_message),
+    statedAmountInr: parseStatedAmount(record.message_for_rules ?? record.customer_message),
     verification: verificationNeeded(record),
   });
   return `Formula ${record.decision.formula_version}; gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;

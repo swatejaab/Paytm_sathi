@@ -156,7 +156,8 @@ async function sarvamJson(path: string, body: Record<string, unknown>, timeoutMs
 
 // Splits on sentence boundaries so each request stays inside Sarvam's input limit.
 function chunkText(text: string, limit: number): string[] {
-  const sentences = text.match(/[^.!?\n]+[.!?]*\s*/g) ?? [text];
+  // Split only where punctuation is followed by whitespace, so "91.4/100" or "INR 1.5" stay intact.
+  const sentences = text.split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim()).map((sentence) => `${sentence} `);
   const chunks: string[] = [];
   let current = '';
   for (const sentence of sentences) {
@@ -170,27 +171,38 @@ function chunkText(text: string, limit: number): string[] {
   return chunks;
 }
 
+const amountsIn = (text: string): string[] =>
+  (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((value) => value.replace(/,/g, '')).filter((value) => Number(value) >= 10).sort();
+
+// Translates sentence by sentence. Formula lines stay verbatim, and any sentence whose amounts do not
+// survive translation stays in English, so a translation can never change a number the customer sees.
 export async function translateWithSarvam(text: string, targetLanguage: string): Promise<string> {
-  const parts: string[] = [];
-  for (const chunk of chunkText(text, 900)) {
-    const payload = await sarvamJson(
-      '/translate',
-      {
-        input: chunk,
-        source_language_code: 'auto',
-        target_language_code: targetLanguage,
-        model: settings.sarvamTranslateModel,
-        mode: 'formal',
-        numerals_format: 'international',
-      },
-      15_000,
-    );
-    if (typeof payload.translated_text !== 'string' || !payload.translated_text.trim()) {
-      throw new IntegrationRequestError('Sarvam returned an empty translation.');
-    }
-    parts.push(payload.translated_text);
-  }
-  return parts.join(' ');
+  // One request per sentence (never grouped), so a formula sentence cannot drag its neighbours into English.
+  const sentences = text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .flatMap((sentence) => (sentence.length > 900 ? chunkText(sentence, 900) : [sentence]));
+  const translated = await Promise.all(
+    sentences.map(async (sentence) => {
+      if (sentence.includes('=')) return sentence;
+      const payload = await sarvamJson(
+        '/translate',
+        {
+          input: sentence,
+          source_language_code: 'en-IN',
+          target_language_code: targetLanguage,
+          model: settings.sarvamTranslateModel,
+          numerals_format: 'international',
+        },
+        15_000,
+      );
+      const output = typeof payload.translated_text === 'string' ? payload.translated_text.trim() : '';
+      if (!output) return sentence;
+      return amountsIn(output).join('|') === amountsIn(sentence).join('|') ? output : sentence;
+    }),
+  );
+  return translated.join(' ');
 }
 
 export async function speakWithSarvam(text: string, languageCode: string): Promise<{ audio_base64: string; mime_type: string }> {
@@ -199,10 +211,10 @@ export async function speakWithSarvam(text: string, languageCode: string): Promi
   const payload = await sarvamJson(
     '/text-to-speech',
     {
-      inputs: [input],
+      text: input,
       target_language_code: languageCode,
-      speaker: settings.sarvamTtsSpeaker,
-      model: settings.sarvamTtsModel,
+      ...(settings.sarvamTtsModel ? { model: settings.sarvamTtsModel } : {}),
+      ...(settings.sarvamTtsSpeaker ? { speaker: settings.sarvamTtsSpeaker } : {}),
     },
     25_000,
   );
@@ -216,7 +228,9 @@ const chatSchema = z.object({ answer: z.string().min(1).max(1500) }).strict();
 // Numbers the model may repeat: anything the deterministic services already produced for this case.
 export function allowedNumbers(facts: unknown): Set<string> {
   const allowed = new Set<string>();
-  JSON.stringify(facts).match(/\d+(?:\.\d+)?/g)?.forEach((value) => allowed.add(String(Number(value))));
+  JSON.stringify(facts)
+    .match(/\d[\d,]*(?:\.\d+)?/g)
+    ?.forEach((value) => allowed.add(String(Number(value.replace(/,/g, '')))));
   return allowed;
 }
 

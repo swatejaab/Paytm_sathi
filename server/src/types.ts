@@ -360,6 +360,8 @@ export interface CaseRecord {
   urgency: Urgency;
   language?: Language;
   preferred_language?: string;
+  // English rendering of a non-Latin message, used only for classification and amount rules.
+  message_for_rules?: string;
   specialist?: SpecialistDesk;
   confirmed_bill?: ConfirmedBill | null;
   agent_runs?: AgentRun[];

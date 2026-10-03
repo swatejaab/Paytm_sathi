@@ -957,10 +957,10 @@ export function computeHumanOnlyDecision(input: { eventType: EventType; urgency:
   };
 }
 
-const HOSPITAL_TERMS = ['hospital', 'hospitalized', 'hospitalised', 'admitted', 'surgery', 'icu', 'discharge'];
-const UPI_TERMS = ['upi', 'unrecognized', 'unrecognised', 'not mine', 'fraud', 'scam', 'nahi kiya', "didn't make", 'did not make', 'unknown transaction'];
-const EMI_TERMS = ['emi', 'salary delayed', 'loan payment', 'installment', 'instalment'];
-const FAMILY_TERMS = ['papa', 'father', 'mother', 'mummy'];
+const HOSPITAL_TERMS = ['hospital', 'hospitalized', 'hospitalised', 'admitted', 'surgery', 'icu', 'discharge', 'अस्पताल', 'हॉस्पिटल', 'भर्ती', 'ऑपरेशन'];
+const UPI_TERMS = ['upi', 'unrecognized', 'unrecognised', 'not mine', 'fraud', 'scam', 'nahi kiya', "didn't make", 'did not make', 'unknown transaction', 'यूपीआई', 'धोखा', 'फ्रॉड', 'नहीं किया'];
+const EMI_TERMS = ['emi', 'salary delayed', 'loan payment', 'installment', 'instalment', 'ईएमआई', 'किस्त', 'सैलरी'];
+const FAMILY_TERMS = ['papa', 'father', 'mother', 'mummy', 'पापा', 'पिताजी', 'माँ', 'मम्मी'];
 
 export function classifyEvent(message: string): { event_type: EventType; urgency: Urgency } {
   const normalized = message.toLowerCase();
@@ -974,7 +974,7 @@ export function classifyEvent(message: string): { event_type: EventType; urgency
 
 export function parseStatedAmount(message: string): number | null {
   const match =
-    /(?:₹|\binr\b|\brs\.?)\s*([0-9][0-9,]*)/i.exec(message) ?? /\b([0-9][0-9,]{2,})\s*(?:₹|inr|rs\b|rupees|rupaye)/i.exec(message);
+    /(?:₹|\binr\b|\brs\.?)\s*([0-9][0-9,]*)/i.exec(message) ?? /\b([0-9][0-9,]{2,})\s*(?:₹|inr|rs\b|rupees|rupaye|रुपये|रुपए|रु)/i.exec(message);
   if (!match) return null;
   const value = Number(match[1]!.replace(/,/g, ''));
   return Number.isFinite(value) && value > 0 ? value : null;

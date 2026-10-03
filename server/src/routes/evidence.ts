@@ -30,7 +30,7 @@ import {
 import type { CaseRecord, UploadedDocument } from '../types';
 import { explainDecision } from '../agent/explainer';
 import { addMessage } from '../caseStore';
-import { isLanguageCode, LANGUAGE_CODES, LANGUAGES } from '../languages';
+import { isLanguageCode, LANGUAGE_CODES, LANGUAGE_PROMPT_NAMES } from '../languages';
 import { redactContactIdentifiers } from '../redaction';
 import { parseBillText } from '../billParser';
 import { addLocalizedMessage } from '../agent/localize';
@@ -340,7 +340,7 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
   const record = loadCaseForOwner(principal, caseId, 'ai:analyze');
   const languageCode = body.language ?? record.preferred_language;
   const languageName = isLanguageCode(languageCode)
-    ? LANGUAGES[languageCode]
+    ? LANGUAGE_PROMPT_NAMES[languageCode]
     : record.language === 'hinglish'
       ? 'Hinglish (Hindi in Latin script)'
       : 'English';
@@ -355,7 +355,7 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
       // Numeric guard: the model may only repeat numbers the decision service produced.
       source = 'saathi';
       answer = explainDecision(record) || 'I can only answer from your case facts. A Saathi specialist can help with this question.';
-      recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', count: invented.length } });
+      recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', numbers: invented.slice(0, 5) } });
     } else {
       answer = result.answer;
     }
