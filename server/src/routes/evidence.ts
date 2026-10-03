@@ -17,7 +17,7 @@ import { HttpError, parseBody } from '../errors';
 import {
   allowedNumbers,
   analyzeCaseWithOpenAI,
-  answerCaseQuestion,
+  answerWithAccount,
   inventedNumbers,
   IntegrationDisabledError,
   ocrImageWithOpenAI,
@@ -39,6 +39,8 @@ import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 import { parseBillQuery } from '../decision';
 import { assumptionNotes, runAgent } from '../agent/graph';
+import { chatFacts, composeReply } from '../agent/compose';
+import { accountFacts } from '../accountContext';
 const READ_CONSENT = 'prepare_resolution_options' as const;
 
 export const evidenceRouter = Router();
@@ -314,42 +316,13 @@ const chatSchema = z
   })
   .strict();
 
-// Facts the assistant may use: the deterministic decision, evidence citations, and the case status. No raw documents.
-function chatFacts(record: CaseRecord) {
-  const decision = record.decision;
-  return {
-    event: record.event_type,
-    status: record.status,
-    story: redactContactIdentifiers(record.customer_message),
-    calculation: decision?.calculation ?? null,
-    facts: decision?.facts.map(({ label, value, unit, source }) => ({ label, value, unit, source: source.ref })) ?? [],
-    options: decision?.options.map((option) => ({
-      title: option.title,
-      recommended: option.recommended,
-      feasible: option.feasible,
-      score: option.scores.total,
-      summary: option.summary,
-      metrics: option.metrics,
-      trade_offs: option.trade_offs,
-      blocked_by: option.guardrails.filter((guardrail) => !guardrail.passed).map((guardrail) => guardrail.detail),
-    })) ?? [],
-    explanation: decision?.explanation ?? null,
-    missing_documents: record.evidence?.missing_documents ?? [],
-    citations: (record.evidence?.retrieved_evidence ?? []).map((passage) => ({
-      document: passage.document_name,
-      clause: passage.clause_id,
-      page: passage.page,
-      title: passage.title,
-    })),
-    latest_timeline: record.timeline.slice(-5).map((entry) => entry.title),
-  };
-}
-
 evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req, res) => {
   const principal = getPrincipal(req);
   const caseId = String(req.params.caseId);
   const body = parseBody(chatSchema, req.body);
   const record = loadCaseForOwner(principal, caseId, 'ai:analyze');
+  // Asking a question in chat is the customer's consent for AI answers on this case.
+  record.ai_answers = true;
   const languageCode = body.language ?? record.preferred_language;
   const languageName = isLanguageCode(languageCode)
     ? LANGUAGE_PROMPT_NAMES[languageCode]
@@ -380,20 +353,22 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
     updateCase(record);
     await redecideAfterDocuments(principal, record);
     const fresh = record; // runAgent updates the record in place; reloading would discard the new decision
-    const notes = assumptionNotes(fresh);
-    await addLocalizedMessage(fresh, ['I recalculated your plan with these numbers.', explainDecision(fresh), ...notes].filter(Boolean).join(' '));
+    const draft = ['I recalculated your plan with these numbers.', explainDecision(fresh), ...assumptionNotes(fresh)].filter(Boolean).join(' ');
+    await composeReply(fresh, { question: body.message, draft, consented: true, ...(body.language ? { language: body.language } : {}) });
     recordAudit({ case_id: caseId, actor: principal.sub, event: 'plan_recalculated', detail: { bill_inr: update.bill_inr, can_pay_inr: update.can_pay_inr, room_days: update.room_days } });
     updateCase(fresh);
     res.json(fresh);
     return;
   }
   const facts = chatFacts(record);
+  const account = accountFacts(record.customer_id);
 
   let answer: string;
   let source: 'openai' | 'saathi' = 'openai';
   try {
-    const result = await answerCaseQuestion(body.message, facts, languageName);
-    const invented = inventedNumbers(result.answer, allowedNumbers(facts));
+    // The answer draws on the case facts and the customer's own account figures; it may not add numbers.
+    const result = await answerWithAccount({ question: body.message, languageName, account, caseFacts: facts });
+    const invented = inventedNumbers(result.answer, allowedNumbers({ facts, account, question: body.message }));
     if (invented.length) {
       // Numeric guard: the model may only repeat numbers the decision service produced.
       source = 'saathi';
@@ -413,7 +388,7 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
     case_id: caseId,
     actor: principal.sub,
     event: 'external_ai_chat',
-    detail: { provider: 'openai', consent_purpose: 'answer_case_question_with_openai', answered_by: source },
+    detail: { provider: 'openai', consent_purpose: 'answer_case_question_with_openai', answered_by: source, used_account_facts: Boolean(account) },
   });
   updateCase(latest);
   res.json(latest);

@@ -12,6 +12,7 @@ import {
   type BillQuery,
 } from '../decision';
 import { sampleHospitalDocuments } from '../documents';
+import { assessAffordability, parseIndianAmount, purchaseCategory } from '../afford';
 import {
   fixtures,
   PARTNERS,
@@ -33,9 +34,11 @@ import { classifyWithPlaybooks, namesSituation, playbookForCase } from '../playb
 import type { CoverageAssessment } from '../coverage';
 import { householdContext } from '../insurance';
 import { addLocalizedMessage } from './localize';
+import { aiAllowed, composeReply } from './compose';
 import { RunTracer } from './trace';
 
 const READ_CONSENT = 'prepare_resolution_options' as const;
+const KNOWLEDGE_BUDGET_MS = 8_000;
 
 interface Coverage {
   estimated_coverage_inr: number;
@@ -267,7 +270,8 @@ async function askForBillAmount(record: CaseRecord, profile: FinancialProfile | 
     'To build your exact plan, tell me the bill or estimate amount (for example "the bill is 1.2 lakh") and how much you can pay now. You can also upload a photo of the bill.',
   ];
   addTimeline(record, { title: 'Waiting for the bill amount', detail: 'No amount or bill yet, so no plan was calculated.', actor: 'saathi' });
-  await addLocalizedMessage(record, lines.join('\n'));
+  const question = record.messages.filter((message) => message.role === 'user').at(-1)?.content ?? record.customer_message;
+  await composeReply(record, { question, draft: lines.join('\n'), withCase: false });
 }
 
 const billAuditor = node('bill_auditor', async (state, context) => {
@@ -569,37 +573,57 @@ export function assumptionNotes(record: CaseRecord): string[] {
 
 const explainer = node('explainer', async (_state, context) => {
   const { record } = context;
+  const question = record.messages.filter((message) => message.role === 'user').at(-1)?.content ?? record.customer_message;
   if (record.event_type === 'general_financial_support') {
-    const knowledge = await callTool<{ answer: string | null; sources: { title: string | null; clause_id: string | null; page: number | null }[]; backend: string }>(
-      context,
-      'knowledge.ask',
-      { question: record.message_for_rules ?? record.customer_message },
-    );
-    if (knowledge.answer) {
-      const sources = knowledge.sources.map((source) => source.title).filter(Boolean);
-      if (record.evidence) {
-        record.evidence.retrieved_evidence = knowledge.sources.map((source, index) => ({
-          document_id: `KB-${index + 1}`,
-          document_name: 'Saathi knowledge graph (Cognee)',
-          document_type: 'knowledge',
-          page: source.page ?? 1,
-          title: source.title ?? 'Knowledge',
-          text: source.title ?? '',
-          score: knowledge.sources.length - index,
-          retrieval: 'cognee',
-        }));
-        record.evidence.notice = 'General guidance from the Saathi knowledge graph (Cognee), not a decision on your case.';
+    // "Can I afford / buy ..." is answered by the affordability engine, not general guidance.
+    const affordText = record.message_for_rules ?? record.customer_message;
+    const price = /\b(afford|buy|purchase|kharid|lena|lun|loon)\b|खरीद/i.test(affordText) ? parseIndianAmount(affordText) : null;
+    if (price) {
+      const item = affordText.replace(/^(can|could|should)\s+i\s+(afford|buy)\s+(an?\s+)?/i, '').replace(/\?+$/, '').slice(0, 80);
+      const assessment = assessAffordability(record.customer_id, { amount_inr: price, item, category: purchaseCategory(affordText) });
+      if (assessment) {
+        const recommended = assessment.scenarios.find((scenario) => scenario.id === assessment.recommended_id);
+        const draft = [assessment.headline, recommended && recommended.title !== assessment.headline ? `Best option: ${recommended.title}. ${recommended.effect}` : '', assessment.warning ?? '']
+          .filter(Boolean)
+          .join(' ');
+        const source = await composeReply(record, { question, draft, facts: { affordability: assessment } });
+        return { summary: `Affordability engine: ${assessment.verdict} for ${formatInr(price)}; ${source === 'openai' ? 'explained by OpenAI from account facts' : 'calculated text'}.` };
       }
-      await addLocalizedMessage(
-        record,
-        `${knowledge.answer}${sources.length ? ` (Sources: ${[...new Set(sources)].join('; ')}.)` : ''} This is general guidance. A Saathi specialist can look at your situation if you want.`,
-      );
-      return { summary: `Answered from the knowledge graph (${knowledge.backend}) with ${knowledge.sources.length} source(s).` };
+    }
+    type Knowledge = { answer: string | null; sources: { title: string | null; clause_id: string | null; page: number | null }[]; backend: string };
+    // The knowledge graph gets a time budget; past it, Saathi answers from the account facts alone.
+    const knowledge = await Promise.race([
+      callTool<Knowledge>(context, 'knowledge.ask', { question: record.message_for_rules ?? record.customer_message }),
+      new Promise<Knowledge>((resolve) => setTimeout(() => resolve({ answer: null, sources: [], backend: 'timed_out' }), KNOWLEDGE_BUDGET_MS)),
+    ]);
+    const sources = [...new Set(knowledge.sources.map((source) => source.title).filter(Boolean))];
+    if (knowledge.answer && record.evidence) {
+      record.evidence.retrieved_evidence = knowledge.sources.map((source, index) => ({
+        document_id: `KB-${index + 1}`,
+        document_name: 'Saathi knowledge graph (Cognee)',
+        document_type: 'knowledge',
+        page: source.page ?? 1,
+        title: source.title ?? 'Knowledge',
+        text: source.title ?? '',
+        score: knowledge.sources.length - index,
+        retrieval: 'cognee',
+      }));
+      record.evidence.notice = 'General guidance from the Saathi knowledge graph (Cognee), applied to your own account figures.';
+    }
+    if (knowledge.answer || aiAllowed(record)) {
+      // General questions are answered from the knowledge graph plus the customer's own account figures.
+      const draft = knowledge.answer
+        ? `${knowledge.answer}${sources.length ? ` (Sources: ${sources.join('; ')}.)` : ''} This is general guidance. A Saathi specialist can look at your situation if you want.`
+        : undefined;
+      const before = record.messages.length;
+      const source = await composeReply(record, { question, draft, knowledge: knowledge.answer, withCase: false });
+      if (record.messages.length > before) {
+        return { summary: `Answered ${source === 'openai' ? 'by OpenAI from account facts and ' : 'from '}the knowledge graph (${knowledge.backend}), ${knowledge.sources.length} source(s).` };
+      }
     }
   }
-  await addLocalizedMessage(record, [explainDecision(record), ...assumptionNotes(record)].join(' '));
-  const language = record.messages.at(-1)?.language ?? (record.language === 'hinglish' ? 'Hinglish' : 'English');
-  return { summary: `Explained in ${language} using decision facts only.` };
+  const source = await composeReply(record, { question, draft: [explainDecision(record), ...assumptionNotes(record)].join(' ') });
+  return { summary: source === 'openai' ? 'OpenAI explained the calculated plan using the account facts; numbers checked.' : 'Explained using decision facts only.' };
 });
 
 const humanReview = node('human_review', async (state, { record }) => {

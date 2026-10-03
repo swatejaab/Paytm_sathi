@@ -19,7 +19,7 @@ interface Props {
   busy: boolean;
   error: string | null;
   integrations: IntegrationStatus;
-  onSubmit: (message: string, consent: boolean, language: string) => Promise<void>;
+  onSubmit: (message: string, consent: boolean, language: string, ai: boolean) => Promise<void>;
   onAsk: (message: string, language: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
   onNewCase: () => void;
@@ -77,7 +77,7 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
     const text = message.trim();
     if (text.length < 8 || busy) return;
     setNotice(null);
-    await onSubmit(text, consent, language);
+    await onSubmit(text, consent, language, aiConsent);
     setDraft('');
   };
 
@@ -85,7 +85,7 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
     const text = draft.trim();
     if (text.length < 2 || busy) return;
     if (!aiConsent) {
-      setNotice('Tick "Allow Saathi AI to answer from my case facts" to ask follow-up questions.');
+      setNotice('Tick "Let Saathi AI answer using my account and case facts" to ask follow-up questions.');
       return;
     }
     setNotice(null);
@@ -236,10 +236,10 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
             Allow voice processing by Sarvam (speech-to-text and read-aloud). Audio is not stored.
           </label>
         )}
-        {followUp && (
+        {integrations.openai_available && (
           <label className="checkbox">
             <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />
-            Allow Saathi AI (OpenAI) to answer from my case facts. Contact details are redacted; it cannot change numbers or approve anything.
+            Let Saathi AI (OpenAI) answer using my account and case facts. Contact details are removed; every amount is calculated by Saathi, and the AI cannot approve anything.
           </label>
         )}
       </div>

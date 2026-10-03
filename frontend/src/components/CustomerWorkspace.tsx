@@ -38,11 +38,11 @@ export function CustomerWorkspace({
     [refreshCases],
   );
 
-  const submit = async (message: string, consent: boolean, language: string) => {
+  const submit = async (message: string, consent: boolean, language: string, ai: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      updateCase(await api.createCase(message, consent, language || undefined));
+      updateCase(await api.createCase(message, consent, language || undefined, ai));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'I could not save this case. No financial action was started.');
     } finally {
@@ -80,9 +80,9 @@ export function CustomerWorkspace({
         busy={busy}
         error={error}
         integrations={integrations}
-        onSubmit={async (message, consent, language) => {
+        onSubmit={async (message, consent, language, ai) => {
           onSeedUsed?.();
-          await submit(message, consent, language);
+          await submit(message, consent, language, ai);
         }}
         seed={seed}
         onAsk={ask}

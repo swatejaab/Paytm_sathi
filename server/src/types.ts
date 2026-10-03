@@ -364,6 +364,8 @@ export interface CaseRecord {
   urgency: Urgency;
   language?: Language;
   preferred_language?: string;
+  // The customer allowed Saathi to answer with OpenAI using their account facts (contact details removed).
+  ai_answers?: boolean;
   playbook_id?: string;
   // English rendering of a non-Latin message, used only for classification and amount rules.
   message_for_rules?: string;

@@ -80,13 +80,13 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
     }
   };
 
-  const startCase = async (message: string, consent: boolean) => {
+  const startCase = async (message: string, consent: boolean, ai = consents.ai) => {
     setSheet(null);
     setBusy(true);
     setError(null);
     setPendingUser(message);
     try {
-      onCase(await api.createCase(message, consent, language || undefined));
+      onCase(await api.createCase(message, consent, language || undefined, ai));
       setDraft('');
       setPlaceholder('Ask a follow-up…');
       loadHistory();
@@ -127,7 +127,7 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
       setError('Tell Saathi a little more about what happened.');
       return;
     }
-    if (consents.records) void startCase(message, true);
+    if (consents.records && consents.ai) void startCase(message, true, true);
     else setSheet({ kind: 'records', message });
   };
 
@@ -348,15 +348,15 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
             </span>
             {sheet.kind === 'records' && (
               <>
-                <h3>Allow Saathi to read your records?</h3>
-                <p>Saathi uses your bills, policies and account details only to help with this request.</p>
+                <h3>Let Saathi use your account to answer?</h3>
+                <p>Saathi reads your balance, bills, EMIs and policy, and OpenAI writes the reply with contact details removed. Every amount is calculated by Saathi, not the AI.</p>
                 <label className="m-remember">
                   <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Don't ask me again
                 </label>
-                <button className="m-btn primary" onClick={() => { void rememberChoice({ records: true }); void startCase(sheet.message, true); }}>
+                <button className="m-btn primary" onClick={() => { void rememberChoice({ records: true, ai: true }); void startCase(sheet.message, true, true); }}>
                   Allow and continue
                 </button>
-                <button className="m-btn ghost" onClick={() => void startCase(sheet.message, false)}>
+                <button className="m-btn ghost" onClick={() => void startCase(sheet.message, consents.records, false)}>
                   Not now
                 </button>
               </>

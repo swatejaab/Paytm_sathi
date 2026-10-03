@@ -14,6 +14,7 @@ export async function createCase(
   message: string,
   consentGranted: boolean,
   preferredLanguage?: string,
+  aiAnswers = false,
 ): Promise<CaseRecord> {
   const now = nowIso();
   const record: CaseRecord = {
@@ -23,6 +24,7 @@ export async function createCase(
     urgency: 'low',
     language: 'en',
     ...(preferredLanguage ? { preferred_language: preferredLanguage } : {}),
+    ...(aiAnswers ? { ai_answers: true } : {}),
     status: 'intake',
     customer_message: message.trim(),
     assistant_message: '',

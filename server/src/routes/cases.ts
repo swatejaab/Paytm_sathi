@@ -21,6 +21,7 @@ const intakeSchema = z
     message: z.string().trim().min(8).max(2000),
     consent_to_read_case_data: z.boolean().default(false),
     language: z.enum(LANGUAGE_CODES).optional(),
+    confirm_external_processing: z.boolean().default(false),
   })
   .strict();
 const consentSchema = z.object({ purpose: z.literal('prepare_resolution_options'), granted: z.boolean() }).strict();
@@ -45,7 +46,7 @@ function summarize(record: CaseRecord) {
 
 caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(intakeSchema, req.body);
-  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data, body.language));
+  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data, body.language, body.confirm_external_processing));
 });
 
 caseRouter.get('/cases', requireAuth('case:read'), (req, res) => {
