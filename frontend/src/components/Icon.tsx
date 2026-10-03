@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 // Stroke icon set (24x24, currentColor).
 const PATHS = {
   home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
@@ -68,6 +70,32 @@ export function Icon({ name, size = 20, className }: { name: IconName; size?: nu
       aria-hidden
     >
       <path d={PATHS[name]} />
+    </svg>
+  );
+}
+
+// The AI orb on the Saathi tab of the app's bottom navigation. Everywhere else uses BrandMark.
+export function AssistantMark({ size = 36 }: { size?: number }) {
+  const id = useId().replace(/:/g, '');
+  return (
+    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden className="assistant-mark">
+      <defs>
+        <radialGradient id={`${id}-core`} cx="32%" cy="28%" r="80%">
+          <stop offset="0" stopColor="#8cf4ff" />
+          <stop offset="0.42" stopColor="#00baf2" />
+          <stop offset="1" stopColor="#5b3df5" />
+        </radialGradient>
+        <linearGradient id={`${id}-ring`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#00baf2" />
+          <stop offset="0.5" stopColor="#a78bfa" />
+          <stop offset="1" stopColor="#22d3ee" />
+        </linearGradient>
+      </defs>
+      <circle cx="20" cy="20" r="18.6" fill="none" stroke={`url(#${id}-ring)`} strokeWidth="1.6" />
+      <circle cx="20" cy="20" r="15.6" fill={`url(#${id}-core)`} />
+      <ellipse cx="14.6" cy="11.8" rx="5.6" ry="2.8" fill="#fff" opacity="0.3" />
+      <path d="M19 10.5C19.8 15.6 21.4 17.2 26.5 18 21.4 18.8 19.8 20.4 19 25.5 18.2 20.4 16.6 18.8 11.5 18 16.6 17.2 18.2 15.6 19 10.5Z" fill="#fff" />
+      <path d="M26.5 22.5C26.8 24.4 27.3 24.9 29.2 25.2 27.3 25.5 26.8 26 26.5 27.9 26.2 26 25.7 25.5 23.8 25.2 25.7 24.9 26.2 24.4 26.5 22.5Z" fill="#fff" opacity="0.92" />
     </svg>
   );
 }

@@ -6,12 +6,14 @@ import { addLocalizedMessage } from '../agent/localize';
 import { assessAffordability, purchaseCategory, type AffordabilityAssessment } from '../afford';
 import { addMessage, addTimeline, grantRecordsConsent, hasConsent, loadCaseForOwner, newId } from '../caseStore';
 import { openaiAvailable } from '../config';
-import { insertCase, nowIso, recordAudit, standingConsents, updateCase } from '../db';
+import { getPreferences, insertCase, nowIso, recordAudit, savePreferences, standingConsents, updateCase } from '../db';
+import { panOnFile, type Portfolio } from '../holdings';
+import { invokeAccountTool } from '../mcp/gateway';
 import { formatDay, formatInr } from '../decision';
 import { financialContext } from '../financialContext';
 import { activeGoals, computeGoal, type Goal, type GoalType } from '../goals';
 import { buildInsights } from '../insights';
-import { allowedNumbers, answerCaseQuestion, inventedNumbers } from '../integrations';
+import { allowedNumbers, answerCaseQuestion, interpretMessage, inventedNumbers, type MessageInterpretation } from '../integrations';
 import { redactContactIdentifiers } from '../redaction';
 import { playbookForEvent } from '../playbooks/registry';
 import { buildTwin } from '../twin';
@@ -30,6 +32,7 @@ import type {
   UploadedDocument,
   Urgency,
 } from '../types';
+import { detectLanguage, fromEnglish, languageName, promptLanguage, toEnglish, translationAvailable } from './language';
 import { normalizeText, parseAmounts, understand, type Understanding } from './nlu';
 import { admissionPhrase, fetchHospitalRecords, payNowSource } from './records';
 
@@ -103,6 +106,8 @@ interface Turn {
   ctx: ConversationContext;
   u: Understanding;
   text: string;
+  /** Set once the AI interpreter has rewritten this turn, so it is never interpreted twice. */
+  interpreted?: boolean;
 }
 
 const hinglish = (record: CaseRecord) => record.language === 'hinglish';
@@ -111,6 +116,22 @@ const quote = (text: string) => `You said: "${text.length > 70 ? `${text.slice(0
 
 async function reply(record: CaseRecord, text: string, extra: { quick_replies?: QuickReply[]; card?: ChatCard } = {}) {
   await addLocalizedMessage(record, text, extra);
+}
+
+// Chips added after a message was written (for example by the plan step) still need the customer's language.
+async function localizeNewChips(record: CaseRecord, fromIndex: number): Promise<void> {
+  const target = record.preferred_language;
+  if (!target || target === 'en-IN') return;
+  const pending = record.messages
+    .slice(fromIndex)
+    .flatMap((message) => (message.role === 'assistant' ? (message.quick_replies ?? []) : []))
+    .filter((chip) => /^[\x20-\x7E₹]+$/.test(chip.label));
+  await Promise.all(
+    pending.map(async (chip) => {
+      const label = await fromEnglish(chip.label, target);
+      if (label) chip.label = label;
+    }),
+  );
 }
 
 function setSlot<K extends keyof ContextSlots>(
@@ -720,20 +741,186 @@ export function chatFacts(record: CaseRecord) {
   };
 }
 
-// Optional model answer, used only with the customer's AI consent and only if it repeats no number outside the facts.
-async function modelAnswer(turn: Turn, facts: Record<string, unknown>): Promise<string | null> {
+function answerLanguage(record: CaseRecord): string {
+  if (record.preferred_language && record.preferred_language !== 'en-IN') return promptLanguage(record.preferred_language);
+  return hinglish(record) ? 'Hinglish (Hindi in Latin script)' : 'English';
+}
+
+// Optional model answer, used only with the customer's AI consent and only if it repeats no amount outside the facts.
+async function modelAnswer(turn: Turn, facts: Record<string, unknown>, mode: 'case' | 'general' = 'case'): Promise<string | null> {
   if (!openaiAvailable() || !standingConsents(turn.principal.sub).ai) return null;
   try {
-    const result = await answerCaseQuestion(turn.text, facts, hinglish(turn.record) ? 'Hinglish (Hindi in Latin script)' : 'English');
-    if (inventedNumbers(result.answer, allowedNumbers(facts)).length) {
+    const result = await answerCaseQuestion(turn.text, facts, answerLanguage(turn.record), mode);
+    if (inventedNumbers(result.answer, allowedNumbers(facts), { rupeesOnly: mode === 'general' }).length) {
       recordAudit({ case_id: turn.record.case_id, actor: turn.principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers' } });
       return null;
     }
-    recordAudit({ case_id: turn.record.case_id, actor: turn.principal.sub, event: 'external_ai_chat', detail: { provider: 'openai', answered_by: 'openai' } });
+    recordAudit({ case_id: turn.record.case_id, actor: turn.principal.sub, event: 'external_ai_chat', detail: { provider: 'openai', answered_by: 'openai', mode } });
     return result.answer;
   } catch {
     return null;
   }
+}
+
+// The AI assistant is configured but the customer hasn't allowed it yet: ask once, then answer the same question.
+function shouldAskAiConsent(turn: Turn): boolean {
+  return openaiAvailable() && !standingConsents(turn.principal.sub).ai && !turn.ctx.ai_declined;
+}
+
+async function askAiConsent(turn: Turn, purpose: 'answer' | 'understand' = 'answer'): Promise<void> {
+  turn.ctx.awaiting = 'ai_consent';
+  turn.ctx.pending_ai_question = turn.text.slice(0, 1000);
+  await reply(
+    turn.record,
+    purpose === 'understand'
+      ? say(
+          turn.record,
+          "I want to get this right. Saathi's AI assistant can read your message and work out what you need, then I'll check it against your accounts. Only your message goes to OpenAI, with phone numbers and account IDs removed, and it never moves money. Allow AI answers?",
+          'Main ise sahi samajhna chahta hoon. Saathi ka AI assistant aapka message padh kar samajh sakta hai ki aapko kya chahiye, phir main aapke accounts se check karunga. Sirf aapka message, phone number aur account ID hata kar, OpenAI ko jaayega. Ye paise kabhi move nahi karta. AI answers allow karein?',
+        )
+      : say(
+          turn.record,
+          "I can answer that with Saathi's AI assistant. It sends your question, and only the figures Saathi already has for this chat, to OpenAI with phone numbers and account IDs removed. It can explain and suggest, but it never moves money. Allow AI answers?",
+          'Iska jawab main Saathi ke AI assistant se de sakta hoon. Aapka sawaal (aur is chat ke figures) phone number aur account ID hata kar OpenAI ko jaayega. Ye sirf samjhata hai, paise kabhi move nahi karta. AI answers allow karein?',
+        ),
+    {
+      quick_replies: [
+        { label: say(turn.record, 'Allow AI answers', 'Haan, allow karein'), send: 'Yes, allow AI answers' },
+        { label: say(turn.record, 'Not now', 'Abhi nahi'), send: 'Not now' },
+      ],
+    },
+  );
+}
+
+const monthName = (yearMonth: string) => {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return `${new Date(Date.UTC(year!, month! - 1, 1)).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' })} ${year}`;
+};
+
+// The interpreted request, phrased the way Saathi's own parser understands, so the usual journey (and its maths) runs.
+function canonicalMessage(meaning: MessageInterpretation): string | null {
+  const amount = meaning.amount_inr ? formatInr(meaning.amount_inr) : null;
+  const item = meaning.item?.replace(/^(a|an|the|my|new)\s+/i, '').trim() || null;
+  const article = item && /^[aeiou]/i.test(item) ? 'an' : 'a';
+  switch (meaning.intent) {
+    case 'afford':
+      return `Can I afford ${item ? `${article} ${item}` : 'this purchase'}${amount ? ` for ${amount}` : ''}?`;
+    case 'goal':
+      return `I want to save for ${item ? `${article} ${item}` : 'a goal'}${amount ? `, target ${amount}` : ''}${meaning.target_date ? ` by ${monthName(meaning.target_date)}` : ''}`;
+    case 'hospital':
+      return amount ? `My hospital bill is ${amount}` : 'I need help paying a hospital bill';
+    case 'upi_fraud':
+      return amount ? `I don't recognize a UPI payment of ${amount}` : "I don't recognize a UPI payment";
+    case 'failed_refund':
+      return `My UPI payment${amount ? ` of ${amount}` : ''} failed and the refund has not come`;
+    case 'emi':
+      return `My EMI${amount ? ` of ${amount}` : ''} is due before my salary and I can't pay it on time`;
+    case 'protection':
+      return 'Do I have enough life insurance for my family?';
+    case 'portfolio':
+      return 'What is my net worth?';
+    case 'spending':
+      return 'Show my spending';
+    case 'cashflow':
+      return 'Will I be short of cash before my salary?';
+    case 'specialist':
+      return 'I want to talk to a specialist';
+    default:
+      return null;
+  }
+}
+
+// When the rule-based parser can't place a message, the AI assistant reads it (with the customer's AI consent) and the
+// matching journey runs as if they had asked in Saathi's own words. Amounts the customer didn't write are dropped.
+async function interpretTurn(turn: Turn): Promise<Turn | null> {
+  const { record, principal } = turn;
+  if (turn.interpreted || !openaiAvailable() || !standingConsents(principal.sub).ai) return null;
+  if (turn.text.trim().split(/\s+/).length < 3) return null;
+  let meaning: MessageInterpretation;
+  try {
+    meaning = await interpretMessage(turn.text);
+  } catch {
+    return null;
+  }
+  const written = meaning.amount_inr !== null && turn.u.amounts.some((amount) => amount.value === meaning.amount_inr);
+  const trusted = { ...meaning, amount_inr: written ? meaning.amount_inr : null };
+  const canonical = canonicalMessage(trusted);
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'message_interpreted', detail: { provider: 'openai', intent: meaning.intent, used: Boolean(canonical) } });
+  if (!canonical) return null;
+  const allowed = new Set(turn.u.amounts.map((amount) => String(amount.value)));
+  const restated = (inventedNumbers(meaning.restated, allowed, { rupeesOnly: true }).length ? canonical : meaning.restated).replace(
+    /₹\s?(\d[\d,]*)/g,
+    (_match, digits: string) => formatInr(Number(digits.replace(/,/g, ''))),
+  );
+  const asked = [...record.messages].reverse().find((message) => message.role === 'user' && (message.understood ?? message.content) === turn.text);
+  if (asked) asked.understood = restated;
+  const u = understand(canonical);
+  const item = trusted.item?.replace(/^(a|an|the|my|new)\s+/i, '').trim();
+  return { ...turn, text: canonical, u: item && ['afford', 'goal'].includes(trusted.intent) ? { ...u, item } : u, interpreted: true };
+}
+
+function grantAiConsent(principal: Principal, caseId: string): void {
+  const preferences = getPreferences(principal.sub);
+  savePreferences(principal.sub, { ...preferences, consents: { ...preferences.consents, ai: true } });
+  recordAudit({ case_id: caseId, actor: principal.sub, event: 'standing_consent_updated', detail: { ai: true, via: 'chat' } });
+}
+
+// ---------- assets and net worth ----------
+
+// Questions about the customer's own holdings. General questions ("what is a mutual fund?") go to the general answerer.
+const PORTFOLIO_QUESTION =
+  /\b(net ?worth|portfolio|(my|mere|meri|mera) (investments?|assets|holdings|stocks?|shares|mutual funds?|fds?|fixed deposits?|savings|money is invested)|how (is|are) my (money|investments?)|my money invested|am i diversified|asset allocation|in an emergency|emergency (money|cash))\b/i;
+
+const pctOf = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
+
+function portfolioAnswer(text: string, portfolio: Portfolio): string {
+  const value = (id: string) => portfolio.classes.find((item) => item.id === id)?.value_inr ?? 0;
+  const total = portfolio.total_assets_inr;
+  if (/\b(risky|risk|diversif\w*|safe)\b/i.test(text)) {
+    const equity = value('stocks') + value('mutual_funds');
+    const steady = value('savings') + value('fixed_deposits') + value('retirement');
+    return `${pctOf(equity, total)}% of your assets (${formatInr(equity)}) are in stocks and equity mutual funds, which rise and fall with the market. ${formatInr(steady)} (${pctOf(steady, total)}%) is in savings, FDs, PPF and EPF, which are steadier. Whether that mix suits you depends on your goals and when you need the money; a SEBI-registered adviser can help you decide. Saathi doesn't recommend specific stocks or funds.`;
+  }
+  if (/\b(emergency|urgent|quickly|liquid)\b/i.test(text)) {
+    return `You can reach ${formatInr(portfolio.liquid_inr)} quickly: ${formatInr(value('savings'))} in savings accounts${value('fixed_deposits') ? ` and ${formatInr(value('fixed_deposits'))} in fixed deposits (breaking an FD early can cost some interest)` : ''}. Mutual funds (${formatInr(value('mutual_funds'))}) usually reach your bank 1 to 3 working days after you redeem.${value('retirement') ? ` PPF and EPF (${formatInr(value('retirement'))}) are meant for the long term and are hard to withdraw quickly.` : ''}`;
+  }
+  const mix = portfolio.classes.map((item) => `${item.label} ${formatInr(item.value_inr)} (${pctOf(item.value_inr, total)}%)`).join(', ');
+  const gain =
+    portfolio.market_value_inr > 0
+      ? ` Your stocks and funds are ${portfolio.market_gain_inr >= 0 ? 'up' : 'down'} ${formatInr(Math.abs(portfolio.market_gain_inr))} (${Math.abs(portfolio.market_gain_pct)}%) on what you put in.`
+      : '';
+  return `Your net worth is ${formatInr(portfolio.net_worth_inr)}: ${formatInr(total)} in assets minus ${formatInr(portfolio.total_liabilities_inr)} you owe. By type: ${mix}.${gain}`;
+}
+
+async function handlePortfolio(turn: Turn): Promise<void> {
+  const { record, principal, ctx } = turn;
+  if (!ctx.journey) ctx.journey = 'general';
+  const pan = panOnFile(principal.sub);
+  if (!pan || !getPreferences(principal.sub).holdings_link) {
+    await reply(
+      record,
+      'To answer that I need to see all your investments. Link your PAN once in Insights, under Assets & net worth: Saathi then reads your stocks, mutual funds, FDs, savings accounts, PPF and EPF (read-only) and works out your net worth.',
+      { quick_replies: [{ label: 'Link my investments', action: 'open_insights', payload: { tab: 'assets' } }] },
+    );
+    return;
+  }
+  const portfolio = await invokeAccountTool<Portfolio>('aa.fetch_holdings', { pan }, { principal, consent: true });
+  const facts = {
+    net_worth_inr: portfolio.net_worth_inr,
+    total_assets_inr: portfolio.total_assets_inr,
+    total_liabilities_inr: portfolio.total_liabilities_inr,
+    quick_access_cash_and_fd_inr: portfolio.liquid_inr,
+    market_gain_inr: portfolio.market_gain_inr,
+    market_gain_pct: portfolio.market_gain_pct,
+    by_type: portfolio.classes.map((item) => ({ type: item.label, value_inr: item.value_inr, share_pct: pctOf(item.value_inr, portfolio.total_assets_inr) })),
+    liabilities: portfolio.liabilities.map((item) => ({ name: item.label, outstanding_inr: item.value_inr })),
+  };
+  const answer = await modelAnswer(turn, facts, 'general');
+  if (answer) {
+    addMessage(record, 'assistant', answer, { source: 'openai', quick_replies: [{ label: 'See my assets', action: 'open_insights', payload: { tab: 'assets' } }] });
+    return;
+  }
+  await reply(record, portfolioAnswer(turn.text, portfolio), { quick_replies: [{ label: 'See my assets', action: 'open_insights', payload: { tab: 'assets' } }] });
 }
 
 async function followUp(turn: Turn): Promise<void> {
@@ -761,6 +948,9 @@ async function followUp(turn: Turn): Promise<void> {
   if (answer) {
     addMessage(record, 'assistant', answer, { source: 'openai' });
     return;
+  }
+  if (turn.text.length > 12 && /\?|\b(what|how|why|when|which|can|should|explain|kya|kaise|kyun)\b/i.test(turn.text) && shouldAskAiConsent(turn)) {
+    return askAiConsent(turn);
   }
   await reply(
     record,
@@ -998,7 +1188,31 @@ async function handleGeneral(turn: Turn): Promise<void> {
       return;
     }
   }
+  if (
+    (/\b(apply|get|take|want|need|buy|purchase|show me|give me|offer me|sell me|i'?d like)\b[^.?!]{0,30}\b(loan|insurance|policy|term plan|credit line)\b/.test(lower) ||
+      /\b(loan|insurance|policy|term plan)\b[^.?!]{0,20}\b(chahiye|lena|leni|dila do|de do|dilao)\b/.test(lower)) &&
+    !u.amounts.length
+  ) {
+    await reply(
+      record,
+      say(
+        record,
+        "Saathi doesn't push loans or policies on their own. Tell me what the money or the cover is for, for example a hospital bill, an EMI you can't pay on time, or protecting your family, and I'll compare your options. If a loan or a policy is the best fit, I'll show its full costs here so you can apply after reviewing it.",
+        'Saathi khud se loan ya policy nahi bechta. Bataiye paisa ya cover kis liye chahiye, jaise hospital bill, EMI, ya family ki suraksha. Agar loan ya policy sabse sahi option ho, toh main uski poori cost yahin dikhaunga aur aap review karke apply kar sakte hain.',
+      ),
+      {
+        quick_replies: [
+          { label: say(record, 'Is my family protected?', 'Kya meri family protected hai?'), send: 'Do I have enough life insurance for my family?' },
+          { label: say(record, 'Help with a hospital bill', 'Hospital bill mein madad'), send: 'I need help paying a hospital bill' },
+        ],
+      },
+    );
+    return;
+  }
+  const interpreted = await interpretTurn(turn);
+  if (interpreted) return respond(interpreted);
   if (u.amounts.length) {
+    if (!turn.interpreted && shouldAskAiConsent(turn)) return askAiConsent(turn, 'understand');
     const value = u.amounts[0]!.value;
     ctx.unassigned_amount_inr = value;
     await reply(record, `What is the ${formatInr(value)} for? For example, a hospital bill, something you want to buy, or a payment you don't recognise.`, {
@@ -1010,11 +1224,12 @@ async function handleGeneral(turn: Turn): Promise<void> {
     });
     return;
   }
-  const answer = await modelAnswer(turn, ensureRecordsConsent(turn) ? { financial_context: financialContext(principal.sub) } : {});
+  const answer = await modelAnswer(turn, ensureRecordsConsent(turn) ? { financial_context: financialContext(principal.sub) } : {}, 'general');
   if (answer) {
     addMessage(record, 'assistant', answer, { source: 'openai' });
     return;
   }
+  if (text.length > 8 && shouldAskAiConsent(turn)) return askAiConsent(turn);
   await reply(
     record,
     say(
@@ -1128,6 +1343,32 @@ async function respond(turn: Turn): Promise<void> {
     }
     ctx.awaiting = null;
   }
+  if (ctx.awaiting === 'ai_consent') {
+    const question = ctx.pending_ai_question ?? null;
+    ctx.awaiting = null;
+    ctx.pending_ai_question = null;
+    if (u.yes || /\ballow ai\b/i.test(turn.text)) {
+      grantAiConsent(principal, record.case_id);
+      ctx.ai_declined = false;
+      if (question) return respond({ ...turn, text: question, u: understand(question) });
+      await reply(record, say(record, 'Thanks. What would you like to know?', 'Shukriya. Aap kya jaanna chahte hain?'));
+      return;
+    }
+    if (u.no) {
+      ctx.ai_declined = true;
+      const pending = question ? understand(question) : null;
+      if (question && pending?.amounts.length) return respond({ ...turn, text: question, u: pending });
+      await reply(
+        record,
+        say(
+          record,
+          "No problem. I'll stick to what Saathi can work out itself. I can help with hospital bills, payments you don't recognise, EMIs, refunds, purchases, savings goals and your net worth. You can turn AI answers on any time in More > Consent management.",
+          'Koi baat nahi. Main hospital bill, anjaan payment, EMI, refund, kharidari, savings goals aur net worth mein madad kar sakta hoon. AI answers aap kabhi bhi More > Consent management mein on kar sakte hain.',
+        ),
+      );
+      return;
+    }
+  }
   if (u.yes && ctx.records_consent_declined && /allow/i.test(turn.text)) {
     grantRecordsConsent(record, principal);
     ctx.records_consent_declined = false;
@@ -1175,6 +1416,10 @@ async function respond(turn: Turn): Promise<void> {
   // Answers to an open question go to the journey that asked it.
   if (ctx.awaiting === 'purchase_inr') return handleAfford(turn);
   if (ctx.awaiting === 'goal_target' || ctx.awaiting === 'goal_date') return handleGoal(turn);
+
+  if (!caseJourney && !(incoming && CASE_JOURNEYS.has(incoming)) && !u.amounts.length && PORTFOLIO_QUESTION.test(turn.text)) {
+    return handlePortfolio(turn);
+  }
 
   if (incoming === 'afford' && !(caseJourney && ['hospital', 'bill'].includes(caseJourney) && ctx.awaiting)) {
     if (!caseJourney) ctx.journey = 'afford';
@@ -1235,20 +1480,51 @@ export async function handleTurn(
     ? loadCaseForOwner(principal, input.conversation_id, 'case:create')
     : createConversation(principal, input.language);
   if (input.language) {
-    if (input.language === 'en-IN') delete record.preferred_language;
-    else record.preferred_language = input.language;
+    if (input.language === 'en-IN') {
+      delete record.preferred_language;
+      delete record.language_source;
+    } else {
+      record.preferred_language = input.language;
+      record.language_source = 'chosen';
+    }
   }
-  const text = input.message.trim();
+  const raw = input.message.trim();
   const isFirst = !record.messages.some((message) => message.role === 'user');
-  addMessage(record, 'user', text);
+
+  // Any Indian language: Saathi works from an English rendering and replies in the language the customer wrote in.
+  const written = detectLanguage(raw, record.preferred_language);
+  const english = written ? await toEnglish(raw, written) : null;
+  if (written) {
+    record.preferred_language = written;
+    if (!input.language) record.language_source = 'detected';
+  } else if (!input.language && record.language_source === 'detected') {
+    delete record.preferred_language;
+    delete record.language_source;
+  }
+  const text = english?.text.trim() || raw;
+  addMessage(record, 'user', raw, written ? { language: written, ...(english ? { understood: text } : {}) } : {});
+  if (english) recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'message_translated', detail: { from: written, via: english.via } });
   record.customer_message = record.customer_message ? `${record.customer_message}\n${text}` : text;
   const u = understand(text);
   if (isFirst || u.language === 'hinglish') record.language = u.language;
   const ctx = (record.context ??= emptyContext());
   const turn: Turn = { record, principal, ctx, u, text };
   if (isFirst) addTimeline(record, { title: 'Conversation started', detail: 'Saathi is working from what you share here.', actor: 'customer' });
+  const before = record.messages.length;
   try {
-    await respond(turn);
+    if (written && !english) {
+      addMessage(
+        record,
+        'assistant',
+        translationAvailable()
+          ? `I can see you wrote in ${languageName(written)}, but I couldn't translate it just now. Please try again in a moment, or write in English or Hinglish.`
+          : `I can see you wrote in ${languageName(written)}. Translation isn't switched on right now, so please write in English or Hinglish and I'll help straight away.`,
+        { language: 'en-IN' },
+      );
+    } else {
+      await respond(turn);
+      await localizeNewChips(record, before);
+    }
   } catch (error) {
     addMessage(record, 'assistant', GENERIC_ERROR);
     recordAudit({

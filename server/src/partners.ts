@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { keepAlive } from './background';
 import { addMessage, addTimeline, mutateCase } from './caseStore';
 import { n8nConfigured, settings } from './config';
 import { claimPartnerEvent, findCase, nowIso, recordAudit, updateCase } from './db';
@@ -156,16 +157,21 @@ function scheduleLocalPartner(caseId: string, action: CaseAction): void {
       });
     }
   }
-  events.forEach((event, index) => {
-    const timer = setTimeout(() => {
-      try {
-        applyPartnerEvent(event, 'local_mock');
-      } catch (error) {
-        console.error('[partners] mock event failed', error);
-      }
-    }, settings.mockPartnerDelayMs * (index + 1));
-    timer.unref();
-  });
+  const delivered = events.map(
+    (event, index) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          try {
+            applyPartnerEvent(event, 'local_mock');
+          } catch (error) {
+            console.error('[partners] mock event failed', error);
+          }
+          resolve();
+        }, settings.mockPartnerDelayMs * (index + 1));
+        timer.unref();
+      }),
+  );
+  keepAlive(Promise.all(delivered));
 }
 
 export async function dispatchApprovedAction(caseId: string, actionId: string): Promise<void> {

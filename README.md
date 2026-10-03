@@ -55,7 +55,10 @@ Anything the records cannot answer is asked for, and anything the customer says 
 - **Money SOS**: one button for any money emergency (header, Home, and a floating button on phones). It opens a voice-first chat with emergency shortcuts and a specialist call-back.
 - **Home**: greeting, the four entry points (Ask Saathi, Check Financial Health, View Goals, Explore Insights), proactive "For you" insights, this month at a glance, goals, and recent chats.
 - **Saathi**: a multi-turn chat. Every message, including suggestion chips, goes to `POST /api/chat` exactly as typed. Conversations are saved with an automatic title (for example "Hospital Bill Assistance" or "Unknown UPI Transaction"), and can be reopened, renamed, or deleted from the history sidebar (a drawer on phones). The composer supports text, attachments (bill or insurance policy), and voice (record, review the transcript, then send; Sarvam speech-to-text when enabled, otherwise the browser's speech recognition).
-- **Insights**: KPI cards (income, spending, savings, upcoming obligations, outstanding debt, financial health) and charts with tooltips and legends (income vs expenses, spending by category, cash flow, debt/EMI, savings progress, upcoming obligations), plus the cash-flow forecast, credit health, and "Can I afford it?" tabs.
+- **Insights**: KPI cards (income, spending, savings, upcoming obligations, outstanding debt, financial health) and charts with tooltips and legends (income vs expenses, spending by category, cash flow, debt/EMI, savings progress, upcoming obligations), plus these tabs:
+  - **Assets & net worth**: link your PAN once (the KYC PAN or one you type, with explicit consent) and Saathi pulls every holding linked to it, IndMoney-style: stocks from the CDSL/NSDL demat statement, mutual funds from the CAMS/KFintech statement, bank balances and FDs through the Account Aggregator, and PPF/EPF. It shows net worth, allocation, the 6-month trend, gains, liquid money, and holding-level tables, and Saathi can answer "How is my money invested?" from it. Read-only, and you can unlink at any time.
+  - **Cash flow forecast**: a Power BI-style report with KPI tiles, what-if slicers (salary delay, which bills to include), a combo chart (daily money in and out as bars, the running balance as a line, payday and the lowest point marked, hover tooltips), and the biggest payments before payday.
+  - **Credit health** and **Can I afford it?**
 - **Goals**: add, edit, pause, complete, or delete goals; each shows the remaining amount, the monthly amount needed, progress, and expected completion. Saathi takes active goals into account (for example, an iPhone purchase is checked against a car goal).
 - **More**: profile, financial profile, linked accounts, chat history, uploaded documents, financial cases, notifications, consent management, privacy, connected services, data permissions, language, theme, notification preferences, help, FAQs, and about.
 - Light and dark themes (header toggle, saved in the browser), responsive down to phone widths.
@@ -68,6 +71,7 @@ Anything the records cannot answer is asked for, and anything the customer says 
 3. Once the inputs are known, deterministic TypeScript does the maths: funding gap = max(bill − insurance − what you can pay, 0). Saathi asks for consent inline before reading account records, then the agent graph gathers evidence and the decision service ranks options on cost, risk, time, and effort only. Partner commission is never considered.
 4. Replies carry cards (funding gap, recommended plan, transactions, affordability, goal drafts) and quick replies. "Why this plan?" shows the information used and its source, the calculation, alternatives, and risks. Low-confidence values are flagged for confirmation.
 5. Actions (dispute, secure account, claim, loan application, specialist handoff) are prepared, shown in full, and run only after explicit approval.
+6. **Applying for a loan or buying a policy** is only possible when Saathi's recommended option includes one (for example the ₹15,000 exact-gap loan in Neha's hospital plan, or term cover for a family with a protection gap). The plan card then shows the product with its EMI, rate, and total cost, and "Apply for loan" / "Buy policy" walks through a review, the Key Fact Statement (APR including fees, total repayable, cooling-off) or the proposal (free-look period), and a final consent before anything is sent. Asking Saathi directly for a loan or a policy does not open a sale; it asks what the money or cover is for. `GET /api/cases/:id/product` returns 404 when nothing is being suggested.
 
 Unknown values stay unknown: Saathi never substitutes a preset bill, cover, or contribution.
 
@@ -83,7 +87,10 @@ frontend/src/
   voice.ts         Voice input state machine (idle, listening, processing, ready, error)
 server/src/
   routes/          REST API (auth, chat/conversations, cases, evidence, actions, goals, insights, partner callback)
-  assistant/       nlu.ts (understanding) and turn.ts (slot filling, follow-ups, titles, cards, quick replies)
+  assistant/       nlu.ts (understanding), turn.ts (slot filling, follow-ups, titles, cards, quick replies),
+                   language.ts (script detection and translation in and out of 11 languages)
+  holdings.ts      Portfolio and net worth from the holdings linked to a PAN (aa.fetch_holdings MCP tool)
+  products.ts      The loan or policy inside Saathi's recommended option, with its full costs
   agent/graph.ts   LangGraph.js StateGraph: classifier -> consent gate -> context retriever -> policy RAG
                    -> bill / transaction / EMI auditor -> decision service -> explainer (| human review)
   hospitalDecision.ts, decision.ts
@@ -127,12 +134,45 @@ The callback must be signed the same way. Duplicate `event_id`s are ignored. If 
 
 ### Voice, languages, and AI
 
-Replies follow the customer's language (English or Hinglish automatically; other Indian languages can be chosen under More > Language and are translated by Sarvam when enabled). Voice input uses Sarvam speech-to-text after a voice consent, or the browser's speech recognition otherwise. OpenAI is optional: when enabled it receives redacted text only after consent, and a numeric guard replaces any answer containing numbers the decision service did not produce. Without OpenAI, every reply comes from the deterministic pipeline.
+Customers can chat in English, Hinglish, Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, or Odia. Saathi detects the script of each message (`assistant/language.ts`), translates it to English for the pipeline (Sarvam first, OpenAI as a fallback), shows "Saathi understood: …" under the message, and replies in the same language, with a "Show in English" toggle. The globe picker in the composer can force a reply language, even for English input. Translations that change any amount are discarded. Voice input uses Sarvam speech-to-text (with automatic language detection) after a voice consent, or the browser's speech recognition otherwise.
+
+When the rule-based parser can't tell what a message is about (for example "Diwali is coming and the family wants that 1.2 lakh fridge and TV combo, will it hurt?"), OpenAI classifies it into one of Saathi's journeys with the amount and item (`interpretMessage` in `integrations.ts`). Saathi shows "Saathi understood: …" under the message and runs that journey, so the maths still comes from the deterministic services. An amount the customer didn't write is dropped. Common phrasings such as "I need 60000 to buy a car" are understood by the rules directly, without AI.
+
+OpenAI also answers questions the deterministic journeys don't cover (for example "What is the difference between a mutual fund and an FD?") after the customer taps "Allow AI answers" once in chat. It receives redacted text and only the figures Saathi already has, and a numeric guard discards any answer containing rupee amounts that weren't in those figures. Without OpenAI, every reply comes from the deterministic pipeline. **More > Connected services** shows which providers are connected.
+
+The Paytm Saathi logo is the same in Web and App views. The only exception is the Saathi tab in the app's bottom navigation, which is a raised "Saathi AI" orb (`AssistantMark`).
+
+## Deploy to Vercel
+
+The repo deploys as one Vercel project: the React app is served from Vercel's CDN, and the Express API runs as a single Node.js function behind `/api/*` and `/mcp/*`.
+
+- `vercel.json` runs `npm ci`, then `npm run vercel-build`.
+- `scripts/vercel-build.mjs` builds the frontend and bundles `server/src/vercel.ts` with esbuild. It writes `.vercel/output` using Vercel's [Build Output API](https://vercel.com/docs/build-output-api/v3): static files, the `api` function with the sample `data/` beside it, and the routes and security headers.
+- `.vercelignore` keeps `.env`, saved SQLite files and the pitch PDFs out of uploads.
+
+**Steps**
+
+1. Push the repo to GitHub, then in Vercel choose **Add New > Project** and import it. Keep the root directory as the repo root; `vercel.json` sets the build. Or, from the repo root, run `npx vercel` for a preview and `npx vercel --prod` for production.
+2. In **Project > Settings > Environment Variables**, add:
+
+| Variable | Value |
+| --- | --- |
+| `JWT_SECRET_KEY` | At least 32 random characters. **Required**: without it each function instance signs its own sessions and users get signed out. |
+| `OPENAI_API_KEY`, `OPENAI_ENABLED=true`, `OPENAI_MODEL` | Optional, for AI understanding, answers and photo OCR |
+| `SARVAM_API_KEY`, `SARVAM_ENABLED=true`, `SARVAM_TRANSLATE_MODEL` | Optional, for Indian-language chat and voice |
+| `DEMO_DATE` | Optional; defaults to `2026-10-03` |
+| `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET` | Optional; otherwise the built-in simulated partner is used |
+
+3. Redeploy after changing variables.
+
+On Vercel the API automatically trusts Vercel's proxy (for rate limits), uses the deployment URL as `PUBLIC_API_BASE_URL`, and stores saved state in `/tmp/saathi.sqlite3`. Simulated partner updates arrive 1.5 seconds apart and finish in the background through Vercel's `waitUntil`.
+
+**Limits of this setup:** `/tmp` is per function instance and temporary. Conversations, goals and linked PANs survive while an instance stays warm, but are lost on a cold start or when traffic is spread over several instances. Sample accounts and data always come back because they ship with the function. That is fine for a demo; for lasting data, point `server/src/db.ts` at a hosted database (for example Turso or Postgres). The live status stream reconnects every 60 seconds because of the function time limit, which the browser handles automatically.
 
 ## Local secrets
 
-Keep keys in the ignored `.env` file only. Never commit credentials or paste them into chat. Rotate any API key that has been shared outside its provider dashboard. To enable an integration, set its `*_API_KEY` and the matching `*_ENABLED=true`, then restart `npm run dev`. OpenAI receives redacted text only after a per-request consent, and Sarvam receives audio only after a transcription consent. Provider calls are not tested against live accounts by the automated suite.
+Keep keys in the ignored `.env` file only. Never commit credentials or paste them into chat. Rotate any API key that has been shared outside its provider dashboard. To enable an integration, set its `*_API_KEY` and the matching `*_ENABLED=true`, then restart `npm run dev`. The API prints `OpenAI: ready | Sarvam: ready` at startup when both are picked up from `.env`, and `GET /api/integrations/status` reports the same. The automated test suite switches both off so it never calls live providers; the browser end-to-end run uses them. OpenAI receives redacted text only after a per-request consent, and Sarvam receives audio only after a transcription consent. Provider calls are not tested against live accounts by the automated suite.
 
 ## Prototype limits
 
-This build uses sample data, not production systems. Insurer, lender, and payment outcomes are simulated, and offers are labelled sample offers (no Mochatrade or lender API is connected). Policy retrieval is a local keyword index (Cognee is not connected). There is no OCR for scanned PDFs (upload photos of the pages instead, with OpenAI enabled), no encrypted document storage, no tamper-evident ledger, and no production-grade PII detection. Sample passcodes are not secrets. Do not upload real customer or financial documents. Security and consent are prototype design, not a compliance certification.
+This build uses sample data, not production systems. Insurer, lender, and payment outcomes are simulated, and offers are labelled sample offers (no Mochatrade or lender API is connected). Holdings fetched by PAN are simulated sample statements; no CDSL, NSDL, CAMS, KFintech, or Account Aggregator connection is made. Policy retrieval is a local keyword index (Cognee is not connected). There is no OCR for scanned PDFs (upload photos of the pages instead, with OpenAI enabled), no encrypted document storage, no tamper-evident ledger, and no production-grade PII detection. Sample passcodes are not secrets. Do not upload real customer or financial documents. Security and consent are prototype design, not a compliance certification.

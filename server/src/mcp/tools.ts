@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
 import { assessCoverage, type CoverageBillLine } from '../coverage';
 import { SCORE_ACTIONS, scoreReport, simulateAction, type ScoreAction } from '../credit';
-import { calculateEmi, checkAffordability } from '../decision';
+import { calculateApr, calculateEmi, checkAffordability } from '../decision';
 import { householdContext, termPremium } from '../insurance';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
@@ -362,7 +362,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       }
       const emi = calculateEmi(input.amount_inr, offer.annual_rate_pct, offer.tenure_months);
       const fee = Math.round((input.amount_inr * offer.processing_fee_pct) / 100);
-      const years = offer.tenure_months / 12;
       return {
         kfs_id: newId('KFS', 6),
         lender: fixtures.lending.partner,
@@ -370,7 +369,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         product: offer.product,
         principal_inr: input.amount_inr,
         interest_rate_pct: offer.annual_rate_pct,
-        approx_apr_pct: Math.round((((emi.total_interest_inr + fee) / input.amount_inr) / years) * 1000) / 10,
+        approx_apr_pct: calculateApr(input.amount_inr, fee, emi.emi_inr, offer.tenure_months),
         tenure_months: offer.tenure_months,
         monthly_emi_inr: emi.emi_inr,
         total_interest_inr: emi.total_interest_inr,

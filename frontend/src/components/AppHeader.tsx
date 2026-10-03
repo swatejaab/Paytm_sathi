@@ -3,7 +3,7 @@ import { navigate, routeHref, type Page } from '../router';
 import type { Theme } from '../theme';
 import type { SessionUser } from '../types';
 import type { ViewMode } from '../viewMode';
-import { BrandMark, Icon, type IconName } from './Icon';
+import { AssistantMark, BrandMark, Icon, type IconName } from './Icon';
 import { SosButton } from './MoneySos';
 import { ViewToggle } from './ViewToggle';
 
@@ -120,12 +120,27 @@ export function AppHeader({ user, page, theme, onToggleTheme, onLogout, viewMode
 export function BottomNav({ page }: { page: Page }) {
   return (
     <nav className="bottom-nav" aria-label="Main">
-      {NAV.map((item) => (
-        <a key={item.page} href={routeHref(item.page)} className={page === item.page ? 'active' : ''} aria-current={page === item.page ? 'page' : undefined}>
-          <Icon name={item.icon} size={22} />
-          <span>{item.label}</span>
-        </a>
-      ))}
+      {NAV.map((item) =>
+        item.page === 'saathi' ? (
+          <a
+            key={item.page}
+            href={routeHref(item.page)}
+            className={`nav-saathi ${page === item.page ? 'active' : ''}`}
+            aria-current={page === item.page ? 'page' : undefined}
+            aria-label="Saathi AI assistant"
+          >
+            <span className="nav-orb">
+              <AssistantMark size={44} />
+            </span>
+            <span>Saathi AI</span>
+          </a>
+        ) : (
+          <a key={item.page} href={routeHref(item.page)} className={page === item.page ? 'active' : ''} aria-current={page === item.page ? 'page' : undefined}>
+            <Icon name={item.icon} size={22} />
+            <span>{item.label}</span>
+          </a>
+        ),
+      )}
     </nav>
   );
 }

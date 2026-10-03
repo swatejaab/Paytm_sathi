@@ -34,7 +34,7 @@ export function addMessage(
   record: CaseRecord,
   role: 'user' | 'assistant',
   content: string,
-  extra: Pick<ChatMessage, 'original' | 'language' | 'source' | 'quick_replies' | 'card'> = {},
+  extra: Pick<ChatMessage, 'original' | 'language' | 'understood' | 'source' | 'quick_replies' | 'card'> = {},
 ): void {
   record.messages.push({ role, content, at: nowIso(), ...extra });
   if (role === 'assistant') record.assistant_message = content;

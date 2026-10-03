@@ -44,6 +44,21 @@ export function calculateEmi(principal: number, annualRatePct: number, months: n
   return { emi_inr: emiInr, total_interest_inr: Math.max(emiInr * months - principal, 0) };
 }
 
+// Annual percentage rate including fees: the yearly rate at which the EMIs repay what actually reaches the borrower.
+export function calculateApr(principal: number, feeInr: number, emiInr: number, months: number): number {
+  const received = principal - feeInr;
+  if (received <= 0 || emiInr <= 0 || months <= 0 || emiInr * months <= received) return 0;
+  const presentValue = (monthlyRate: number) => emiInr * ((1 - (1 + monthlyRate) ** -months) / monthlyRate);
+  let low = 1e-9;
+  let high = 1;
+  for (let step = 0; step < 100; step += 1) {
+    const mid = (low + high) / 2;
+    if (presentValue(mid) > received) low = mid;
+    else high = mid;
+  }
+  return Math.round(((low + high) / 2) * 1200 * 10) / 10;
+}
+
 export function calculateExactGap(input: {
   bill_total_inr: number;
   bill_line_total_inr: number;

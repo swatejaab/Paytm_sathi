@@ -8,6 +8,7 @@ import { loadCaseForOwner, loadCaseForRead } from '../caseStore';
 import { deleteCase, listAudit, listCases, recordAudit, updateCase } from '../db';
 import { HttpError, parseBody } from '../errors';
 import { buildPassport } from '../passport';
+import { suggestedProduct } from '../products';
 import { addSpecialistNote, claimCase, resolveBySpecialist, reviewCase } from '../support';
 import { LANGUAGE_CODES } from '../languages';
 import type { CaseRecord } from '../types';
@@ -137,6 +138,14 @@ caseRouter.get('/cases/:caseId', requireAuth('case:read', 'case:read:any'), (req
 
 caseRouter.get('/cases/:caseId/passport', requireAuth('case:read', 'case:read:any'), (req, res) => {
   res.json(buildPassport(loadCaseForRead(getPrincipal(req), String(req.params.caseId))));
+});
+
+// The loan or policy Saathi recommends for this case, so the customer can apply in-app. Nothing is offered otherwise.
+caseRouter.get('/cases/:caseId/product', requireAuth('action:approve'), (req, res) => {
+  const record = loadCaseForOwner(getPrincipal(req), String(req.params.caseId), 'action:approve');
+  const product = suggestedProduct(record);
+  if (!product) throw new HttpError(404, "Saathi isn't suggesting a loan or a policy for this case.");
+  res.json(product);
 });
 
 caseRouter.get('/cases/:caseId/audit', requireAuth('case:read', 'case:read:any'), (req, res) => {

@@ -429,12 +429,22 @@ function Privacy() {
 function ConnectedServices({ integrations }: { integrations: IntegrationStatus }) {
   const browserVoice = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   const rows = [
-    { label: 'AI assistance', value: integrations.openai_available ? 'Connected' : 'Not connected', note: 'Answers general questions and reads photos of documents' },
+    {
+      label: 'AI assistance (OpenAI)',
+      value: integrations.openai_available ? 'Connected' : 'Not connected',
+      note: 'Answers questions in your language once you allow AI answers, and reads photos of documents',
+    },
+    {
+      label: 'Indian languages (Sarvam AI)',
+      value: integrations.sarvam_available ? 'Connected' : integrations.openai_available ? 'Using OpenAI instead' : 'Not connected',
+      note: 'Chat in Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi and Odia',
+    },
     {
       label: 'Voice input',
       value: integrations.sarvam_available ? 'Sarvam AI' : browserVoice ? 'Browser speech recognition' : 'Not available',
-      note: 'English, Hindi, and Hinglish',
+      note: integrations.sarvam_available ? 'All 11 languages, with automatic language detection' : 'Uses the chat language you pick',
     },
+    { label: 'Investments (PAN)', value: 'Simulated statements', note: 'Demat, mutual fund, bank and FD balances linked to your PAN' },
     { label: 'Partner network', value: 'Simulated responses', note: 'Insurers, lenders, and banks respond in simulation; no real money moves' },
     { label: 'Policy library', value: 'Available', note: 'Used to cite policy sections in your plan' },
   ];
@@ -489,7 +499,7 @@ function Language() {
           ))}
         </select>
       </label>
-      <p className="muted small">With Auto, Saathi replies in English or Hinglish to match how you write.</p>
+      <p className="muted small">With Auto, Saathi replies in the language you write in: type in Hindi, Tamil, Bengali or any other supported Indian language and it answers in the same language.</p>
     </>
   );
 }

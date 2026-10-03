@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { AffordCard } from '../components/AffordCard';
 import { AssetsCard } from '../components/AssetsCard';
@@ -8,7 +8,7 @@ import { ForecastCard } from '../components/ForecastCard';
 import { InsightList } from '../components/InsightList';
 import { EmptyState, ErrorState, Kpi, Panel, Skeleton, useAsync } from '../components/ui';
 import { inr, shortDate } from '../format';
-import { routeHref } from '../router';
+import { navigate, routeHref } from '../router';
 
 type Tab = 'overview' | 'assets' | 'forecast' | 'credit' | 'afford';
 const TABS: { id: Tab; label: string }[] = [
@@ -21,8 +21,17 @@ const TABS: { id: Tab; label: string }[] = [
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1).replace(/_/g, ' ');
 
-export function Insights({ onAsk }: { onAsk: (text: string) => void }) {
-  const [tab, setTab] = useState<Tab>('overview');
+const isTab = (value: string | null): value is Tab => TABS.some((item) => item.id === value);
+
+export function Insights({ onAsk, tab: routeTab }: { onAsk: (text: string) => void; tab: string | null }) {
+  const [tab, setTabState] = useState<Tab>(isTab(routeTab) ? routeTab : 'overview');
+  useEffect(() => {
+    if (isTab(routeTab)) setTabState(routeTab);
+  }, [routeTab]);
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    navigate('insights', next === 'overview' ? null : next, { replace: true });
+  };
   const { data, error, loading, reload } = useAsync(() => api.insights());
 
   return (

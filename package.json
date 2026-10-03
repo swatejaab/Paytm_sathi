@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w frontend\"",
     "build": "npm run build -w frontend",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "start": "npm run start -w server",
     "test": "npm test -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w frontend",
@@ -20,6 +21,7 @@
     "node": ">=22.13"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.5",
+    "esbuild": "^0.28.2"
   }
 }

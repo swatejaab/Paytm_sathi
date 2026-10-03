@@ -116,7 +116,7 @@ export function describeSource(source: Fact['source']): string {
 }
 
 export const LANGUAGES: { code: string; label: string }[] = [
-  { code: '', label: 'Auto (English / Hinglish)' },
+  { code: '', label: 'Auto (reply in the language I write)' },
   { code: 'en-IN', label: 'English' },
   { code: 'hi-IN', label: 'हिन्दी Hindi' },
   { code: 'bn-IN', label: 'বাংলা Bengali' },

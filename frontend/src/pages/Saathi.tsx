@@ -7,7 +7,7 @@ import { MessageCard } from '../components/chat/MessageCard';
 import { BrandMark, Icon } from '../components/Icon';
 import { SOS_PARAM, SosEmpty } from '../components/MoneySos';
 import { ConfirmDialog, ErrorState, Loading, Modal } from '../components/ui';
-import { dateTime, inr, readPref, STATUS_LABELS } from '../format';
+import { dateTime, inr, readPref, STATUS_LABELS, writePref } from '../format';
 import { navigate } from '../router';
 import { useToast } from '../toast';
 import type { CaseRecord, CaseSummary, ChatMessage, GoalInput, GoalType, IntegrationStatus, QuickReply, Transaction } from '../types';
@@ -128,9 +128,27 @@ function MessageBody({ text }: { text: string }) {
   return <div className="msg-text">{text}</div>;
 }
 
+// A reply translated into the customer's language can be checked against the English Saathi wrote.
+function TranslatedBody({ message }: { message: ChatMessage }) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  if (!message.original) return <MessageBody text={message.content} />;
+  return (
+    <>
+      <MessageBody text={showOriginal ? message.original : message.content} />
+      <button className="msg-lang-toggle" onClick={() => setShowOriginal(!showOriginal)}>
+        {showOriginal ? 'Show translation' : 'Show in English'}
+      </button>
+    </>
+  );
+}
+
 export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
   const toast = useToast();
-  const language = readPref('saathi.language', '');
+  const [language, setLanguageState] = useState(() => readPref('saathi.language', ''));
+  const setLanguage = (next: string) => {
+    setLanguageState(next);
+    writePref('saathi.language', next);
+  };
   const [conversations, setConversations] = useState<CaseSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -333,7 +351,7 @@ export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
         setAttachRequest({ kind: 'policy', nonce: Date.now() });
         return;
       case 'open_insights':
-        navigate('insights');
+        navigate('insights', (reply.payload?.tab as string | undefined) ?? null);
         return;
       case 'open_goals':
         navigate('goals');
@@ -503,6 +521,9 @@ export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
               <BrandMark size={52} />
               <h2>How can Saathi help you today?</h2>
               <p className="muted">Tell Saathi what happened or what you want to achieve. Saathi helps you figure out what comes next.</p>
+              <p className="chat-languages muted">
+                <Icon name="globe" size={14} /> Type or speak in English, Hinglish, हिन्दी, বাংলা, தமிழ், తెలుగు, मराठी, ગુજરાતી, ಕನ್ನಡ, മലയാളം, ਪੰਜਾਬੀ or ଓଡ଼ିଆ.
+              </p>
               <div className="suggestions">
                 {SUGGESTIONS.map((suggestion) => (
                   <button key={suggestion.text} className="suggestion" onClick={() => void send(suggestion.text, null)}>
@@ -525,7 +546,12 @@ export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
                     )}
                     <div className="msg-content">
                       <div className="bubble">
-                        <MessageBody text={message.content} />
+                        {message.role === 'assistant' ? <TranslatedBody message={message} /> : <MessageBody text={message.content} />}
+                        {message.role === 'user' && message.understood && (
+                          <p className="msg-understood">
+                            Saathi understood: <em>{message.understood}</em>
+                          </p>
+                        )}
                       </div>
                       {message.card && active && (
                         <MessageCard
@@ -561,7 +587,7 @@ export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
                       )}
                       {message.role === 'assistant' && integrations.sarvam_available && voiceConsent && (
                         <div className="msg-tools">
-                          <ListenButton text={message.content} language={language} />
+                          <ListenButton text={message.content} language={message.language || language} />
                         </div>
                       )}
                     </div>
@@ -627,7 +653,9 @@ export function Saathi({ integrations, routeParam, seed, onSeedUsed }: Props) {
           onAttach={onAttach}
           attachRequest={attachRequest}
           voiceRequest={voiceRequest}
-          placeholder={active ? 'Reply to Saathi' : 'Tell Saathi what happened or what you want to achieve'}
+          language={language}
+          onLanguageChange={setLanguage}
+          placeholder={active ? 'Reply to Saathi' : 'Tell Saathi what happened, in any Indian language'}
         />
       </section>
 

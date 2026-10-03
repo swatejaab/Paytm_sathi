@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { readPref, writePref } from '../../format';
+import { LANGUAGES } from '../../format';
 import { browserVoiceSupported, recorderAvailable, useVoiceInput, type VoiceEngine } from '../../voice';
 import { Icon } from '../Icon';
 
@@ -17,13 +17,9 @@ interface Props {
   attachRequest: { kind: DocumentKind; nonce: number } | null;
   voiceRequest?: number | null;
   placeholder?: string;
+  language: string;
+  onLanguageChange: (language: string) => void;
 }
-
-const VOICE_LANG_KEY = 'saathi.voiceLanguage';
-const VOICE_LANGUAGES = [
-  { code: 'en-IN', label: 'English / Hinglish' },
-  { code: 'hi-IN', label: 'हिन्दी' },
-];
 
 const STATUS_TEXT = {
   listening: 'Listening... tap stop when you are done.',
@@ -43,6 +39,8 @@ export function Composer({
   attachRequest,
   voiceRequest,
   placeholder,
+  language,
+  onLanguageChange,
 }: Props) {
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -50,7 +48,6 @@ export function Composer({
   const [kind, setKind] = useState<DocumentKind>('bill');
   const [attachOpen, setAttachOpen] = useState(false);
   const [consentPrompt, setConsentPrompt] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState(() => readPref(VOICE_LANG_KEY, readPref('saathi.language', '') === 'hi-IN' ? 'hi-IN' : 'en-IN'));
   const baseRef = useRef('');
 
   const browserVoice = browserVoiceSupported();
@@ -59,9 +56,10 @@ export function Composer({
   const voiceUnavailable = !sarvamReady && !browserVoice;
 
   const join = (text: string) => [baseRef.current.trim(), text].filter(Boolean).join(' ');
+  // Sarvam detects the spoken language when the chat language is Auto; the browser needs a language, so Auto means English.
   const voice = useVoiceInput({
     engine,
-    language: voiceLanguage,
+    language,
     onText: (text) => onChange(join(text)),
     onPartial: (text) => onChange(join(text)),
   });
@@ -209,23 +207,21 @@ export function Composer({
           aria-label="Message Saathi"
           readOnly={listening || processing}
         />
-        <select
-          className="voice-lang"
-          value={voiceLanguage}
-          onChange={(event) => {
-            setVoiceLanguage(event.target.value);
-            writePref(VOICE_LANG_KEY, event.target.value);
-          }}
-          aria-label="Voice language"
-          title="Voice language"
-          disabled={listening || processing}
-        >
-          {VOICE_LANGUAGES.map((language) => (
-            <option key={language.code} value={language.code}>
-              {language.label}
-            </option>
-          ))}
-        </select>
+        <label className="chat-lang" title="Chat language: type or speak in any Indian language">
+          <Icon name="globe" size={16} />
+          <select
+            value={language}
+            onChange={(event) => onLanguageChange(event.target.value)}
+            aria-label="Chat language"
+            disabled={listening || processing}
+          >
+            {LANGUAGES.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.code ? item.label.split(' ')[0] : 'Auto'}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           className={`icon-btn mic ${listening ? 'mic-on' : ''}`}
           onClick={onMic}

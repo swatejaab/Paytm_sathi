@@ -1,0 +1,20 @@
+# Never upload local secrets or saved state. Set keys in Vercel > Project > Settings > Environment Variables.
+.env
+.env.*
+!.env.example
+data/*.sqlite3
+data/*.sqlite3-shm
+data/*.sqlite3-wal
+
+# Built on Vercel
+node_modules
+frontend/dist
+.vercel
+
+# Not part of the app
+*.pdf
+*.log
+PPT_IDEA
+PAYTM_SAATHI_BUILD_PLAN.html
+Dockerfile
+.dockerignore

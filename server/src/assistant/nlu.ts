@@ -272,6 +272,11 @@ function detectJourney(text: string, lower: string): JourneyId | null {
   if (afford && playbookJourney !== 'hospital' && playbookJourney !== 'upi_fraud' && playbookJourney !== 'protection') return 'afford';
   if (playbookJourney) return playbookJourney;
   if (goal) return 'goal';
+  // "I need 60000 to buy a car", "want to purchase a laptop", "₹8 lakh for a car", "car lena hai".
+  const buying =
+    has(lower, /\b(buy|buying|purchase|purchasing|kharid\w*|book(ing)?)\b/) ||
+    (Boolean(purchaseItem(text)) && has(lower, /\b(need|want|for an?|for my|lena|leni|chahiye)\b/));
+  if (buying && purchaseItem(text)) return 'afford';
   if (has(lower, /\b(medical|treatment|operation|doctor|nursing home|clinic|admit|admission)\b/)) return 'hospital';
   if (has(lower, /\bbill\b|बिल/)) return 'bill';
   return null;

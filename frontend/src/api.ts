@@ -21,6 +21,7 @@ import type {
   Session,
   SessionUser,
   StandingConsents,
+  SuggestedProduct,
 } from './types';
 
 export class ApiError extends Error {
@@ -171,6 +172,7 @@ export const api = {
   creditScore: () => post<CreditScore>('/api/credit/score', { consent: true }),
   simulateScore: (action: ScoreSimulation['action']) => post<ScoreSimulation>('/api/credit/simulate', { consent: true, action }),
   afford: (question: string) => post<AffordabilityAssessment>('/api/afford', { question }),
+  product: (caseId: string) => request<SuggestedProduct>(`/api/cases/${caseId}/product`),
   assets: () => request<AssetsResponse>('/api/assets'),
   linkAssets: (body: { pan?: string; use_kyc_pan?: boolean }) => post<AssetsResponse>('/api/assets/link', { ...body, consent: true }),
   unlinkAssets: () => request<AssetsResponse>('/api/assets/link', { method: 'DELETE' }),

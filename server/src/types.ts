@@ -239,6 +239,8 @@ export interface ChatMessage {
   at: string;
   original?: string;
   language?: string;
+  // For a customer message in an Indian language: the English Saathi worked from, shown so they can check it.
+  understood?: string;
   source?: 'saathi' | 'openai';
   quick_replies?: QuickReply[];
   card?: ChatCard;
@@ -334,7 +336,8 @@ export type AwaitingField =
   | 'amount_role'
   | 'purchase_inr'
   | 'goal_target'
-  | 'goal_date';
+  | 'goal_date'
+  | 'ai_consent';
 
 export interface ConversationContext {
   journey: JourneyId | null;
@@ -347,6 +350,9 @@ export interface ConversationContext {
   // The question to answer once the customer allows Saathi to read their records.
   after_consent?: 'plan' | 'afford' | 'goal' | 'spending' | 'cashflow' | null;
   records_consent_declined?: boolean;
+  // A question waiting for the customer to allow AI answers, and whether they said no in this chat.
+  pending_ai_question?: string | null;
+  ai_declined?: boolean;
   records?: FetchedRecords | null;
   // The customer said the hospital's bill on record is not the bill they are asking about.
   hospital_bill_declined?: boolean;
@@ -529,6 +535,8 @@ export interface CaseRecord {
   urgency: Urgency;
   language?: Language;
   preferred_language?: string;
+  // 'detected' when Saathi switched to the language the customer wrote in, so it can switch back.
+  language_source?: 'chosen' | 'detected';
   playbook_id?: string;
   // English rendering of a non-Latin message, used only for classification and amount rules.
   message_for_rules?: string;

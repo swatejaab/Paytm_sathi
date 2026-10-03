@@ -40,8 +40,7 @@ import type {
   Transaction,
 } from '../types';
 import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionMessage } from './explainer';
-import { sarvamAvailable } from '../config';
-import { translateWithSarvam } from '../integrations';
+import { detectLanguage as detectWrittenLanguage, toEnglish } from '../assistant/language';
 import { runDeclarativeDecision } from '../playbooks/declarative';
 import { classifyWithPlaybooks, playbookForCase } from '../playbooks/registry';
 import type { CoverageAssessment } from '../coverage';
@@ -147,12 +146,10 @@ function playbookPassage(playbook: Playbook): EvidencePassage {
 
 // Messages in Indic scripts are translated to English for the keyword rules only; the original stays the customer's words.
 async function rulesText(record: CaseRecord): Promise<string> {
-  if (!/[^\u0000-\u024f\s\d.,!?₹'"()-]/.test(record.customer_message) || !sarvamAvailable()) return record.customer_message;
-  try {
-    return `${record.customer_message} ${await translateWithSarvam(record.customer_message, 'en-IN')}`;
-  } catch {
-    return record.customer_message;
-  }
+  const written = detectWrittenLanguage(record.customer_message, record.preferred_language);
+  if (!written) return record.customer_message;
+  const english = await toEnglish(record.customer_message, written);
+  return english ? `${record.customer_message} ${english.text}` : record.customer_message;
 }
 
 const classifier = node('classifier', async (_state, context) => {

@@ -3,6 +3,7 @@ import type { AffordabilityAssessment, CaseRecord, ChatCard, GoalDraft, GoalImpa
 import type { PanelTab } from '../CasePanel';
 import { Icon } from '../Icon';
 import { BillConfirmation, TransactionPicker, TransactionSummary, type Run } from '../PlanView';
+import { ProductOffer, recommendsProduct } from './ProductOffer';
 
 interface Props {
   card: ChatCard;
@@ -65,11 +66,13 @@ type ApproveState = 'loading' | 'done' | 'error' | undefined;
 
 function PlanCard({
   record,
+  run,
   onOpenPlan,
   onApprove,
   approveState,
 }: {
   record: CaseRecord;
+  run: Run;
   onOpenPlan: (tab: PanelTab) => void;
   onApprove?: (optionId: string) => void;
   approveState: ApproveState;
@@ -81,7 +84,8 @@ function PlanCard({
   const live = [...record.actions].reverse().find((action) => ['approved', 'in_progress', 'completed'].includes(action.status));
   const hospital = decision.event_type === 'hospitalization' && decision.calculation;
   const lessBorrowed = best?.trade_offs.find((tradeOff) => /less borrowed/.test(tradeOff));
-  const canApprove = Boolean(onApprove && best && best.feasible && !best.handoff && best.writes.length > 0 && !pending && !live);
+  const product = recommendsProduct(record);
+  const canApprove = Boolean(onApprove && !product && best && best.feasible && !best.handoff && best.writes.length > 0 && !pending && !live);
   const flags = hospital ? decision.warnings.slice(0, 3) : [];
   return (
     <div className="chat-card plan-card">
@@ -120,6 +124,7 @@ function PlanCard({
               {best.metrics.risk}
             </span>
           </div>
+          {product && <ProductOffer record={record} run={run} />}
         </>
       ) : (
         <p className="small">No option passed every safety check, so a specialist is the safest next step.</p>
@@ -257,7 +262,7 @@ export function MessageCard({ card, record, busy, run, onOpenPlan, onApprove, ap
     case 'gap':
       return <GapCard card={card} />;
     case 'plan':
-      return <PlanCard record={record} onOpenPlan={onOpenPlan} onApprove={onApprove} approveState={approveState} />;
+      return <PlanCard record={record} run={run} onOpenPlan={onOpenPlan} onApprove={onApprove} approveState={approveState} />;
     case 'transactions':
       if (record.pending_question?.type === 'confirm_transaction') {
         return (

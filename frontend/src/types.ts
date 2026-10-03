@@ -292,6 +292,7 @@ export interface ChatMessage {
   at: string;
   original?: string;
   language?: string;
+  understood?: string;
   source?: 'saathi' | 'openai';
   quick_replies?: QuickReply[];
   card?: ChatCard;
@@ -679,6 +680,39 @@ export interface ScoreSimulation {
   band_after: string;
   changed: { id: string; label: string; delta: number }[];
 }
+
+interface SuggestedProductBase {
+  option_id: string;
+  option_title: string;
+  why: string;
+  partner: string;
+  product: string;
+  other_steps: string[];
+  simulated: true;
+  commission_considered: false;
+}
+
+export type SuggestedProduct =
+  | (SuggestedProductBase & {
+      kind: 'loan';
+      amount_inr: number;
+      interest_rate_pct: number;
+      tenure_months: number;
+      monthly_emi_inr: number;
+      total_interest_inr: number;
+      processing_fee_inr: number;
+      total_payable_inr: number;
+      disbursal_days: number;
+      disburse_to: 'hospital' | 'customer';
+    })
+  | (SuggestedProductBase & {
+      kind: 'insurance';
+      sum_assured_inr: number;
+      term_years: number;
+      annual_premium_inr: number;
+      monthly_equivalent_inr: number;
+      cover_until_age: number | null;
+    });
 
 export type AssetClassId = 'savings' | 'fixed_deposits' | 'mutual_funds' | 'stocks' | 'retirement' | 'gold';
 

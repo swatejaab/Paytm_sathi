@@ -94,7 +94,7 @@ export default function App({ viewMode, onViewMode }: Props) {
   else if (user.role === 'support') content = <SupportQueue />;
   else if (route.page === 'saathi')
     content = <Saathi key="saathi" integrations={integrations} routeParam={route.param} seed={seed} onSeedUsed={() => setSeed(null)} />;
-  else if (route.page === 'insights') content = <Insights onAsk={ask} />;
+  else if (route.page === 'insights') content = <Insights onAsk={ask} tab={route.param} />;
   else if (route.page === 'goals') content = <Goals onAsk={ask} />;
   else if (route.page === 'more')
     content = <More section={route.param} user={user} integrations={integrations} theme={theme} onTheme={setTheme} onAsk={ask} onLogout={logout} />;

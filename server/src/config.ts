@@ -1,11 +1,20 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const ROOT_DIR = path.resolve(here, '..', '..');
+// server/src/config.ts in the repo, or the bundle root (with data/ beside it) inside the Vercel function.
+export const ROOT_DIR =
+  [process.env.SAATHI_ROOT_DIR, path.resolve(here, '..', '..'), here, process.cwd()]
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map((candidate) => path.resolve(candidate))
+    .find((candidate) => fs.existsSync(path.join(candidate, 'data', 'playbooks'))) ?? path.resolve(here, '..', '..');
 export const DATA_DIR = path.join(ROOT_DIR, 'data');
+// Vercel functions have a read-only file system except /tmp.
+const onVercel = Boolean(process.env.VERCEL);
+const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
 export const FRONTEND_DIST_DIR = path.join(ROOT_DIR, 'frontend', 'dist');
 
 dotenv.config({ path: path.join(ROOT_DIR, '.env'), quiet: true });
@@ -69,14 +78,14 @@ export interface Settings {
 
 export const settings: Settings = {
   host: readString('HOST', '127.0.0.1'),
-  trustProxy: readBool('TRUST_PROXY'),
+  trustProxy: readBool('TRUST_PROXY', onVercel),
   port: readInt('PORT', 8000),
   frontendOrigins: readString('FRONTEND_ORIGINS', 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  publicApiBaseUrl: readString('PUBLIC_API_BASE_URL', 'http://127.0.0.1:8000').replace(/\/+$/, ''),
-  databasePath: readString('SAATHI_DB_PATH', path.join(DATA_DIR, 'saathi.sqlite3')),
+  publicApiBaseUrl: readString('PUBLIC_API_BASE_URL', vercelUrl ? `https://${vercelUrl}` : 'http://127.0.0.1:8000').replace(/\/+$/, ''),
+  databasePath: readString('SAATHI_DB_PATH', onVercel ? '/tmp/saathi.sqlite3' : path.join(DATA_DIR, 'saathi.sqlite3')),
   jwtSecret: jwtSecretEphemeral ? crypto.randomBytes(48).toString('hex') : configuredJwtSecret,
   jwtSecretEphemeral,
   jwtIssuer: 'paytm-saathi-api',
@@ -97,7 +106,7 @@ export const settings: Settings = {
   n8nWebhookUrl: readString('N8N_WEBHOOK_URL'),
   n8nWebhookSecret: readString('N8N_WEBHOOK_SECRET'),
   mochaTradeApiUrl: readString('MOCHA_TRADE_API_URL'),
-  mockPartnerDelayMs: readInt('MOCK_PARTNER_DELAY_MS', 3500),
+  mockPartnerDelayMs: readInt('MOCK_PARTNER_DELAY_MS', onVercel ? 1500 : 3500),
   loginAttemptsPerMinute: readInt('LOGIN_ATTEMPTS_PER_MINUTE', 10),
   // "Today" for proactive alerts, pinned so the synthetic EMI due date stays two days away in every demo.
   demoDate: readString('DEMO_DATE', '2026-10-03'),

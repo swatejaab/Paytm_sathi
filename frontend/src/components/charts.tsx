@@ -228,7 +228,15 @@ export function LineChart({
   );
 }
 
-export function DonutChart({ slices, centerLabel }: { slices: { label: string; value: number }[]; centerLabel: string }) {
+export function DonutChart({
+  slices,
+  centerLabel,
+  ariaLabel = 'Spending by category',
+}: {
+  slices: { label: string; value: number }[];
+  centerLabel: string;
+  ariaLabel?: string;
+}) {
   const [active, setActive] = useState<number | null>(null);
   const total = slices.reduce((sum, slice) => sum + slice.value, 0) || 1;
   const size = 200;
@@ -239,7 +247,7 @@ export function DonutChart({ slices, centerLabel }: { slices: { label: string; v
   const focus = active === null ? null : slices[active];
   return (
     <div className="donut">
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-label="Spending by category">
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-label={ariaLabel}>
         <circle cx={size / 2} cy={size / 2} r={radius} className="donut-track" strokeWidth={stroke} fill="none" />
         {slices.map((slice, index) => {
           const length = (slice.value / total) * circumference;
