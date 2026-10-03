@@ -1,0 +1,170 @@
+{
+  "label": "Saathi knowledge base: synthetic policy clauses, regulation summaries, and playbook guidance. Summaries for demo use, not legal advice.",
+  "dataset": "saathi-knowledge",
+  "entries": [
+    {
+      "id": "policy-3.1",
+      "kind": "policy_clause",
+      "title": "Eligible inpatient expenses",
+      "clause_id": "3.1",
+      "page": 4,
+      "document": "synthetic_health_policy.json",
+      "text": "For the synthetic demonstration only, eligible inpatient hospital expenses are considered subject to the limits and exclusions in this sample policy."
+    },
+    {
+      "id": "policy-3.2",
+      "kind": "policy_clause",
+      "title": "Room category limit",
+      "clause_id": "3.2",
+      "page": 4,
+      "document": "synthetic_health_policy.json",
+      "text": "Room and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable."
+    },
+    {
+      "id": "policy-4.3",
+      "kind": "policy_clause",
+      "title": "Non-medical items",
+      "clause_id": "4.3",
+      "page": 6,
+      "document": "synthetic_health_policy.json",
+      "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable."
+    },
+    {
+      "id": "policy-6.1",
+      "kind": "policy_clause",
+      "title": "Deductible",
+      "clause_id": "6.1",
+      "page": 8,
+      "document": "synthetic_health_policy.json",
+      "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured."
+    },
+    {
+      "id": "policy-5.4",
+      "kind": "policy_clause",
+      "title": "Claim documents",
+      "clause_id": "5.4",
+      "page": 9,
+      "document": "synthetic_health_policy.json",
+      "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts."
+    },
+    {
+      "id": "reg-upi-tat",
+      "kind": "regulation",
+      "title": "Failed UPI debit reversal",
+      "document": "RBI harmonised TAT circular, 20 Sep 2019",
+      "text": "If a UPI payment fails but the account is debited, the bank must reverse it automatically by T+1 (one working day after the transaction). After that, INR 100 per day of delay is payable to the customer as compensation."
+    },
+    {
+      "id": "reg-fraud-reporting",
+      "kind": "regulation",
+      "title": "Reporting unauthorised transactions",
+      "document": "RBI customer liability framework, 2017",
+      "text": "Report an unauthorised electronic transaction to the bank immediately. Reporting within 3 working days limits customer liability to zero when the fault lies elsewhere; delays of 4 to 7 days can mean limited liability. Cyber fraud can also be reported on the national helpline 1930 or cybercrime.gov.in."
+    },
+    {
+      "id": "reg-kfs",
+      "kind": "regulation",
+      "title": "Key Fact Statement for loans",
+      "document": "RBI KFS directions, 2024",
+      "text": "Lenders must give a Key Fact Statement before a retail or MSME loan is signed: the annual percentage rate (APR) including fees, the EMI schedule, total amount payable, recovery and grievance details, and a cooling-off or look-up period during which the borrower can exit by repaying principal and proportionate interest without penalty."
+    },
+    {
+      "id": "reg-claim-settlement",
+      "kind": "regulation",
+      "title": "Health claim settlement timelines",
+      "document": "IRDAI health insurance master circular, 2024",
+      "text": "Cashless authorisation requests should be decided within one hour, and final discharge authorisation within three hours. Reimbursement claims must be settled within 30 days of the last necessary document. Room rent limits can lead to proportionate deductions on associated charges unless the policy waives them."
+    },
+    {
+      "id": "reg-free-look",
+      "kind": "regulation",
+      "title": "Free-look period",
+      "document": "IRDAI policyholder protection regulations",
+      "text": "Life and health policies come with a free-look period of at least 30 days from receiving the policy, during which the policyholder can return it for a refund minus proportionate risk premium and stamp duty."
+    },
+    {
+      "id": "guide-term-vs-endowment",
+      "kind": "guide",
+      "title": "Term insurance versus endowment plans",
+      "document": "Saathi guidance",
+      "text": "Pure term insurance pays only on death during the term and gives the most cover per rupee of premium. Endowment and ULIP plans mix insurance with investment and give much lower cover for the same premium. A common rule of thumb is cover of about 10 times annual income when someone depends on you, plus outstanding loans."
+    },
+    {
+      "id": "guide-credit-score",
+      "kind": "guide",
+      "title": "What moves a credit score",
+      "document": "Saathi guidance",
+      "text": "Indian credit scores range from 300 to 900. Paying every EMI and card bill on time matters most. Keeping card balances under 30 percent of the limit helps, as do a long credit history, a healthy mix of secured and unsecured credit, and few recent hard enquiries. Checking your own score is a soft enquiry and does not lower it."
+    },
+    {
+      "id": "guide-emergency-fund",
+      "kind": "guide",
+      "title": "Emergency fund basics",
+      "document": "Saathi guidance",
+      "text": "An emergency fund should cover 3 to 6 months of essential expenses, kept in liquid and safe places such as a savings account, sweep FD, or liquid fund. Use it for genuine emergencies like medical bills or job loss, and rebuild it before investing in riskier assets."
+    },
+    {
+      "id": "guide-emi-stress",
+      "kind": "guide",
+      "title": "When an EMI is hard to pay",
+      "document": "Saathi guidance",
+      "text": "If an EMI will be short, ask the lender early for a due-date change or restructuring; a bounced EMI adds bounce charges, late fees, and a late-payment record on the credit report. Borrowing more to pay an EMI should be a last resort and only for the exact shortfall."
+    },
+    {
+      "id": "guide-tax-80c-80d",
+      "kind": "guide",
+      "title": "Common tax deductions (old regime)",
+      "document": "Saathi guidance",
+      "text": "Under the old tax regime, section 80C allows up to INR 1.5 lakh for items such as PPF, ELSS, EPF, and life insurance premiums; section 80D allows a deduction for health insurance premiums (up to INR 25,000 for self and family, more for senior-citizen parents). The new regime has lower slab rates but removes most deductions."
+    },
+    {
+      "id": "guide-subscriptions",
+      "kind": "guide",
+      "title": "Managing subscriptions and autopay",
+      "document": "Saathi guidance",
+      "text": "Review UPI autopay mandates and card standing instructions every few months. Cancel unused subscriptions from the mandate list in the UPI app, and watch for price increases at renewal."
+    },
+    {
+      "id": "playbook-emi_shortfall",
+      "kind": "playbook",
+      "title": "EMI shortfall this month",
+      "document": "Saathi playbook emi_shortfall.yaml",
+      "text": "Confirm the EMI amount, due date, and the expected shortfall. Check whether essential spending can be deferred without penalties. Ask the lender about restructuring or a revised due date before taking new credit. Route to a specialist when income loss or distress is reported."
+    },
+    {
+      "id": "playbook-failed_upi_refund",
+      "kind": "playbook",
+      "title": "Failed UPI payment, refund not received",
+      "document": "Saathi playbook failed_upi_refund.yaml",
+      "text": "Confirm the debit failed (beneficiary not credited) and note the transaction reference. Failed UPI debits should reverse automatically by T+1. After T+1, raise a refund trace with the payment app or bank; compensation of INR 100 a day applies. Escalate to the bank's grievance officer, then the RBI Ombudsman, if it is not resolved."
+    },
+    {
+      "id": "playbook-general_support",
+      "kind": "playbook",
+      "title": "General financial support",
+      "document": "Saathi playbook general_support.yaml",
+      "text": "Capture the customer's situation in their own words. Share the Resolution Passport with a Saathi specialist."
+    },
+    {
+      "id": "playbook-hospital_bill",
+      "kind": "playbook",
+      "title": "Hospital bill with an insurance funding gap",
+      "document": "Saathi playbook hospital_bill.yaml",
+      "text": "Collect the itemized final bill and the health policy schedule. Check eligible inpatient expenses, room category limits, and claim document requirements. Calculate verified coverage and what the family can pay now before considering credit. Borrow only the remaining gap, and only if the EMI passes the affordability guardrail. Submit the claim with the full document set and track partner status until closure."
+    },
+    {
+      "id": "playbook-term_life",
+      "kind": "playbook",
+      "title": "Term life cover check",
+      "document": "Saathi playbook term_life.yaml",
+      "text": "Cover needed is roughly 10 times annual income when someone depends on you, plus outstanding loans, minus savings and investments. Subtract life cover you already have; buy pure term cover for the gap, not investment-linked plans. Choose a term that runs to your retirement age. Disclose health and habits honestly; the insurer underwrites and decides."
+    },
+    {
+      "id": "playbook-upi_fraud",
+      "kind": "playbook",
+      "title": "Unrecognized UPI debit",
+      "document": "Saathi playbook upi_fraud.yaml",
+      "text": "Confirm the debit is unfamiliar and note the transaction reference, time, and counterparty. Block or pause UPI in the payment app and change the UPI PIN. Report the incident to the bank or payment app as soon as possible; prompt reporting can limit customer liability under bank rules. Report cyber fraud on the national helpline 1930 or at cybercrime.gov.in. Track the dispute reference until the payment network closes it."
+    }
+  ]
+}

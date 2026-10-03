@@ -273,7 +273,11 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
     addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${candidates.length} candidate debit(s).`, actor: 'saathi' });
     await addLocalizedMessage(
       record,
-      pickTransactionMessage(record.language, candidates.length, stated, Boolean(stated && candidates.some((candidate) => candidate.amount_inr === stated))),
+      picker.mode === 'select'
+        ? candidates.length
+          ? `I found ${candidates.length} failed payment(s) on your account. Pick the one that is missing its refund and I will check the deadline and compensation.`
+          : 'I could not find a failed payment on your account. A specialist can trace it for you.'
+        : pickTransactionMessage(record.language, candidates.length, stated, Boolean(stated && candidates.some((candidate) => candidate.amount_inr === stated))),
     );
     return { summary: `${candidates.length} candidate debit(s); waiting for the customer to pick one.`, paused: 'awaiting_transaction' };
   }
@@ -485,7 +489,36 @@ const decision = node('decision', async (state, context) => {
   return { summary: `${detail}. ${feasible}/${decided.options.length} options pass guardrails; best: ${best?.title ?? 'none'}.` };
 });
 
-const explainer = node('explainer', async (_state, { record }) => {
+const explainer = node('explainer', async (_state, context) => {
+  const { record } = context;
+  if (record.event_type === 'general_financial_support') {
+    const knowledge = await callTool<{ answer: string | null; sources: { title: string | null; clause_id: string | null; page: number | null }[]; backend: string }>(
+      context,
+      'knowledge.ask',
+      { question: record.message_for_rules ?? record.customer_message },
+    );
+    if (knowledge.answer) {
+      const sources = knowledge.sources.map((source) => source.title).filter(Boolean);
+      if (record.evidence) {
+        record.evidence.retrieved_evidence = knowledge.sources.map((source, index) => ({
+          document_id: `KB-${index + 1}`,
+          document_name: 'Saathi knowledge graph (Cognee)',
+          document_type: 'knowledge',
+          page: source.page ?? 1,
+          title: source.title ?? 'Knowledge',
+          text: source.title ?? '',
+          score: knowledge.sources.length - index,
+          retrieval: 'cognee',
+        }));
+        record.evidence.notice = 'General guidance from the Saathi knowledge graph (Cognee), not a decision on your case.';
+      }
+      await addLocalizedMessage(
+        record,
+        `${knowledge.answer}${sources.length ? ` (Sources: ${[...new Set(sources)].join('; ')}.)` : ''} This is general guidance. A Saathi specialist can look at your situation if you want.`,
+      );
+      return { summary: `Answered from the knowledge graph (${knowledge.backend}) with ${knowledge.sources.length} source(s).` };
+    }
+  }
   await addLocalizedMessage(record, explainDecision(record));
   const language = record.messages.at(-1)?.language ?? (record.language === 'hinglish' ? 'Hinglish' : 'English');
   return { summary: `Explained in ${language} using decision facts only.` };

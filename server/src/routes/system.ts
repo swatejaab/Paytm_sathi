@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth';
-import { n8nConfigured, openaiAvailable, sarvamAvailable, settings } from '../config';
+import { cogneeAvailable, n8nConfigured, openaiAvailable, sarvamAvailable, settings } from '../config';
 import { graphMermaid } from '../agent/graph';
 import { AGENT_NODES, GRAPH_VERSION } from '../agent/nodes';
 import { partnerServerCatalog } from '../mcp/clients';
@@ -19,7 +19,7 @@ systemRouter.get('/integrations/status', (_req, res) => {
     sarvam_available: sarvamAvailable(),
     n8n_configured: n8nConfigured(),
     partner_channel: n8nConfigured() ? 'n8n' : 'local_mock',
-    knowledge_backend: 'local_index',
+    knowledge_backend: cogneeAvailable() ? 'cognee' : 'local_index',
     lender_adapter: settings.mochaTradeApiUrl ? 'mochatrade_unverified' : 'synthetic_fixture',
   });
 });

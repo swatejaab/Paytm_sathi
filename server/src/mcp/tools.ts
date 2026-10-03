@@ -2,10 +2,12 @@ import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
 import { assessCoverage, type CoverageBillLine } from '../coverage';
 import { SCORE_ACTIONS, scoreReport, simulateAction, type ScoreAction } from '../credit';
+import { graphAnswer, searchChunks } from '../cognee';
+import { cogneeAvailable, settings } from '../config';
 import { calculateEmi, checkAffordability } from '../decision';
+import { redactContactIdentifiers } from '../redaction';
 import { householdContext, termPremium } from '../insurance';
 import { retrievePolicyClauses } from '../documents';
-import { settings } from '../config';
 import { fixtures, PARTNERS } from '../fixtures';
 import { guidanceFor } from '../playbooks/registry';
 import type { CaseRecord, ConsentPurpose, EventType, Principal } from '../types';
@@ -414,10 +416,67 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: null,
-    description: 'Retrieve cited policy clauses (local index; Cognee fallback).',
+    description: 'Retrieve cited policy clauses from the Cognee knowledge graph (local index fallback).',
     fixture: 'sample_documents.json#policy',
     input: z.object({ case_id: caseId, query: z.string().min(2).max(500), top_k: z.number().int().min(1).max(5).optional() }).strict(),
-    handler: (_context, input: { query: string; top_k?: number }) => retrievePolicyClauses(input.query, input.top_k ?? 3),
+    handler: async (_context, input: { query: string; top_k?: number }) => {
+      const topK = input.top_k ?? 3;
+      if (cogneeAvailable()) {
+        try {
+          const { policy } = fixtures.documents;
+          const hits = await searchChunks(input.query, [settings.cogneeDataset], topK * 3);
+          const clauses = hits
+            .filter((hit) => hit.kind === 'policy_clause' && hit.clause_id)
+            .map((hit) => policy.clauses.find((clause) => clause.clause_id === hit.clause_id))
+            .filter((clause, index, all): clause is NonNullable<typeof clause> => Boolean(clause) && all.indexOf(clause) === index)
+            .slice(0, topK);
+          if (clauses.length) {
+            return clauses.map((clause, index) => ({
+              document_id: policy.document_id,
+              document_name: policy.file_name,
+              document_type: 'policy',
+              clause_id: clause.clause_id,
+              page: clause.page,
+              title: clause.title,
+              text: clause.text,
+              estimated_coverage_inr: clause.estimated_coverage_inr,
+              score: topK - index,
+              retrieval: 'cognee',
+            }));
+          }
+        } catch {
+          // fall back to the local index below
+        }
+      }
+      return retrievePolicyClauses(input.query, topK).map((passage) => ({ ...passage, retrieval: 'local_index' }));
+    },
+  },
+  {
+    name: 'knowledge.ask',
+    server: 'knowledge',
+    kind: 'read',
+    scope: 'case:read',
+    consent: READ_CONSENT,
+    description: 'Answer a general money question from the Saathi knowledge graph (Cognee), with cited sources.',
+    fixture: 'knowledge_base.json',
+    input: z.object({ case_id: caseId, question: z.string().min(3).max(600) }).strict(),
+    handler: async (_context, input: { question: string }) => {
+      const question = redactContactIdentifiers(input.question);
+      if (!cogneeAvailable()) return { answer: null, sources: [], backend: 'local_index' };
+      try {
+        const [answer, hits] = await Promise.all([
+          graphAnswer(question, [settings.cogneeDataset]),
+          searchChunks(question, [settings.cogneeDataset], 3),
+        ]);
+        return {
+          answer,
+          sources: hits.map((hit) => ({ title: hit.title, document: hit.document, clause_id: hit.clause_id, page: hit.page })),
+          backend: 'cognee',
+        };
+      } catch {
+        return { answer: null, sources: [], backend: 'unavailable' };
+      }
+    },
   },
   {
     name: 'knowledge.get_clause',

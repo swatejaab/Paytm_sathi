@@ -10,7 +10,7 @@ triggers:
 engine: builtin:specialist
 auditor: null
 tools:
-  read: [knowledge.search_playbook]
+  read: [knowledge.search_playbook, knowledge.ask]
   write: [crm.handoff_to_agent]
 exit: specialist closes the case
 guidance:

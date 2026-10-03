@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { getPrincipal, requireAuth } from '../auth';
-import { addTimeline, loadCaseForOwner, loadCaseForRead, newId } from '../caseStore';
+import { addTimeline, hasConsent, loadCaseForOwner, loadCaseForRead, newId } from '../caseStore';
 import { settings } from '../config';
 import { nowIso, recordAudit, updateCase } from '../db';
 import {
@@ -33,6 +33,8 @@ import { addMessage } from '../caseStore';
 import { isLanguageCode, LANGUAGE_CODES, LANGUAGE_PROMPT_NAMES } from '../languages';
 import { redactContactIdentifiers } from '../redaction';
 import { parseBillText } from '../billParser';
+import { addTexts, cognify } from '../cognee';
+import { cogneeAvailable } from '../config';
 import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 
@@ -175,6 +177,13 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length, ocr: viaOcr },
   });
 
+  if (cogneeAvailable() && document.document_type === 'policy' && hasConsent(record, 'prepare_resolution_options')) {
+    const dataset = `customer-${principal.sub}`;
+    void addTexts(dataset, [`[${document.document_id} | policy_upload | ${document.document_name}] Customer policy. ${extracted.text.slice(0, 20_000)}`])
+      .then(() => cognify(dataset))
+      .then(() => recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'knowledge_ingested', detail: { provider: 'cognee', dataset } }))
+      .catch(() => recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'knowledge_ingest_failed', decision: 'deny', detail: { provider: 'cognee' } }));
+  }
   const parsedBill = document.document_type === 'bill' && record.event_type === 'hospitalization' ? parseBillText(extracted.text) : null;
   if (parsedBill) {
     record.pending_question = {

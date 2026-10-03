@@ -72,6 +72,10 @@ server/src/
 data/              Synthetic fixtures: bill/policy, profiles, UPI transactions, loans, lender offers, playbooks, users
 ```
 
+### Cognee knowledge graph
+
+`knowledge.v1` runs on Cognee when `COGNEE_ENABLED=true` (with `COGNEE_API_KEY` and `COGNEE_BASE_URL`). Run `npm run cognee:seed` once to load `data/knowledge_base.json` (policy clauses, RBI/IRDAI rule summaries, guidance, playbooks) into the `saathi-knowledge` dataset. Then `knowledge.search_policy` retrieves cited clauses from the graph, and the new `knowledge.ask` tool answers general questions with sources (for example "What is the difference between term and endowment plans?") instead of only offering a specialist. With case consent, a customer's uploaded policy goes into their own dataset (`customer-<id>`). Every call has a local-index fallback, results are tagged `cognee` or `local_index`, and no calculation depends on Cognee.
+
 ### MCP: real partner servers, gateway as MCP client
 
 Each partner contract is a real MCP server built with the official SDK: `insurer.v1`, `provider.v1` (hospital/TPA), `payments.v1`, `lender.v1`, `aa.v1` (Account Aggregator), `crm.v1` (Paytm Support), and `knowledge.v1`. The Saathi gateway runs its checks (allowlist, schema, case scope, playbook scope, consent, approval token, payload hash) and then calls the partner through an MCP client; partners only receive the tool arguments and the customer id in `_meta`. By default each simulated partner runs in-process; set `MCP_URL_<SERVER>` (for example `MCP_URL_INSURER=http://127.0.0.1:8000/mcp/insurer`) to reach a Streamable HTTP server instead: swapping in a partner's real server is a URL change. `GET /api/mcp/servers` shows each server's transport.
@@ -129,7 +133,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |
 
-Not connected in this build: Cognee (local keyword index instead) and Mochatrade (labeled fixture offers). Scanned PDFs are not rendered; upload photos of the pages for OCR instead.
+Not connected in this build: Mochatrade (labeled fixture offers). Scanned PDFs are not rendered; upload photos of the pages for OCR instead.
 
 ### Voice, languages, and AI chat
 

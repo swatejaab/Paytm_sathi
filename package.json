@@ -14,7 +14,8 @@
     "test": "npm test -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w frontend",
     "demo": "npm run build && npm start",
-    "reset": "node -e \"for (const f of ['saathi.sqlite3','saathi.sqlite3-shm','saathi.sqlite3-wal']) require('fs').rmSync('data/' + f, { force: true }); console.log('Demo data cleared.')\""
+    "reset": "node -e \"for (const f of ['saathi.sqlite3','saathi.sqlite3-shm','saathi.sqlite3-wal']) require('fs').rmSync('data/' + f, { force: true }); console.log('Demo data cleared.')\"",
+    "cognee:seed": "npm run cognee:seed -w server"
   },
   "engines": {
     "node": ">=22.13"

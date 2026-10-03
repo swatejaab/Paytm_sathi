@@ -7,7 +7,8 @@
     "dev": "node --disable-warning=ExperimentalWarning --watch-path=./src --import tsx src/index.ts",
     "start": "node --disable-warning=ExperimentalWarning --import tsx src/index.ts",
     "test": "node --disable-warning=ExperimentalWarning --import tsx --import ./test/setup.ts --test \"test/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cognee:seed": "node --disable-warning=ExperimentalWarning --import tsx scripts/cognee-seed.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.14",

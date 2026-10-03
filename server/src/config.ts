@@ -62,6 +62,10 @@ export interface Settings {
   loginAttemptsPerMinute: number;
   demoDate: string;
   mcpPartnerToken: string;
+  cogneeEnabled: boolean;
+  cogneeApiKey: string;
+  cogneeBaseUrl: string;
+  cogneeDataset: string;
   mcpPartnerTokenGenerated: boolean;
   maxDocumentBytes: number;
   maxAudioBytes: number;
@@ -102,6 +106,10 @@ export const settings: Settings = {
   // "Today" for proactive alerts, pinned so the synthetic EMI due date stays two days away in every demo.
   demoDate: readString('DEMO_DATE', '2026-10-03'),
   mcpPartnerToken: readString('MCP_PARTNER_TOKEN') || generatedPartnerToken,
+  cogneeEnabled: readBool('COGNEE_ENABLED'),
+  cogneeApiKey: readString('COGNEE_API_KEY'),
+  cogneeBaseUrl: readString('COGNEE_BASE_URL', 'https://api.cognee.ai').replace(/\/+$/, ''),
+  cogneeDataset: readString('COGNEE_DATASET', 'saathi-knowledge'),
   mcpPartnerTokenGenerated: !readString('MCP_PARTNER_TOKEN'),
   maxDocumentBytes: 5 * 1024 * 1024,
   maxAudioBytes: 10 * 1024 * 1024,
@@ -110,3 +118,4 @@ export const settings: Settings = {
 export const openaiAvailable = (): boolean => settings.openaiEnabled && Boolean(settings.openaiApiKey);
 export const sarvamAvailable = (): boolean => settings.sarvamEnabled && Boolean(settings.sarvamApiKey);
 export const n8nConfigured = (): boolean => Boolean(settings.n8nWebhookUrl && settings.n8nWebhookSecret);
+export const cogneeAvailable = (): boolean => settings.cogneeEnabled && Boolean(settings.cogneeApiKey && settings.cogneeBaseUrl);

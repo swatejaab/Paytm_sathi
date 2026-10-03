@@ -126,6 +126,7 @@ export interface EvidencePassage {
   text: string;
   score: number;
   estimated_coverage_inr?: number | null;
+  retrieval?: 'cognee' | 'local_index';
 }
 
 export interface EvidenceDocument {

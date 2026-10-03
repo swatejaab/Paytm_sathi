@@ -53,7 +53,7 @@ export function createPartnerServer(server: Exclude<ServerId, 'identity'>, fallb
         const customerId = String(extra._meta?.customer_id ?? fallbackCustomerId ?? '');
         if (!customerId) throw new Error(`${ERROR_PREFIX}invalid_input:Missing customer context (_meta.customer_id).`);
         try {
-          const result = tool.handler({ customer_id: customerId }, args);
+          const result = await tool.handler({ customer_id: customerId }, args);
           return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: { result } };
         } catch (error) {
           if (error instanceof GatewayError) throw new Error(encodeGatewayError(error));
