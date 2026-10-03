@@ -126,3 +126,26 @@
 .m-choice-actions .m-btn { margin-top: 0; flex: 1; }
 [data-theme="dark"] .m-choice { background: var(--card); border-color: var(--line); }
 [data-theme="dark"] .m-choice.flag { border-color: #7a2e2a; }
+
+/* ---------- Web header ---------- */
+.topbar-wordmark { font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+.topbar-wordmark b { color: #00b9f1; }
+.topbar-offline { padding: 4px 10px; border-radius: 999px; background: #5a1d1d; color: #ffd9d4; font-size: 12px; font-weight: 700; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.topbar-actions .topbar-user { gap: 10px; }
+.topbar-avatar { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(155deg, #00b9f1, #0a5bd3); color: #fff; font-size: 13px; font-weight: 800; }
+.topbar-user .topbar-name { font-size: 14px; font-weight: 700; color: #fff; text-align: left; }
+@media (max-width: 640px) { .topbar-name { display: none; } }
+
+/* ---------- Live agent steps ---------- */
+.m-live-steps { display: grid; gap: 8px; min-width: 230px; }
+.m-live-steps strong { font-size: 13px; color: var(--m-navy); }
+.m-live-steps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.m-live-steps li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--m-muted); }
+.m-live-steps li.active { color: var(--m-ink); font-weight: 700; }
+.m-live-steps li.done { color: var(--m-ink); }
+.m-live-steps li small { display: block; font-size: 11px; color: var(--m-muted); font-weight: 500; }
+.m-live-tick { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #e3f6ec; color: #16a36b; font-size: 11px; font-weight: 800; flex: 0 0 auto; }
+.m-live-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #cfe3fb; border-top-color: #0a5bd3; animation: m-spin .8s linear infinite; flex: 0 0 auto; }
+@keyframes m-spin { to { transform: rotate(360deg); } }
+[data-theme="dark"] .m-live-tick { background: #0f3326; }

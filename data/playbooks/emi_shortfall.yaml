@@ -15,7 +15,7 @@ tools:
 exit: EMI paid or rescheduled
 guidance:
   title: EMI shortfall this month
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Confirm the EMI amount, due date, and the expected shortfall.
     - Check whether essential spending can be deferred without penalties.

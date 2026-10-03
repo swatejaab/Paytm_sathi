@@ -15,10 +15,8 @@ import {
 } from '../documents';
 import { HttpError, parseBody } from '../errors';
 import {
-  allowedNumbers,
   analyzeCaseWithOpenAI,
-  answerWithAccount,
-  inventedNumbers,
+  checkedAccountAnswer,
   IntegrationDisabledError,
   ocrImageWithOpenAI,
   IntegrationInputError,
@@ -367,15 +365,18 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
   let source: 'openai' | 'saathi' = 'openai';
   try {
     // The answer draws on the case facts and the customer's own account figures; it may not add numbers.
-    const result = await answerWithAccount({ question: body.message, languageName, account, caseFacts: facts });
-    const invented = inventedNumbers(result.answer, allowedNumbers({ facts, account, question: body.message }));
+    const result = await checkedAccountAnswer({ question: body.message, languageName, account, caseFacts: facts });
+    const invented = result.answer ? [] : result.rejected;
+    if (result.rejected.length && result.answer) {
+      recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_corrected', detail: { numbers: result.rejected.slice(0, 5) } });
+    }
     if (invented.length) {
       // Numeric guard: the model may only repeat numbers the decision service produced.
       source = 'saathi';
       answer = explainDecision(record) || 'I can only answer from your case facts. A Saathi specialist can help with this question.';
       recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', numbers: invented.slice(0, 5) } });
     } else {
-      answer = result.answer;
+      answer = result.answer!;
     }
   } catch (error) {
     mapIntegrationError(error);

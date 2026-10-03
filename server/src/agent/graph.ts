@@ -548,7 +548,7 @@ const decision = node('decision', async (state, context) => {
       retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
       missing_documents: [],
       playbook,
-      notice: 'This journey has no automated playbook in the demo.',
+      notice: 'A Saathi specialist handles this journey.',
     };
     record.decision = computeHumanOnlyDecision({ eventType: record.event_type, urgency: record.urgency, playbook });
     detail = 'Specialist route';
@@ -698,9 +698,9 @@ export async function runAgent(
   record: CaseRecord,
   principal: Principal,
   trigger: AgentTrigger,
-  input: { transaction_id?: string; grantConsent?: () => void } = {},
+  input: { transaction_id?: string; grantConsent?: () => void; onProgress?: () => void } = {},
 ): Promise<{ visited: AgentNodeId[]; paused: string | null; error: string | null }> {
-  const tracer = new RunTracer(record, trigger);
+  const tracer = new RunTracer(record, trigger, input.onProgress);
   const result = await saathiGraph.invoke(
     { trigger, grant_consent: Boolean(input.grantConsent), transaction_id: input.transaction_id ?? null, paused: null, error: null },
     {

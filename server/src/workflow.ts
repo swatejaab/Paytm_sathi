@@ -15,6 +15,7 @@ export async function createCase(
   consentGranted: boolean,
   preferredLanguage?: string,
   aiAnswers = false,
+  background = false,
 ): Promise<CaseRecord> {
   const now = nowIso();
   const record: CaseRecord = {
@@ -45,12 +46,22 @@ export async function createCase(
   insertCase(record);
   // A remembered "records" consent applies to new cases; it is still recorded on this case and revocable.
   const standing = !consentGranted && standingConsents(principal.sub).records;
-  await runAgent(
-    record,
-    principal,
-    'intake',
-    consentGranted || standing ? { grantConsent: () => grantConsentRecord(record, principal, standing) } : {},
-  );
+  const consent = consentGranted || standing ? { grantConsent: () => grantConsentRecord(record, principal, standing) } : {};
+  if (background) {
+    // Live mode: answer now and let the customer watch each agent step arrive over the case's event stream.
+    const save = () => {
+      try {
+        updateCase(record);
+      } catch {
+        // the case was deleted mid-run; nothing left to update
+      }
+    };
+    void runAgent(record, principal, 'intake', { ...consent, onProgress: save })
+      .catch((error: unknown) => console.error(`[saathi] agent run failed for ${record.case_id}:`, error))
+      .finally(save);
+    return structuredClone(record);
+  }
+  await runAgent(record, principal, 'intake', consent);
   updateCase(record);
   return record;
 }
@@ -60,7 +71,7 @@ function grantConsentRecord(record: CaseRecord, principal: Principal, standing =
   recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'consent_granted', detail: { purpose: READ_CONSENT, standing } });
   addTimeline(record, {
     title: standing ? 'Consent applied (remembered choice)' : 'Consent granted',
-    detail: `Purpose: prepare resolution options. Saathi may read case-relevant synthetic records only.${standing ? ' Turn this off any time in Profile.' : ''}`,
+    detail: `Purpose: prepare resolution options. Saathi reads only the records relevant to this case.${standing ? ' Turn this off any time in Profile.' : ''}`,
     actor: 'customer',
   });
 }

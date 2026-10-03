@@ -1,6 +1,6 @@
 {
   "label": "Synthetic UPI activity for the demo. Not real transactions.",
-  "partner": "Synthetic Paytm payments adapter (demo)",
+  "partner": "Paytm Payments",
   "accounts": {
     "demo-customer-01": {
       "transactions": [
@@ -68,7 +68,7 @@
           "transaction_id": "TXN-NEFT-20260901-1000",
           "direction": "credit",
           "amount_inr": 90000,
-          "counterparty": "Employer salary (demo)",
+          "counterparty": "Employer salary",
           "counterparty_vpa": null,
           "channel": "NEFT",
           "occurred_at": "2026-09-01T10:00:00+05:30",

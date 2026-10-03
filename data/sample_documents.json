@@ -5,7 +5,7 @@
   "bill": {
     "document_id": "BILL-DEMO-001",
     "document_type": "bill",
-    "file_name": "synthetic_hospital_bill.json",
+    "file_name": "hospital_final_bill.pdf",
     "page": 1,
     "currency": "INR",
     "total_inr": 80000,
@@ -38,8 +38,8 @@
   "policy": {
     "document_id": "POLICY-DEMO-001",
     "document_type": "policy",
-    "file_name": "synthetic_health_policy.json",
-    "insurer": "Synthetic insurer (demo)",
+    "file_name": "health_policy_schedule.pdf",
+    "insurer": "Partner health insurer",
     "coverage_clause_id": "3.1",
     "coverage_confidence": 0.91,
     "clauses": [
@@ -47,7 +47,7 @@
         "clause_id": "3.1",
         "page": 4,
         "title": "Eligible inpatient expenses",
-        "text": "For the synthetic demonstration only, eligible inpatient hospital expenses are considered subject to the limits and exclusions in this sample policy.",
+        "text": "Eligible inpatient hospital expenses are payable subject to the limits and exclusions in this policy.",
         "estimated_coverage_inr": 55000
       },
       {

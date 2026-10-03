@@ -62,7 +62,7 @@ options:
 
 guidance:
   title: Failed UPI payment, refund not received
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Confirm the debit failed (beneficiary not credited) and note the transaction reference.
     - Failed UPI debits should reverse automatically by T+1.

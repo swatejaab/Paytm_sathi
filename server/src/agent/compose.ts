@@ -2,7 +2,7 @@ import { accountFacts } from '../accountContext';
 import { addMessage } from '../caseStore';
 import { openaiAvailable } from '../config';
 import { recordAudit, standingConsents } from '../db';
-import { allowedNumbers, answerWithAccount, inventedNumbers } from '../integrations';
+import { checkedAccountAnswer } from '../integrations';
 import { isLanguageCode, LANGUAGE_PROMPT_NAMES } from '../languages';
 import { redactContactIdentifiers } from '../redaction';
 import type { CaseRecord } from '../types';
@@ -75,7 +75,7 @@ export async function composeReply(record: CaseRecord, input: ComposeInput): Pro
   const caseFacts = input.facts ?? (input.withCase === false ? null : chatFacts(record));
   const language = replyLanguage(record, input.language);
   try {
-    const result = await answerWithAccount({
+    const result = await checkedAccountAnswer({
       question: input.question,
       languageName: language.name,
       account,
@@ -83,11 +83,16 @@ export async function composeReply(record: CaseRecord, input: ComposeInput): Pro
       draft: input.draft,
       knowledge: input.knowledge ?? null,
     });
-    const invented = inventedNumbers(result.answer, allowedNumbers({ account, caseFacts, draft: input.draft, knowledge: input.knowledge, question: input.question }));
-    if (invented.length) {
-      recordAudit({ case_id: record.case_id, actor: 'saathi', event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', numbers: invented.slice(0, 5) } });
-      return fallback();
+    if (result.rejected.length) {
+      recordAudit({
+        case_id: record.case_id,
+        actor: 'saathi',
+        event: result.answer ? 'ai_answer_corrected' : 'ai_answer_rejected',
+        decision: result.answer ? 'allow' : 'deny',
+        detail: { reason: 'invented_numbers', numbers: result.rejected.slice(0, 5), attempts: result.attempts },
+      });
     }
+    if (!result.answer) return fallback();
     addMessage(record, 'assistant', result.answer, { source: 'openai', ...(language.code ? { language: language.code } : {}) });
     recordAudit({
       case_id: record.case_id,

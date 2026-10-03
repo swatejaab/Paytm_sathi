@@ -25,7 +25,7 @@ authRouter.post('/auth/login', loginLimiter, (req, res) => {
   const body = parseBody(loginSchema, req.body);
   const user = authenticateDemoUser(body.user_id, body.passcode);
   recordAudit({ actor: body.user_id, event: 'login', decision: user ? 'allow' : 'deny' });
-  if (!user) throw new HttpError(401, 'The demo ID or passcode is incorrect.');
+  if (!user) throw new HttpError(401, 'That user ID or PIN is incorrect.');
   res.json(issueAccessToken(user));
 });
 

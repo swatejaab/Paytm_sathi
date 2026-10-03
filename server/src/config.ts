@@ -49,6 +49,7 @@ export interface Settings {
   openaiEnabled: boolean;
   openaiApiKey: string;
   openaiModel: string;
+  openaiReasoningEffort: 'minimal' | 'low' | 'medium' | 'high';
   sarvamEnabled: boolean;
   sarvamApiKey: string;
   sarvamSttModel: string;
@@ -71,6 +72,10 @@ export interface Settings {
   maxAudioBytes: number;
 }
 
+function readEffort(value: string): 'minimal' | 'low' | 'medium' | 'high' {
+  return (['minimal', 'low', 'medium', 'high'] as const).find((effort) => effort === value) ?? 'minimal';
+}
+
 export const settings: Settings = {
   host: readString('HOST', '127.0.0.1'),
   trustProxy: readBool('TRUST_PROXY'),
@@ -90,7 +95,8 @@ export const settings: Settings = {
   approvalTokenTtlSeconds: 5 * 60,
   openaiEnabled: readBool('OPENAI_ENABLED'),
   openaiApiKey: readString('OPENAI_API_KEY'),
-  openaiModel: readString('OPENAI_MODEL', 'gpt-4o-mini'),
+  openaiModel: readString('OPENAI_MODEL', 'gpt-5'),
+  openaiReasoningEffort: readEffort(readString('OPENAI_REASONING_EFFORT', 'minimal')),
   sarvamEnabled: readBool('SARVAM_ENABLED'),
   sarvamApiKey: readString('SARVAM_API_KEY'),
   sarvamSttModel: readString('SARVAM_STT_MODEL', 'saaras:v4'),

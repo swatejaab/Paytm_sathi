@@ -1,6 +1,6 @@
 {
   "label": "Synthetic loan accounts and salary schedules for the demo. Not real customer data.",
-  "partner": "Synthetic lender (Mochatrade adapter placeholder)",
+  "partner": "Partner lender",
   "accounts": {
     "demo-customer-01": {
       "salary": {

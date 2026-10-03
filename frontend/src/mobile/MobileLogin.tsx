@@ -11,9 +11,9 @@ const DEMO_PINS: Record<string, string> = {
 };
 
 const TAGLINES: Record<string, string> = {
-  'demo-customer-01': 'Salaried · tight month',
-  'demo-customer-02': 'Salaried · healthy savings',
-  'support-agent-01': 'Saathi specialist',
+  'demo-customer-01': 'Savings account ••4821 · Pune',
+  'demo-customer-02': 'Savings account ••7305 · Bengaluru',
+  'support-agent-01': 'Saathi support team',
 };
 
 export const initials = (name: string) =>

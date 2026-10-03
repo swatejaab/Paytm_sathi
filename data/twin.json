@@ -32,7 +32,7 @@
           "cover_inr": 500000,
           "premium_inr": 18400,
           "renewal_date": "2026-10-24",
-          "insurer": "Synthetic General Insurance (demo)"
+          "insurer": "Partner General Insurance"
         },
         {
           "policy": "Term life",
@@ -40,7 +40,7 @@
           "cover_inr": 5000000,
           "premium_inr": 9600,
           "renewal_date": "2027-03-02",
-          "insurer": "Synthetic Life (demo)"
+          "insurer": "Partner Life Insurance"
         }
       ],
       "goals": [
@@ -126,7 +126,7 @@
           "cover_inr": 1000000,
           "premium_inr": 14200,
           "renewal_date": "2027-01-15",
-          "insurer": "Synthetic General Insurance (demo)"
+          "insurer": "Partner General Insurance"
         }
       ],
       "goals": [

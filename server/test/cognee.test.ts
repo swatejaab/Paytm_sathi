@@ -7,7 +7,7 @@ import { createCase, login } from './helpers';
 
 const originalFetch = providers.fetch;
 const chunk = (id: string, kind: string, title: string, clause?: string) =>
-  entryText({ id, kind: kind as never, title, document: 'synthetic_health_policy.json', text: `${title} text.`, ...(clause ? { clause_id: clause, page: 4 } : {}) });
+  entryText({ id, kind: kind as never, title, document: 'health_policy_schedule.pdf', text: `${title} text.`, ...(clause ? { clause_id: clause, page: 4 } : {}) });
 
 describe('Cognee knowledge graph', () => {
   before(() => {

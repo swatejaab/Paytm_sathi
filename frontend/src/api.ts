@@ -99,11 +99,12 @@ export const api = {
   listCases: () => request<{ cases: CaseSummary[] }>('/api/cases'),
   supportCases: () => request<{ cases: CaseSummary[] }>('/api/support/cases'),
   getCase: (caseId: string) => request<CaseRecord>(`/api/cases/${caseId}`),
-  createCase: (message: string, consent: boolean, language?: string, ai = false) =>
+  createCase: (message: string, consent: boolean, language?: string, ai = false, stream = false) =>
     post<CaseRecord>('/api/cases/intake', {
       message,
       consent_to_read_case_data: consent,
       confirm_external_processing: ai,
+      stream,
       ...(language ? { language } : {}),
     }),
   chat: (caseId: string, message: string, language?: string) =>

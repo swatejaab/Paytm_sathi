@@ -9,7 +9,8 @@ export class RunTracer {
   readonly run: AgentRun;
   private current: { step: AgentStep; startedMs: number } | null = null;
 
-  constructor(record: CaseRecord, trigger: AgentTrigger) {
+  // Called after each step starts and ends, so a live run can be saved and streamed to the customer.
+  constructor(record: CaseRecord, trigger: AgentTrigger, private readonly onProgress?: () => void) {
     this.run = {
       run_id: newId('RUN'),
       trigger,
@@ -36,6 +37,7 @@ export class RunTracer {
     };
     this.run.steps.push(step);
     this.current = { step, startedMs: performance.now() };
+    this.onProgress?.();
   }
 
   tool(name: string): void {
@@ -48,6 +50,7 @@ export class RunTracer {
     this.current.step.summary = summary;
     this.current.step.duration_ms = Math.round((performance.now() - this.current.startedMs) * 10) / 10;
     this.current = null;
+    this.onProgress?.();
   }
 
   finish(outcome: string): void {

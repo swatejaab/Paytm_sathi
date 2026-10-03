@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, ApiError, streamCase } from '../api';
 import { EVENT_LABELS, inr, LANGUAGES, STATUS_LABELS } from '../format';
 import type { CaseRecord, CaseSummary, IntegrationStatus, SessionUser, StandingConsents } from '../types';
 import { MicButton, SpeakButton } from '../components/Voice';
 import { Icon } from './Icon';
+import { isRunning, LiveSteps } from './LiveSteps';
 
 type Sheet = { kind: 'records'; message: string } | { kind: 'ai'; message: string } | { kind: 'voice' } | null;
 
@@ -80,13 +81,37 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
     }
   };
 
+  // Streams the agent's steps as they happen and stops once the run finishes (or after a minute).
+  const followLiveRun = async (caseId: string) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60_000);
+    try {
+      await streamCase(
+        caseId,
+        (record) => {
+          onCase(record);
+          if (!isRunning(record.agent_runs?.at(-1))) controller.abort();
+        },
+        controller.signal,
+      );
+    } catch {
+      // aborted on completion, or the stream dropped; the latest record is already shown
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const startCase = async (message: string, consent: boolean, ai = consents.ai) => {
     setSheet(null);
     setBusy(true);
     setError(null);
     setPendingUser(message);
+    setDraft('');
     try {
-      onCase(await api.createCase(message, consent, language || undefined, ai));
+      const created = await api.createCase(message, consent, language || undefined, ai, true);
+      onCase(created);
+      setPendingUser(null);
+      if (isRunning(created.agent_runs?.at(-1))) await followLiveRun(created.case_id);
       setDraft('');
       setPlaceholder('Ask a follow-up…');
       loadHistory();
@@ -104,6 +129,7 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
     setBusy(true);
     setError(null);
     setPendingUser(message);
+    setDraft('');
     try {
       onCase(await api.chat(activeCase.case_id, message, language || undefined));
       setDraft('');
@@ -229,7 +255,7 @@ export function MobileSaathi({ user, integrations, activeCase, onCase, onOpenCas
           </div>
         ))}
         {pendingUser && <div className="m-bubble user">{pendingUser}</div>}
-        {busy && <div className="m-bubble assistant typing">Saathi is thinking…</div>}
+        {busy && (isRunning(activeCase?.agent_runs?.at(-1)) ? <LiveSteps run={activeCase!.agent_runs!.at(-1)} /> : <div className="m-bubble assistant typing">Saathi is thinking…</div>)}
         {txnQuestion && !busy && (
           <div className="m-choices" role="group" aria-label={txnQuestion.prompt}>
             {txnQuestion.candidates.map((transaction) => (

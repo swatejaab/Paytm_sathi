@@ -20,7 +20,7 @@ tools:
 exit: dispute closed by the payment network
 guidance:
   title: Unrecognized UPI debit
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Confirm the debit is unfamiliar and note the transaction reference, time, and counterparty.
     - Block or pause UPI in the payment app and change the UPI PIN.

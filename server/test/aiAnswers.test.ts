@@ -12,7 +12,8 @@ afterEach(() => {
 });
 
 // Replaces the OpenAI client with one that returns a fixed answer and records what was sent.
-function mockOpenAI(answer: string) {
+function mockOpenAI(answer: string | string[]) {
+  const answers = Array.isArray(answer) ? [...answer] : null;
   const sent: { messages?: { role: string; content: string }[] }[] = [];
   settings.openaiEnabled = true;
   settings.openaiApiKey = 'unit-test-key';
@@ -21,7 +22,8 @@ function mockOpenAI(answer: string) {
       completions: {
         create: async (params: { messages: { role: string; content: string }[] }) => {
           sent.push(params);
-          return { choices: [{ message: { content: JSON.stringify({ answer }) } }] };
+          const text = answers ? (answers.length > 1 ? answers.shift()! : answers[0]!) : answer;
+          return { choices: [{ message: { content: JSON.stringify({ answer: text }) } }] };
         },
       },
     },
@@ -59,6 +61,16 @@ describe('answers from the customer’s own account', () => {
     const reply = record.messages.at(-1);
     assert.notEqual(reply.source, 'openai');
     assert.match(reply.content, /^Exact gap/);
+  });
+
+  it('sends a reply with an invented number back once, then uses the corrected one', async () => {
+    const sent = mockOpenAI(['Using savings leaves INR 5,750 short.', 'Using savings would take you below your INR 15,000 safety buffer, so the 3-month plan is safer.']);
+    const token = await login();
+    const record = await intake(token, 'Hospital bill is INR 80,000, what should I do?', true);
+    const reply = record.messages.at(-1);
+    assert.equal(reply.source, 'openai');
+    assert.match(reply.content, /safety buffer/);
+    assert.match(sent.at(-1)!.messages!.at(-1)!.content, /5750/);
   });
 
   it('does not send account data to OpenAI without consent', async () => {

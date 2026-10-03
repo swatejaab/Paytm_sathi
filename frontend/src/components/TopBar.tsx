@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { initials } from '../mobile/MobileLogin';
 import type { IntegrationStatus, Session } from '../types';
 
 interface Props {
@@ -9,49 +10,29 @@ interface Props {
   viewToggle?: ReactNode;
 }
 
-function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?: string }) {
-  return (
-    <span className={`pill ${ok === null ? 'pill-muted' : ok ? 'pill-ok' : 'pill-off'}`} title={title}>
-      <span className="dot" />
-      {label}
-    </span>
-  );
-}
-
-export function TopBar({ session, apiOnline, integrations, onLogout, viewToggle }: Props) {
+export function TopBar({ session, apiOnline, onLogout, viewToggle }: Props) {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark" aria-hidden>
-          ♡
+        <span className="topbar-wordmark">
+          Paytm <b>Saathi</b>
         </span>
-        <div>
-          <strong>Paytm Saathi</strong>
-          <small>Your money companion</small>
-        </div>
       </div>
-      <div className="topbar-status">
-        <Pill ok={apiOnline} label={apiOnline === false ? 'API offline' : 'API'} />
-        <Pill ok={integrations.openai_available} label="OpenAI" title="Evidence summaries, consent per request" />
-        <Pill ok={integrations.sarvam_available} label="Sarvam voice" title="Hindi/Hinglish transcription" />
-        <Pill
-          ok={true}
-          label={integrations.partner_channel === 'n8n' ? 'Partners: n8n' : 'Partners: sandbox'}
-          title="Approved actions are sent through this channel"
-        />
+      {apiOnline === false && <span className="topbar-offline">Saathi is offline</span>}
+      <div className="topbar-actions">
+        {viewToggle}
+        {session && (
+          <div className="topbar-user">
+            <span className="topbar-avatar" aria-hidden>
+              {initials(session.user.display_name)}
+            </span>
+            <span className="topbar-name">{session.user.display_name.split(' ')[0]}</span>
+            <button className="btn btn-ghost" onClick={onLogout}>
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
-      {viewToggle}
-      {session && (
-        <div className="topbar-user">
-          <span>
-            {session.user.display_name}
-            <small>{session.user.role}</small>
-          </span>
-          <button className="btn btn-ghost" onClick={onLogout}>
-            Sign out
-          </button>
-        </div>
-      )}
     </header>
   );
 }

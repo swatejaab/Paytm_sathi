@@ -8,8 +8,8 @@
       "title": "Eligible inpatient expenses",
       "clause_id": "3.1",
       "page": 4,
-      "document": "synthetic_health_policy.json",
-      "text": "For the synthetic demonstration only, eligible inpatient hospital expenses are considered subject to the limits and exclusions in this sample policy."
+      "document": "health_policy_schedule.pdf",
+      "text": "Eligible inpatient hospital expenses are payable subject to the limits and exclusions in this policy."
     },
     {
       "id": "policy-3.2",
@@ -17,7 +17,7 @@
       "title": "Room category limit",
       "clause_id": "3.2",
       "page": 4,
-      "document": "synthetic_health_policy.json",
+      "document": "health_policy_schedule.pdf",
       "text": "Room and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable."
     },
     {
@@ -26,7 +26,7 @@
       "title": "Non-medical items",
       "clause_id": "4.3",
       "page": 6,
-      "document": "synthetic_health_policy.json",
+      "document": "health_policy_schedule.pdf",
       "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable."
     },
     {
@@ -35,7 +35,7 @@
       "title": "Deductible",
       "clause_id": "6.1",
       "page": 8,
-      "document": "synthetic_health_policy.json",
+      "document": "health_policy_schedule.pdf",
       "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured."
     },
     {
@@ -44,7 +44,7 @@
       "title": "Claim documents",
       "clause_id": "5.4",
       "page": 9,
-      "document": "synthetic_health_policy.json",
+      "document": "health_policy_schedule.pdf",
       "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts."
     },
     {

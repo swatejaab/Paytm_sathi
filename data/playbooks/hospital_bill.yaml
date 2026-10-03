@@ -16,7 +16,7 @@ tools:
 exit: all approved partner steps completed
 guidance:
   title: Hospital bill with an insurance funding gap
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Collect the itemized final bill and the health policy schedule.
     - Check eligible inpatient expenses, room category limits, and claim document requirements.

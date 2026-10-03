@@ -10,9 +10,9 @@ const DEMO_PASSCODES: Record<string, string> = {
 };
 
 const DESCRIPTIONS: Record<string, string> = {
-  'demo-customer-01': 'Hero journey. Tight savings, so Saathi recommends the exact-gap plan.',
-  'demo-customer-02': 'Healthy savings buffer, so Saathi recommends savings over credit.',
-  'support-agent-01': 'Specialist queue. Reads Resolution Passports and cannot approve actions.',
+  'demo-customer-01': 'Savings account ••4821 · Pune',
+  'demo-customer-02': 'Savings account ••7305 · Bengaluru',
+  'support-agent-01': 'Support specialist · reads case passports, cannot approve payments',
 };
 
 export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => void; apiOnline: boolean | null }) {
@@ -70,7 +70,7 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
       </section>
       <form className="card login-card" onSubmit={submit}>
         <h2>Sign in to Saathi</h2>
-        <p className="muted small">The demo signs you in with a short-lived JWT. Every case is checked for ownership.</p>
+        <p className="muted small">Choose your profile and enter your PIN. Your session expires automatically, and only you can see your cases.</p>
         <div className="user-choices">
           {(users.length ? users : Object.keys(DEMO_PASSCODES).map((id) => ({ user_id: id, display_name: id, role: 'customer' as const }))).map(
             (user) => (
@@ -88,7 +88,7 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
                 <span>
                   <strong>{user.display_name}</strong>
                   <small>
-                    {user.role} / {DESCRIPTIONS[user.user_id] ?? user.user_id}
+                    {DESCRIPTIONS[user.user_id] ?? user.user_id}
                   </small>
                 </span>
               </label>
@@ -96,7 +96,7 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
           )}
         </div>
         <label className="field">
-          <span>Demo passcode</span>
+          <span>PIN</span>
           <input
             type="password"
             inputMode="numeric"

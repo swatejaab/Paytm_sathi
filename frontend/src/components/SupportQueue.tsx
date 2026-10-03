@@ -54,7 +54,7 @@ export function SupportQueue() {
         </p>
         {error && <p className="alert alert-error">{error}</p>}
         <div className="queue">
-          {cases.length === 0 && <p className="muted">No cases yet. Sign in as a demo customer and open a journey.</p>}
+          {cases.length === 0 && <p className="muted">No cases yet. New customer cases appear here as they come in.</p>}
           {cases.map((item) => (
             <button
               key={item.case_id}

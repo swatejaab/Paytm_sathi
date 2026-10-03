@@ -22,6 +22,8 @@ const intakeSchema = z
     consent_to_read_case_data: z.boolean().default(false),
     language: z.enum(LANGUAGE_CODES).optional(),
     confirm_external_processing: z.boolean().default(false),
+    // Return at once and stream the agent's steps over /cases/:id/events.
+    stream: z.boolean().default(false),
   })
   .strict();
 const consentSchema = z.object({ purpose: z.literal('prepare_resolution_options'), granted: z.boolean() }).strict();
@@ -46,7 +48,8 @@ function summarize(record: CaseRecord) {
 
 caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(intakeSchema, req.body);
-  res.status(201).json(await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data, body.language, body.confirm_external_processing));
+  const record = await createCase(getPrincipal(req), body.message, body.consent_to_read_case_data, body.language, body.confirm_external_processing, body.stream);
+  res.status(body.stream ? 202 : 201).json(record);
 });
 
 caseRouter.get('/cases', requireAuth('case:read'), (req, res) => {
@@ -115,10 +118,11 @@ caseRouter.get('/cases/:caseId/events', requireAuth('case:read', 'case:read:any'
   let lastSent = '';
   const push = () => {
     try {
-      const record = loadCaseForRead(principal, caseId);
-      if (record.updated_at === lastSent) return;
-      lastSent = record.updated_at;
-      res.write(`event: case\ndata: ${JSON.stringify(record)}\n\n`);
+      // Compare whole payloads: live agent steps can be saved within the same millisecond.
+      const payload = JSON.stringify(loadCaseForRead(principal, caseId));
+      if (payload === lastSent) return;
+      lastSent = payload;
+      res.write(`event: case\ndata: ${payload}\n\n`);
     } catch {
       res.end();
     }

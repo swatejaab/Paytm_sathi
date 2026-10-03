@@ -41,7 +41,7 @@ const READ_CONSENT: ConsentPurpose = 'prepare_resolution_options';
 
 function profileFor(customerId: string) {
   const profile = fixtures.profiles[customerId];
-  if (!profile) throw new GatewayError('not_found', 'No synthetic financial profile exists for this customer.');
+  if (!profile) throw new GatewayError('not_found', 'No financial profile exists for this customer.');
   return profile;
 }
 
@@ -312,7 +312,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: caseOnly,
     handler: ({ customer_id }) => {
       const account = fixtures.loans.accounts[customer_id];
-      if (!account) throw new GatewayError('not_found', 'No synthetic loan account exists for this customer.');
+      if (!account) throw new GatewayError('not_found', 'No loan account exists for this customer.');
       return account;
     },
   },
@@ -403,7 +403,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z.object({ purpose: z.enum(['self_check']) }).strict(),
     handler: ({ customer_id }) => {
       const report = fixtures.credit.reports[customer_id];
-      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      if (!report) throw new GatewayError('not_found', 'No credit report exists for this customer.');
       return { bureau: fixtures.credit.bureau, soft_pull: true, report, ...scoreReport(report) };
     },
   },
@@ -418,7 +418,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z.object({ action: z.enum(Object.keys(SCORE_ACTIONS) as [ScoreAction, ...ScoreAction[]]) }).strict(),
     handler: ({ customer_id }, input: { action: ScoreAction }) => {
       const report = fixtures.credit.reports[customer_id];
-      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      if (!report) throw new GatewayError('not_found', 'No credit report exists for this customer.');
       const before = scoreReport(report);
       const after = scoreReport(simulateAction(report, input.action));
       return {

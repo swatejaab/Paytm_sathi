@@ -66,7 +66,7 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
   }, [seed]);
 
   const messages = activeCase?.messages ?? [
-    { role: 'assistant' as const, content: 'Tell me what happened, or open one of the demo journeys below.', at: '' },
+    { role: 'assistant' as const, content: 'Tell me what happened, or pick a topic below.', at: '' },
   ];
 
   useEffect(() => {

@@ -60,6 +60,15 @@ export function openAIInput(message: string, evidence: AnalysisEvidence): string
   });
 }
 
+// GPT-5 and other reasoning models take a reasoning effort instead of a temperature, and their token budget
+// includes reasoning tokens. Older chat models keep a low temperature for steady wording.
+const REASONING_MODEL = /^(gpt-5|o\d)/i;
+function generationParams(maxTokens: number, temperature: number) {
+  return REASONING_MODEL.test(settings.openaiModel)
+    ? { max_completion_tokens: maxTokens + 2000, reasoning_effort: settings.openaiReasoningEffort }
+    : { max_completion_tokens: maxTokens, temperature };
+}
+
 export async function analyzeCaseWithOpenAI(message: string, evidence: AnalysisEvidence) {
   if (!openaiAvailable()) throw new IntegrationDisabledError('OpenAI analysis is disabled or not configured.');
   const client = providers.createOpenAIClient({ apiKey: settings.openaiApiKey, timeout: 20_000, maxRetries: 1 });
@@ -81,8 +90,7 @@ export async function analyzeCaseWithOpenAI(message: string, evidence: AnalysisE
         { role: 'user', content: openAIInput(message, evidence) },
       ],
       response_format: { type: 'json_object' },
-      max_completion_tokens: 700,
-      temperature: 0.1,
+      ...generationParams(700, 0.1),
     });
     content = completion.choices[0]?.message.content;
   } catch {
@@ -261,8 +269,7 @@ export async function answerCaseQuestion(question: string, caseFacts: Record<str
         { role: 'user', content: JSON.stringify({ question: redactContactIdentifiers(question).slice(0, 1000), case_facts: caseFacts }) },
       ],
       response_format: { type: 'json_object' },
-      max_completion_tokens: 500,
-      temperature: 0.2,
+      ...generationParams(500, 0.2),
     });
     content = completion.choices[0]?.message.content;
   } catch {
@@ -283,6 +290,7 @@ export interface AccountAnswerInput {
   caseFacts?: unknown; // the calculated plan and evidence for this case, if any
   draft?: string; // Saathi's calculated answer, which the reply must stay faithful to
   knowledge?: string | null; // guidance passages from the knowledge base
+  correction?: string; // feedback on a rejected earlier attempt
 }
 
 // Writes Saathi's reply from the customer's own account data and the calculated plan. The model explains and
@@ -306,8 +314,10 @@ export async function answerWithAccount(input: AccountAnswerInput) {
             'may reorder and simplify. (3) Personalise with the account facts that matter for this question (balance, ' +
             'savings, upcoming payments, safety buffer, goals). (4) Do not promise claim, credit, or dispute outcomes; ' +
             'insurers, lenders, and banks decide those, and nothing is submitted until the customer approves. (5) If the ' +
-            'inputs do not answer the question, say so and offer a Saathi specialist. Use short sentences, at most 170 ' +
-            'words, plain text with numbered steps where useful and no markdown (no asterisks, no headings). Reply in ' +
+            'inputs do not answer the question, say so and offer a Saathi specialist. (6) Never say you will take an ' +
+            'action (request documents, file, pay, call) unless the case facts show it; offer it as a next step instead. ' +
+            'Use short sentences, at most 130 words, plain text, no markdown (no asterisks, no headings). Put each ' +
+            'numbered step on its own line using line breaks. Reply in ' +
             `${input.languageName}. Return only a JSON object ` +
             'with the key "answer".',
         },
@@ -321,10 +331,10 @@ export async function answerWithAccount(input: AccountAnswerInput) {
             knowledge: input.knowledge ?? null,
           }),
         },
+        ...(input.correction ? [{ role: 'user' as const, content: input.correction }] : []),
       ],
       response_format: { type: 'json_object' },
-      max_completion_tokens: 700,
-      temperature: 0.3,
+      ...generationParams(700, 0.3),
     });
     content = completion.choices[0]?.message.content;
   } catch {
@@ -339,12 +349,31 @@ export async function answerWithAccount(input: AccountAnswerInput) {
   }
 }
 
+// Asks for an answer and checks it: any number not in the inputs is sent back to the model once, by name, to
+// rewrite without it. Returns null when the second attempt still invents a number.
+export async function checkedAccountAnswer(input: AccountAnswerInput): Promise<{ answer: string | null; rejected: string[]; attempts: number }> {
+  const allowed = allowedNumbers({ account: input.account, caseFacts: input.caseFacts, draft: input.draft, knowledge: input.knowledge, question: input.question });
+  const first = await answerWithAccount(input);
+  const invented = inventedNumbers(first.answer, allowed);
+  if (!invented.length) return { answer: first.answer, rejected: [], attempts: 1 };
+  const second = await answerWithAccount({
+    ...input,
+    correction:
+      `Your previous reply used numbers that are not in the inputs: ${invented.join(', ')}. Do not calculate. ` +
+      'Rewrite the reply quoting only numbers that appear in the inputs, and describe differences in words instead.',
+  });
+  const stillInvented = inventedNumbers(second.answer, allowed);
+  return stillInvented.length ? { answer: null, rejected: [...invented, ...stillInvented], attempts: 2 } : { answer: second.answer, rejected: invented, attempts: 2 };
+}
+
 // Chat bubbles show plain text, so any markdown the model adds is removed.
 function plainText(answer: string): string {
   return answer
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/__(.+?)__/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
+    // Numbered steps written inline ("... now. 1) Pay ... 2) Claim") go on their own lines.
+    .replace(/([.!?:])\s+(\d{1,2}[).])\s/g, '$1\n$2 ')
     .replace(/^\s*[-*]\s+/gm, '• ')
     .trim();
 }
@@ -374,8 +403,7 @@ export async function ocrImageWithOpenAI(image: Buffer, mimeType: string): Promi
         },
       ],
       response_format: { type: 'json_object' },
-      max_completion_tokens: 3000,
-      temperature: 0,
+      ...generationParams(3000, 0),
     });
     content = completion.choices[0]?.message.content;
   } catch {

@@ -1,6 +1,6 @@
 {
   "label": "Synthetic sample offers for the demo. Not live credit offers; no lender or Mochatrade API is connected.",
-  "partner": "Synthetic lender (Mochatrade adapter placeholder)",
+  "partner": "Partner lender",
   "affordability_rules": {
     "max_total_emi_to_income": 0.4,
     "max_new_emi_share_of_free_cash": 0.5

@@ -60,7 +60,7 @@ export function explainDecision(record: CaseRecord): string {
 export function consentNeededMessage(language: Language | undefined): string {
   return language === 'hinglish'
     ? 'Maine aapka case save kar liya hai. Aapke policy, bill ya account records padhne se pehle, is case ke liye consent dijiye.'
-    : 'I saved your case. Before I read your synthetic policy, bill, or account records, please grant consent for this case.';
+    : 'I saved your case. Before I read your policy, bill, or account records, please grant consent for this case.';
 }
 
 export function pickTransactionMessage(language: Language | undefined, count: number, stated: number | null, matched: boolean): string {

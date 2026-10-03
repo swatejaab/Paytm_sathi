@@ -966,7 +966,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
 export function computeHumanOnlyDecision(input: { eventType: EventType; urgency: Urgency; playbook: Playbook | null }): Decision {
   const reason = input.playbook
     ? `The "${input.playbook.title}" journey is handled by a specialist, who continues from your passport.`
-    : 'This situation has no automated playbook in the demo, so a specialist continues from your passport.';
+    : 'A Saathi specialist handles this situation and continues from your passport.';
   const options = rankOptions([humanSupportDraft(input.urgency, reason)]);
   return {
     formula_version: FORMULA_VERSION,
