@@ -38,6 +38,7 @@ import { cogneeAvailable } from '../config';
 import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 import { parseBillQuery } from '../decision';
+import { runAgent } from '../agent/graph';
 const READ_CONSENT = 'prepare_resolution_options' as const;
 
 export const evidenceRouter = Router();
@@ -357,6 +358,17 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
       : 'English';
   // A new bill amount, pay-now amount or stay length recalculates the plan instead of answering from the old one.
   const update = parseBillQuery(body.message);
+  const mentionsNumbers = update.bill_inr !== null || update.can_pay_inr !== null || update.room_days !== null;
+  // A hospital case still waiting for its bill amount resumes the full agent run once the customer gives numbers.
+  if (record.event_type === 'hospitalization' && !record.decision && hasConsent(record, READ_CONSENT) && mentionsNumbers && record.status !== 'in_progress') {
+    addMessage(record, 'user', body.message);
+    updateCase(record);
+    await runAgent(record, principal, 'consent_granted');
+    recordAudit({ case_id: caseId, actor: principal.sub, event: 'plan_recalculated', detail: { bill_inr: update.bill_inr, can_pay_inr: update.can_pay_inr, room_days: update.room_days } });
+    updateCase(record);
+    res.json(record);
+    return;
+  }
   if (
     record.event_type === 'hospitalization' &&
     record.decision &&

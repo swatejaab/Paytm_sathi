@@ -253,8 +253,29 @@ const policyRag = node('policy_rag', async (_state, context) => {
   };
 });
 
+// With no amount and no confirmed bill there is nothing real to calculate, so Saathi gives the first steps
+// from the customer's own policy and balance and asks for the numbers instead of assuming a bill.
+async function askForBillAmount(record: CaseRecord, profile: FinancialProfile | undefined): Promise<void> {
+  const { schedule } = fixtures.documents.policy;
+  const lines = [
+    "I'm sorry you're going through this. Here is what to do right now:",
+    `1. Ask the hospital's insurance desk for a cashless claim. Your health policy covers up to ${formatInr(schedule.sum_insured_inr)} a year, with room rent up to ${formatInr(schedule.room_rent_limit_per_day_inr)} a day and a ${formatInr(schedule.deductible_per_claim_inr)} deductible.`,
+    '2. Keep the admission note, your ID and the policy card ready.',
+    profile
+      ? `3. You have ${formatInr(profile.account_balance_inr)} in your account and ${formatInr(profile.emergency_savings_inr)} in savings. Don't use it all yet.`
+      : '3. Avoid paying the full amount from savings until you know what insurance covers.',
+    'To build your exact plan, tell me the bill or estimate amount (for example "the bill is 1.2 lakh") and how much you can pay now. You can also upload a photo of the bill.',
+  ];
+  addTimeline(record, { title: 'Waiting for the bill amount', detail: 'No amount or bill yet, so no plan was calculated.', actor: 'saathi' });
+  await addLocalizedMessage(record, lines.join('\n'));
+}
+
 const billAuditor = node('bill_auditor', async (state, context) => {
   const { record } = context;
+  if (!record.confirmed_bill && billQuery(record).bill_inr === null) {
+    await askForBillAmount(record, state.gathered.profile);
+    return { summary: 'No bill amount yet; asked the customer instead of assuming one.', paused: 'awaiting_bill_amount' };
+  }
   const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill', billRequest(record));
   const lineTotal = bill.lines.reduce((sum, line) => sum + line.amount_inr, 0);
   const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
@@ -623,7 +644,7 @@ const graph = new StateGraph(AgentState)
     ['human_review', 'bill_auditor', 'emi_auditor', 'decision'],
   )
   .addConditionalEdges('emi_auditor', (state) => (failed(state) ? 'human_review' : 'decision'), ['human_review', 'decision'])
-  .addConditionalEdges('bill_auditor', (state) => (failed(state) ? 'human_review' : 'decision'), ['human_review', 'decision'])
+  .addConditionalEdges('bill_auditor', (state) => (failed(state) ? 'human_review' : state.paused ? END : 'decision'), ['human_review', 'decision', END])
   .addConditionalEdges(
     'transaction_auditor',
     (state) => (failed(state) ? 'human_review' : state.paused ? END : 'decision'),

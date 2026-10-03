@@ -14,7 +14,7 @@ afterEach(() => {
 describe('document evidence', () => {
   test('uploaded policy evidence cites its own page and gates automated steps', async () => {
     const token = await login();
-    const record = await createCase(token, 'Papa is in hospital. Please help with the policy and bill.');
+    const record = await createCase(token, 'Papa is in hospital. The bill is INR 80,000. Please help with the policy and bill.');
     const upload = await api()
       .post(`/api/cases/${record.case_id}/documents`)
       .set(bearer(token))
