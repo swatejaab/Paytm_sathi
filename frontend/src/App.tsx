@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, loadSession, saveSession, setUnauthorizedHandler } from './api';
 import { CustomerWorkspace } from './components/CustomerWorkspace';
+import { HomeView } from './components/HomeView';
 import { Login } from './components/Login';
 import { SupportQueue } from './components/SupportQueue';
 import { TopBar } from './components/TopBar';
@@ -19,6 +20,8 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatus>(OFFLINE);
+  const [tab, setTab] = useState<'home' | 'saathi'>('home');
+  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
 
   const logout = useCallback(() => {
     saveSession(null);
@@ -68,7 +71,29 @@ export default function App() {
       ) : session.user.role === 'support' ? (
         <SupportQueue />
       ) : (
-        <CustomerWorkspace integrations={integrations} />
+        <>
+          <nav className="app-tabs" aria-label="Main">
+            <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>
+              🏠 Home
+            </button>
+            <button className={tab === 'saathi' ? 'active' : ''} onClick={() => setTab('saathi')}>
+              💬 Saathi
+            </button>
+          </nav>
+          {/* Both stay mounted so an open case survives switching tabs. */}
+          <div hidden={tab !== 'home'}>
+            <HomeView
+              displayName={session.user.display_name}
+              onAsk={(text) => {
+                setSeed({ text, nonce: Date.now() });
+                setTab('saathi');
+              }}
+            />
+          </div>
+          <div hidden={tab !== 'saathi'}>
+            <CustomerWorkspace integrations={integrations} seed={seed} onSeedUsed={() => setSeed(null)} />
+          </div>
+        </>
       )}
     </div>
   );

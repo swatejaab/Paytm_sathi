@@ -32,6 +32,7 @@ interface Props {
   onAsk: (message: string, language: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
   onNewCase: () => void;
+  seed?: { text: string; nonce: number } | null;
 }
 
 const readPref = (key: string, fallback: string) => {
@@ -49,7 +50,7 @@ const writePref = (key: string, value: string) => {
   }
 };
 
-export function Conversation({ activeCase, cases, busy, error, integrations, onSubmit, onAsk, onOpenCase, onNewCase }: Props) {
+export function Conversation({ activeCase, cases, busy, error, integrations, onSubmit, onAsk, onOpenCase, onNewCase, seed }: Props) {
   const [draft, setDraft] = useState('');
   const [consent, setConsent] = useState(false);
   const [language, setLanguage] = useState(() => readPref('saathi.language', ''));
@@ -60,6 +61,11 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
   const speakLanguage = (message: { language?: string }) =>
     message.language || language || activeCase?.preferred_language || 'en-IN';
   const endRef = useRef<HTMLDivElement>(null);
+
+  // A question started on the Home screen lands here as a draft, so the customer still chooses consent and sends it.
+  useEffect(() => {
+    if (seed) setDraft(seed.text);
+  }, [seed]);
 
   const messages = activeCase?.messages ?? [
     { role: 'assistant' as const, content: 'Tell me what happened, or open one of the demo journeys below.', at: '' },

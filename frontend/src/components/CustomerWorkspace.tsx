@@ -4,7 +4,15 @@ import type { CaseRecord, CaseSummary, IntegrationStatus } from '../types';
 import { CasePanel } from './CasePanel';
 import { Conversation } from './Conversation';
 
-export function CustomerWorkspace({ integrations }: { integrations: IntegrationStatus }) {
+export function CustomerWorkspace({
+  integrations,
+  seed,
+  onSeedUsed,
+}: {
+  integrations: IntegrationStatus;
+  seed?: { text: string; nonce: number } | null;
+  onSeedUsed?: () => void;
+}) {
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [activeCase, setActiveCase] = useState<CaseRecord | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,7 +80,11 @@ export function CustomerWorkspace({ integrations }: { integrations: IntegrationS
         busy={busy}
         error={error}
         integrations={integrations}
-        onSubmit={submit}
+        onSubmit={async (message, consent, language) => {
+          onSeedUsed?.();
+          await submit(message, consent, language);
+        }}
+        seed={seed}
         onAsk={ask}
         onOpenCase={openCase}
         onNewCase={() => setActiveCase(null)}

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { alertsFor, dismissAlert, setAlertsEnabled } from '../alerts';
 import { getPrincipal, requireAuth } from '../auth';
-import { parseBody } from '../errors';
+import { HttpError, parseBody } from '../errors';
+import { buildTwin } from '../twin';
 
 export const alertRouter = Router();
 
@@ -21,4 +22,10 @@ alertRouter.post('/alerts/:alertId/dismiss', requireAuth('case:create'), (req, r
   const principal = getPrincipal(req);
   dismissAlert(principal.sub, String(req.params.alertId).slice(0, 120));
   res.json(alertsFor(principal.sub));
+});
+
+alertRouter.get('/twin', requireAuth('case:create'), (req, res) => {
+  const twin = buildTwin(getPrincipal(req).sub);
+  if (!twin) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
+  res.json(twin);
 });

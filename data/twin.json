@@ -1,0 +1,49 @@
+{
+  "label": "Synthetic financial-twin extras (investments, cards, insurance, goals, bills). Not real customer data.",
+  "customers": {
+    "demo-customer-01": {
+      "investments": [
+        { "name": "Index fund SIP", "kind": "mutual_fund", "value_inr": 62000, "source": "Synthetic MF statement" },
+        { "name": "Public Provident Fund", "kind": "ppf", "value_inr": 40000, "source": "Synthetic PPF passbook" }
+      ],
+      "credit_cards": [
+        { "name": "Paytm credit card", "outstanding_inr": 13500, "limit_inr": 80000, "due_date": "2026-10-07", "source": "Synthetic card statement" }
+      ],
+      "insurance": [
+        { "policy": "Family health floater", "kind": "health", "cover_inr": 500000, "premium_inr": 18400, "renewal_date": "2026-10-24", "insurer": "Synthetic General Insurance (demo)" },
+        { "policy": "Term life", "kind": "life", "cover_inr": 5000000, "premium_inr": 9600, "renewal_date": "2027-03-02", "insurer": "Synthetic Life (demo)" }
+      ],
+      "goals": [
+        { "goal": "Emergency fund (3 months of expenses)", "target_inr": 156000, "saved_inr": 18000, "target_date": "2027-06-30" },
+        { "goal": "Home down payment", "target_inr": 800000, "saved_inr": 62000, "target_date": "2029-12-31" }
+      ],
+      "obligations": [
+        { "title": "Rent", "kind": "rent", "amount_inr": 12000, "due_date": "2026-10-04" },
+        { "title": "School fee", "kind": "education", "amount_inr": 4000, "due_date": "2026-10-04" },
+        { "title": "Electricity bill (BBPS)", "kind": "bill", "amount_inr": 2800, "due_date": "2026-10-12" },
+        { "title": "Index fund SIP", "kind": "sip", "amount_inr": 5000, "due_date": "2026-10-15" },
+        { "title": "Health policy renewal", "kind": "insurance", "amount_inr": 18400, "due_date": "2026-10-24" }
+      ]
+    },
+    "demo-customer-02": {
+      "investments": [
+        { "name": "Equity mutual funds", "kind": "mutual_fund", "value_inr": 320000, "source": "Synthetic MF statement" },
+        { "name": "Fixed deposit", "kind": "fd", "value_inr": 100000, "source": "Synthetic bank statement" }
+      ],
+      "credit_cards": [
+        { "name": "Paytm credit card", "outstanding_inr": 8200, "limit_inr": 150000, "due_date": "2026-10-09", "source": "Synthetic card statement" }
+      ],
+      "insurance": [
+        { "policy": "Individual health", "kind": "health", "cover_inr": 1000000, "premium_inr": 14200, "renewal_date": "2027-01-15", "insurer": "Synthetic General Insurance (demo)" }
+      ],
+      "goals": [
+        { "goal": "Home down payment", "target_inr": 1500000, "saved_inr": 420000, "target_date": "2029-03-31" },
+        { "goal": "Europe trip", "target_inr": 300000, "saved_inr": 90000, "target_date": "2027-05-01" }
+      ],
+      "obligations": [
+        { "title": "Rent", "kind": "rent", "amount_inr": 25000, "due_date": "2026-10-05" },
+        { "title": "Equity SIP", "kind": "sip", "amount_inr": 10000, "due_date": "2026-10-15" }
+      ]
+    }
+  }
+}

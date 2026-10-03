@@ -1,5 +1,6 @@
 import type {
   AgentNodeInfo,
+  FinancialTwin,
   ProactiveAlert,
   AuditEvent,
   CaseRecord,
@@ -129,6 +130,7 @@ export const api = {
   cancelAction: (caseId: string, actionId: string) => post<CaseRecord>(`/api/cases/${caseId}/actions/${actionId}/cancel`),
   confirmBill: (caseId: string, document_id: string, confirmed: boolean, total_inr?: number) =>
     post<CaseRecord>(`/api/cases/${caseId}/bill-confirmation`, { document_id, confirmed, ...(total_inr ? { total_inr } : {}) }),
+  twin: () => request<FinancialTwin>('/api/twin'),
   alerts: () => request<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts'),
   setAlerts: (enabled: boolean) => post<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts/settings', { enabled }),
   dismissAlert: (alertId: string) =>

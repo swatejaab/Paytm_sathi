@@ -391,3 +391,51 @@ html, body { overflow-x: hidden; }
   .gap-math { flex-direction: column; }
   .login-card { padding: 18px; }
 }
+
+/* Home: Financial Twin */
+.app-tabs { display: flex; gap: 4px; padding: 8px 28px 0; background: #fff; border-bottom: 1px solid var(--line); }
+.app-tabs button { padding: 10px 18px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; }
+.app-tabs button.active { color: var(--navy); border-bottom-color: var(--cyan); }
+.home { display: grid; gap: 18px; padding: 22px 28px 40px; max-width: 1280px; width: 100%; margin: 0 auto; }
+.home-hero { display: flex; justify-content: space-between; gap: 24px; align-items: center; padding: 22px 24px; border-left: 5px solid var(--green); }
+.home-hero.status-attention { border-left-color: var(--red); }
+.home-hero.status-watch { border-left-color: var(--amber); }
+.home-hero h1 { font-size: 22px; max-width: 720px; }
+.net-position { display: grid; text-align: right; gap: 2px; }
+.net-position strong { font-size: 30px; }
+.neg { color: var(--red); }
+.ask-bar { padding: 18px 22px; display: grid; gap: 10px; }
+.ask-bar h2 { font-size: 18px; }
+.mode-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mode-chip { display: grid; text-align: left; gap: 2px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f7fbff; font: inherit; cursor: pointer; }
+.mode-chip strong { font-size: 11px; letter-spacing: .12em; color: var(--cyan); }
+.mode-chip span { font-size: 13px; }
+.mode-chip:hover { border-color: var(--cyan); }
+.home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.home-section { padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+.inbox { list-style: none; margin: 0; padding: 0; display: grid; }
+.inbox-item { display: flex; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid #eef3f9; }
+.inbox-item.in .inbox-amount strong { color: var(--green); }
+.inbox-icon { font-size: 18px; width: 26px; text-align: center; }
+.inbox-main { flex: 1; display: grid; min-width: 0; }
+.inbox-amount { display: grid; text-align: right; }
+.money-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.money-tile { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }
+.money-tile strong { font-size: 18px; }
+.goal { display: grid; gap: 4px; }
+.progress { height: 8px; border-radius: 999px; background: #e8eef6; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--cyan); border-radius: 999px; }
+.cash-flow { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; }
+.cash-flow dd { margin: 0; text-align: right; }
+@media (max-width: 1000px) {
+  .home-grid { grid-template-columns: 1fr; }
+  .money-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .app-tabs { padding: 4px 12px 0; }
+  .home { padding: 14px 12px 32px; }
+  .home-hero { flex-direction: column; align-items: stretch; }
+  .net-position { text-align: left; }
+  .money-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mode-chip { flex: 1 1 100%; }
+}

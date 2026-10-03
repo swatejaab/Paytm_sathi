@@ -366,3 +366,36 @@ export interface ProactiveAlert {
   detail: string;
   suggested_message: string;
 }
+
+export interface FinancialTwin {
+  customer_id: string;
+  as_of: string;
+  summary: { status: 'attention' | 'watch' | 'healthy'; headline: string };
+  net_position: { assets_inr: number; liabilities_inr: number; net_inr: number };
+  assets: { label: string; value_inr: number; source: string }[];
+  liabilities: { label: string; value_inr: number; source: string }[];
+  cash_flow: { income_inr: number; essentials_inr: number; emi_inr: number; free_cash_inr: number; emi_to_income: number; source: string };
+  emergency: { savings_inr: number; months_covered: number; buffer_inr: number };
+  before_salary: { salary_date: string; due_inr: number; balance_inr: number; shortfall_inr: number };
+  obligations: {
+    title: string;
+    kind: string;
+    amount_inr: number;
+    due_date: string;
+    days_away: number;
+    direction: 'in' | 'out';
+    source: string;
+  }[];
+  insurance: { policy: string; kind: string; cover_inr: number; premium_inr: number; renewal_date: string; insurer: string; days_to_renewal: number }[];
+  renewals_due: string[];
+  goals: {
+    goal: string;
+    target_inr: number;
+    saved_inr: number;
+    target_date: string;
+    progress_pct: number;
+    monthly_needed_inr: number;
+    months_left: number;
+  }[];
+  notice: string;
+}

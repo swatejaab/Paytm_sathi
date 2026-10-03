@@ -37,7 +37,7 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 
 ## Demo script
 
-1. Sign in as Riya, click **Turn on alerts**, and show the two "Saathi noticed" cards (EMI due in 2 days and INR 4,600 short; an unusual INR 8,500 debit). Tick **Allow Saathi to read my case records**. Without consent the case is saved but nothing is read.
+1. Sign in as Riya. The **Home** tab is her Financial Twin: net position, "₹41,500 is due before your salary but your balance is ₹23,400", the upcoming-bills inbox with a projected balance after each item, money tiles, goals, and cash flow. Tap a mode chip (RECOVER / PROTECT / PLAN) or **See my options** to open the Saathi tab with the question ready. Click **Turn on alerts**, and show the two "Saathi noticed" cards (EMI due in 2 days and INR 4,600 short; an unusual INR 8,500 debit). Tick **Allow Saathi to read my case records**. Without consent the case is saved but nothing is read.
 2. Click **Hospital demo**. Saathi classifies the event, reads the bill, policy, and cash context through the MCP gateway, and shows `₹80,000 − ₹55,000 − ₹10,000 = ₹15,000`.
 3. In **Plan**, compare five options scored on cost, risk, time, and effort. Open **Why this score?** to see guardrails: affordability, exact-gap borrowing, emergency buffer, and confidence gate.
 4. Click **Review & approve** on *Claim + 3-month plan*. Check the exact steps, partners, amounts, and payload hash, then approve.
@@ -105,6 +105,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
+| 9a. Financial Twin + Home | `twin.ts` (`GET /api/twin`): sourced assets, liabilities, cash flow, obligations inbox, insurance, goals; `HomeView.tsx` |
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |
 
