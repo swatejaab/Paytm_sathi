@@ -106,7 +106,7 @@ describe('case intake and workflow', () => {
     const record = await createCase(token, UPI_MESSAGE);
     assert.equal(record.event_type, 'upi_dispute');
     assert.equal(record.status, 'understand');
-    const candidates = record.pending_question?.candidates ?? [];
+    const candidates = (record.pending_question?.type === "confirm_transaction" ? record.pending_question.candidates : []);
     assert.equal(candidates.length, 2);
     assert.ok(candidates.every((candidate) => candidate.amount_inr === 8500));
 

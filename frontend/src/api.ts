@@ -1,5 +1,6 @@
 import type {
   AgentNodeInfo,
+  ProactiveAlert,
   AuditEvent,
   CaseRecord,
   CaseSummary,
@@ -126,6 +127,18 @@ export const api = {
   approveAction: (caseId: string, actionId: string, payload_hash: string) =>
     post<CaseRecord>(`/api/cases/${caseId}/actions/${actionId}/approve`, { payload_hash, confirm: true }),
   cancelAction: (caseId: string, actionId: string) => post<CaseRecord>(`/api/cases/${caseId}/actions/${actionId}/cancel`),
+  confirmBill: (caseId: string, document_id: string, confirmed: boolean, total_inr?: number) =>
+    post<CaseRecord>(`/api/cases/${caseId}/bill-confirmation`, { document_id, confirmed, ...(total_inr ? { total_inr } : {}) }),
+  alerts: () => request<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts'),
+  setAlerts: (enabled: boolean) => post<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts/settings', { enabled }),
+  dismissAlert: (alertId: string) =>
+    post<{ enabled: boolean; alerts: ProactiveAlert[] }>(`/api/alerts/${encodeURIComponent(alertId)}/dismiss`),
+  claimCase: (caseId: string) => post<CaseRecord>(`/api/support/cases/${caseId}/claim`),
+  specialistNote: (caseId: string, text: string, to_customer: boolean) =>
+    post<CaseRecord>(`/api/support/cases/${caseId}/notes`, { text, to_customer }),
+  reviewCase: (caseId: string, body: { verify_documents: boolean; option_id?: string; message?: string }) =>
+    post<CaseRecord>(`/api/support/cases/${caseId}/review`, body),
+  resolveCase: (caseId: string, note: string) => post<CaseRecord>(`/api/support/cases/${caseId}/resolve`, { note }),
 };
 
 // Live case feed over Server-Sent Events, read with fetch so the token stays in the Authorization header.

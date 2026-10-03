@@ -32,6 +32,8 @@ import { explainDecision } from '../agent/explainer';
 import { addMessage } from '../caseStore';
 import { isLanguageCode, LANGUAGE_CODES, LANGUAGES } from '../languages';
 import { redactContactIdentifiers } from '../redaction';
+import { parseBillText } from '../billParser';
+import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 
 export const evidenceRouter = Router();
@@ -72,11 +74,12 @@ evidenceRouter.get('/cases/:caseId/evidence', requireAuth('case:read', 'case:rea
       documents: uploads,
       retrieved_evidence: uploadedEvidence(record),
       missing_documents: [],
-      calculation: null,
+      calculation: record.confirmed_bill ? (record.decision?.calculation ?? null) : null,
       transaction: null,
       playbook: null,
-      notice:
-        'Uploaded-document text is shown for review. Coverage was not derived from these uploads, so automated steps wait for a specialist.',
+      notice: record.confirmed_bill
+        ? `The exact gap uses the bill total you confirmed from ${record.confirmed_bill.document_name}. Coverage is the insurer estimate for that total.`
+        : 'Uploaded-document text is shown for review. Confirm your bill total, or a specialist verifies the files, before automated steps run.',
     });
     return;
   }
@@ -172,7 +175,27 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length, ocr: viaOcr },
   });
 
-  await redecideAfterDocuments(principal, record);
+  const parsedBill = document.document_type === 'bill' && record.event_type === 'hospitalization' ? parseBillText(extracted.text) : null;
+  if (parsedBill) {
+    record.pending_question = {
+      type: 'confirm_bill',
+      prompt: 'Is this the right total for your bill?',
+      document_id: document.document_id,
+      document_name: document.document_name,
+      ...parsedBill,
+    };
+    addTimeline(record, {
+      title: 'Bill read; waiting for you to confirm the total',
+      detail: `${parsedBill.lines.length} line item(s), total INR ${parsedBill.total_inr.toLocaleString('en-IN')}.`,
+      actor: 'saathi',
+    });
+    await addLocalizedMessage(
+      record,
+      `I read INR ${parsedBill.total_inr.toLocaleString('en-IN')} as the total of ${document.document_name}${parsedBill.reconciled ? ' (the line items add up)' : ''}. Confirm it in your plan and I will recalculate the exact gap from your bill.`,
+    );
+  } else {
+    await redecideAfterDocuments(principal, record);
+  }
   updateCase(record);
 
   res.status(201).json({

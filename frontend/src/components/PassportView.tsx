@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { EVENT_LABELS, factValue, inr, sourceLabel } from '../format';
+import { passportSummary, printPassport } from '../passportPrint';
 import type { CaseRecord, Passport } from '../types';
 
 export function PassportView({ caseRecord }: { caseRecord: CaseRecord }) {
   const [passport, setPassport] = useState<Passport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareNote, setShareNote] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,10 +41,32 @@ export function PassportView({ caseRecord }: { caseRecord: CaseRecord }) {
             <p className="eyebrow">Resolution Passport</p>
             <h3>{passport.passport_id}</h3>
           </div>
-          <button className="btn btn-ghost" onClick={download}>
-            Download JSON
-          </button>
+          <div className="row gap-sm wrap">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShareNote(printPassport(passport) ? null : 'Allow pop-ups for this site to download the PDF.')}
+            >
+              Download PDF
+            </button>
+            <button
+              className="btn"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(passportSummary(passport));
+                  setShareNote('Summary copied. Paste it into WhatsApp, email, or a hospital desk chat.');
+                } catch {
+                  setShareNote('Copy is blocked in this browser; use Download PDF instead.');
+                }
+              }}
+            >
+              Copy summary
+            </button>
+            <button className="btn btn-ghost" onClick={download}>
+              JSON
+            </button>
+          </div>
         </div>
+        {shareNote && <p className="alert alert-info">{shareNote}</p>}
         <p className="muted small">
           Tell it once. Every approved insurer, payment, lending, or specialist step reuses this same packet.
         </p>

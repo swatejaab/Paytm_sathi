@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, loadSession } from '../api';
 import { dateTime, EVENT_LABELS, STATUS_LABELS } from '../format';
 import type { CaseRecord, CaseSummary, IntegrationStatus } from '../types';
 import { CasePanel } from './CasePanel';
+import { SpecialistDesk } from './SpecialistDesk';
 
 const NO_INTEGRATIONS: IntegrationStatus = {
   openai_available: false,
@@ -17,6 +18,15 @@ export function SupportQueue() {
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [active, setActive] = useState<CaseRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const user = loadSession()?.user ?? null;
+  const update = useCallback(
+    (record: CaseRecord) => {
+      setActive(record);
+      void refresh();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -39,8 +49,8 @@ export function SupportQueue() {
         <p className="eyebrow">Specialist desk</p>
         <h1>Support queue</h1>
         <p className="muted">
-          Specialists continue from the customer's Resolution Passport. They have read-only access and cannot approve
-          customer actions.
+          Specialists pick up cases, verify documents, message the customer, and recommend a path from the same
+          Resolution Passport. Only the customer can approve partner actions.
         </p>
         {error && <p className="alert alert-error">{error}</p>}
         <div className="queue">
@@ -63,6 +73,7 @@ export function SupportQueue() {
             </button>
           ))}
         </div>
+        {active && <SpecialistDesk caseRecord={active} user={user} onChange={update} />}
       </section>
       <CasePanel caseRecord={active} onChange={setActive} integrations={NO_INTEGRATIONS} readOnly />
     </main>

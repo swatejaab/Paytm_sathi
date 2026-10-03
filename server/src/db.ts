@@ -35,6 +35,10 @@ function db(): DatabaseSync {
       detail TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_audit_case ON audit_events (case_id, id);
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id TEXT PRIMARY KEY,
+      payload TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS partner_events (
       event_id TEXT PRIMARY KEY,
       received_at TEXT NOT NULL
@@ -123,4 +127,20 @@ export function claimPartnerEvent(eventId: string): boolean {
     .prepare('INSERT OR IGNORE INTO partner_events (event_id, received_at) VALUES (?, ?)')
     .run(eventId, nowIso());
   return Number(result.changes) === 1;
+}
+
+export interface UserPreferences {
+  alerts_enabled?: boolean;
+  dismissed_alerts?: string[];
+}
+
+export function getPreferences(userId: string): UserPreferences {
+  const row = db().prepare('SELECT payload FROM user_preferences WHERE user_id = ?').get(userId) as { payload: string } | undefined;
+  return row ? (JSON.parse(row.payload) as UserPreferences) : {};
+}
+
+export function savePreferences(userId: string, preferences: UserPreferences): void {
+  db()
+    .prepare('INSERT INTO user_preferences (user_id, payload) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload')
+    .run(userId, JSON.stringify(preferences));
 }

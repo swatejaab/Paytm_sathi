@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { EVENT_LABELS, LANGUAGES, STATUS_LABELS } from '../format';
 import type { CaseRecord, CaseSummary, IntegrationStatus } from '../types';
+import { AlertsPanel } from './AlertsPanel';
 import { MicButton, SpeakButton } from './Voice';
 
 const DEMOS = [
@@ -143,6 +144,8 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
           </button>
         ))}
       </div>
+
+      <AlertsPanel busy={busy} onStart={(message) => void send(message)} refreshKey={`${activeCase?.case_id ?? ''}:${cases.length}`} />
 
       <label className="consent-box">
         <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />

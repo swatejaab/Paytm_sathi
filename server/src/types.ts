@@ -203,10 +203,45 @@ export interface TimelineEntry {
   actor: Actor;
 }
 
-export interface PendingQuestion {
-  type: 'confirm_transaction';
-  prompt: string;
-  candidates: Transaction[];
+export interface ParsedBillLine {
+  line: number;
+  description: string;
+  amount_inr: number;
+}
+
+export type PendingQuestion =
+  | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[] }
+  | {
+      type: 'confirm_bill';
+      prompt: string;
+      document_id: string;
+      document_name: string;
+      total_inr: number;
+      lines: ParsedBillLine[];
+      reconciled: boolean;
+    };
+
+export interface ConfirmedBill {
+  document_id: string;
+  document_name: string;
+  total_inr: number;
+  lines: ParsedBillLine[];
+  confirmed_at: string;
+}
+
+export interface SpecialistNote {
+  at: string;
+  author: string;
+  text: string;
+  to_customer: boolean;
+}
+
+export interface SpecialistDesk {
+  assigned_to: string | null;
+  assigned_name: string | null;
+  assigned_at: string | null;
+  verified_documents: boolean;
+  notes: SpecialistNote[];
 }
 
 export type PartnerRequestStatus = 'submitted' | 'acknowledged' | 'completed' | 'failed';
@@ -325,6 +360,8 @@ export interface CaseRecord {
   urgency: Urgency;
   language?: Language;
   preferred_language?: string;
+  specialist?: SpecialistDesk;
+  confirmed_bill?: ConfirmedBill | null;
   agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;

@@ -17,7 +17,7 @@ export const ROLE_SCOPES: Record<Role, string[]> = {
     'ai:analyze',
     'tools:list',
   ],
-  support: ['case:read:any', 'support:queue', 'tools:list'],
+  support: ['case:read:any', 'support:queue', 'support:act', 'tools:list'],
 };
 
 export function publicUser(user: DemoUser) {

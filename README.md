@@ -21,7 +21,7 @@ npm run dev
 - Web app: http://localhost:5173 (Vite proxies `/api` to the backend)
 - API: http://127.0.0.1:8000/api/health
 
-**For a live demo, use `npm run demo`** (builds, then serves everything on http://127.0.0.1:8000 with no file watcher, so nothing restarts mid-presentation). `npm run dev` is for development only.
+**For a live demo, run `npm run reset` (clears demo cases so alerts reappear), then `npm run demo`** (builds, then serves everything on http://127.0.0.1:8000 with no file watcher, so nothing restarts mid-presentation). `npm run dev` is for development only.
 
 Container: `docker build -t paytm-saathi .`, then `docker run -p 8000:8000 -e JWT_SECRET_KEY=<32+ random chars> paytm-saathi`. Mount a volume on `/app/data` to keep cases across restarts.
 
@@ -37,7 +37,7 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 
 ## Demo script
 
-1. Sign in as Riya and tick **Allow Saathi to read my case records**. Without consent the case is saved but nothing is read.
+1. Sign in as Riya, click **Turn on alerts**, and show the two "Saathi noticed" cards (EMI due in 2 days and INR 4,600 short; an unusual INR 8,500 debit). Tick **Allow Saathi to read my case records**. Without consent the case is saved but nothing is read.
 2. Click **Hospital demo**. Saathi classifies the event, reads the bill, policy, and cash context through the MCP gateway, and shows `₹80,000 − ₹55,000 − ₹10,000 = ₹15,000`.
 3. In **Plan**, compare five options scored on cost, risk, time, and effort. Open **Why this score?** to see guardrails: affordability, exact-gap borrowing, emergency buffer, and confidence gate.
 4. Click **Review & approve** on *Claim + 3-month plan*. Check the exact steps, partners, amounts, and payload hash, then approve.
@@ -45,7 +45,10 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 6. Open **Passport** (Tell It Once packet) and **Trust ledger** (every gateway allow and deny).
 7. Click **Unrecognized UPI**, pick the ₹8,500 QuickKart debit, see the fraud signals, and approve the dispute.
 8. Click **EMI shortfall**. Saathi finds the INR 12,000 EMI, the delayed salary, and the INR 4,600 shortfall, then recommends moving the due date past payday over borrowing. It replies in Hinglish because the customer wrote in Hinglish.
-9. Optional: sign in as Arjun to show the recommendation flip, or as support to show the specialist queue.
+9. In **Passport**, click **Download PDF** (one-page packet to hand to the hospital or insurer) or **Copy summary**.
+10. Upload your own bill as TXT/PDF (or a photo, with OCR consent). Saathi reads the line items, asks you to confirm the total, and recalculates the exact gap from your bill.
+11. Sign in as support, open a case in **Human review**, click **Pick up this case**, verify uploaded documents, recommend an option, and message the customer. The customer still approves.
+12. Optional: sign in as Arjun to show the recommendation flip.
 
 ## Architecture
 
@@ -102,6 +105,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
+| 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |
 
 Not connected in this build: Cognee (local keyword index instead) and Mochatrade (labeled fixture offers). Scanned PDFs are not rendered; upload photos of the pages for OCR instead.

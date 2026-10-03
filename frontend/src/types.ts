@@ -271,7 +271,26 @@ export interface CaseRecord {
     notice: string;
   } | null;
   uploaded_documents: UploadedDocument[];
-  pending_question: { type: 'confirm_transaction'; prompt: string; candidates: Transaction[] } | null;
+  pending_question:
+    | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[] }
+    | {
+        type: 'confirm_bill';
+        prompt: string;
+        document_id: string;
+        document_name: string;
+        total_inr: number;
+        lines: { line: number; description: string; amount_inr: number }[];
+        reconciled: boolean;
+      }
+    | null;
+  specialist?: {
+    assigned_to: string | null;
+    assigned_name: string | null;
+    assigned_at: string | null;
+    verified_documents: boolean;
+    notes: { at: string; author: string; text: string; to_customer: boolean }[];
+  };
+  confirmed_bill?: { document_id: string; document_name: string; total_inr: number } | null;
   decision: Decision | null;
   actions: CaseAction[];
   timeline: TimelineEntry[];
@@ -337,4 +356,13 @@ export interface ToolInfo {
   description: string;
   fixture: string;
   approval_required: boolean;
+}
+
+export interface ProactiveAlert {
+  alert_id: string;
+  event_type: EventType;
+  severity: 'high' | 'medium';
+  title: string;
+  detail: string;
+  suggested_message: string;
 }

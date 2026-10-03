@@ -320,10 +320,40 @@ function emiDecision(state: State, context: RunContext): string {
   return `Formula ${record.decision.formula_version}; shortfall ${formatInr(shortfall)}`;
 }
 
+// Customer uploads pause automated claim and credit steps unless the customer confirmed the bill figures
+// or an assigned specialist verified the documents.
+function verificationNeeded(record: CaseRecord): { required: boolean; reason?: string } {
+  if (record.specialist?.verified_documents) return { required: false };
+  const unconfirmed = record.uploaded_documents.filter(
+    (document) => document.document_type === 'policy' || document.document_id !== record.confirmed_bill?.document_id,
+  );
+  if (!unconfirmed.length) return { required: false };
+  return {
+    required: true,
+    reason: unconfirmed.some((document) => document.document_type === 'policy')
+      ? 'You added your own policy. Saathi has not verified coverage from it, so claim and credit steps wait for a specialist.'
+      : 'You added a bill that has not been confirmed yet. Confirm its total, or a specialist will verify it.',
+  };
+}
+
 function hospitalDecision(state: State, context: RunContext): string {
   const { record } = context;
-  const bill = state.gathered.bill ?? callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
-  const coverage = state.gathered.coverage ?? callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
+  const confirmed = record.confirmed_bill;
+  // A bill the customer uploaded and confirmed replaces the hospital record; coverage is re-checked against its total.
+  const bill: SampleDocuments['bill'] = confirmed
+    ? {
+        document_id: confirmed.document_id,
+        document_type: 'bill',
+        file_name: confirmed.document_name,
+        page: 1,
+        currency: 'INR',
+        total_inr: confirmed.total_inr,
+        lines: confirmed.lines,
+      }
+    : (state.gathered.bill ?? callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
+  const coverage =
+    (confirmed ? undefined : state.gathered.coverage) ??
+    callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
   const checklist = state.gathered.checklist ?? callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
   const profile = state.gathered.profile ?? callTool<FinancialProfile>(context, 'payments.get_balance');
   const roughGap = Math.max(bill.total_inr - coverage.estimated_coverage_inr - profile.available_to_pay_inr, 0);
@@ -344,13 +374,7 @@ function hospitalDecision(state: State, context: RunContext): string {
     rules: offerSets[0]?.rules ?? fixtures.lending.affordability_rules,
     partners: { insurer: PARTNERS.insurer, lender: PARTNERS.lender, hospital: PARTNERS.hospital },
     statedAmountInr: parseStatedAmount(record.customer_message),
-    verification: record.uploaded_documents.length
-      ? {
-          required: true,
-          reason:
-            'You added your own policy or bill. Saathi has not verified coverage from those files, so claim and credit steps wait for a specialist.',
-        }
-      : { required: false },
+    verification: verificationNeeded(record),
   });
   return `Formula ${record.decision.formula_version}; gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }

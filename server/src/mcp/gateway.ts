@@ -39,10 +39,17 @@ export function invokeTool<T = unknown>(name: string, rawInput: Record<string, u
   const input = parsed.data;
 
   if (input.case_id !== caseRecord.case_id) throw denial('case_scope', 'Tool input references a different case.');
-  if (principal.role !== 'customer' || caseRecord.customer_id !== principal.sub) {
-    throw denial('case_scope', 'Only the case owner can run case tools.');
+  const isOwner = principal.role === 'customer' && caseRecord.customer_id === principal.sub;
+  // The assigned specialist may re-read case evidence to verify it, but never call write tools.
+  const isAssignedSpecialist =
+    tool.kind === 'read' &&
+    principal.role === 'support' &&
+    principal.scopes.includes('support:act') &&
+    caseRecord.specialist?.assigned_to === principal.sub;
+  if (!isOwner && !isAssignedSpecialist) {
+    throw denial('case_scope', 'Only the case owner (or the assigned specialist, read-only) can run case tools.');
   }
-  if (tool.kind === 'read' && !principal.scopes.includes(tool.scope)) {
+  if (tool.kind === 'read' && !isAssignedSpecialist && !principal.scopes.includes(tool.scope)) {
     throw denial('scope', `Missing scope ${tool.scope}.`);
   }
   if (tool.consent && !hasConsent(caseRecord, tool.consent)) {

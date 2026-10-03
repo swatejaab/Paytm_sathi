@@ -246,9 +246,67 @@ function ActionProgress({ action }: { action: CaseAction }) {
   );
 }
 
+function BillConfirmation({ caseRecord, busy, readOnly, run }: Props) {
+  const question = caseRecord.pending_question;
+  const [editing, setEditing] = useState(false);
+  const [total, setTotal] = useState(question?.type === 'confirm_bill' ? String(question.total_inr) : '');
+  if (!question || question.type !== 'confirm_bill') return null;
+  const edited = Number(total.replace(/[^0-9]/g, ''));
+  return (
+    <div className="card-inset">
+      <h3>{question.prompt}</h3>
+      <p className="muted small">
+        Saathi read {question.document_name} with fixed rules (no AI maths).{' '}
+        {question.reconciled ? 'The line items add up to the total.' : 'The line items do not add up to the total; check it carefully.'}
+      </p>
+      {question.lines.length > 0 && (
+        <table className="table">
+          <tbody>
+            {question.lines.map((line) => (
+              <tr key={line.line}>
+                <td>{line.description}</td>
+                <td className="num">{inr(line.amount_inr)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="bill-total">
+        <span>Bill total</span>
+        {editing ? (
+          <input className="input" inputMode="numeric" value={total} onChange={(event) => setTotal(event.target.value)} aria-label="Correct bill total" />
+        ) : (
+          <strong>{inr(question.total_inr)}</strong>
+        )}
+      </div>
+      {!readOnly && (
+        <div className="row gap-sm wrap">
+          <button
+            className="btn btn-primary"
+            disabled={busy || (editing && !edited)}
+            onClick={() =>
+              run(() => api.confirmBill(caseRecord.case_id, question.document_id, true, editing && edited !== question.total_inr ? edited : undefined))
+            }
+          >
+            {editing ? 'Use this total' : 'Yes, this is correct'}
+          </button>
+          {!editing && (
+            <button className="btn" disabled={busy} onClick={() => setEditing(true)}>
+              Correct the total
+            </button>
+          )}
+          <button className="btn btn-ghost" disabled={busy} onClick={() => run(() => api.confirmBill(caseRecord.case_id, question.document_id, false))}>
+            Let a specialist check it
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TransactionPicker({ caseRecord, busy, readOnly, run }: Props) {
   const question = caseRecord.pending_question;
-  if (!question) return null;
+  if (!question || question.type !== 'confirm_transaction') return null;
   return (
     <div className="card-inset">
       <h3>{question.prompt}</h3>
@@ -303,6 +361,9 @@ export function PlanView({ caseRecord, busy, readOnly, run }: Props) {
   const liveAction = [...caseRecord.actions].reverse().find((action) => ['in_progress', 'completed', 'failed'].includes(action.status));
   const canPrepare = !readOnly && ['options_ready', 'awaiting_approval'].includes(caseRecord.status);
 
+  if (caseRecord.pending_question?.type === 'confirm_bill') {
+    return <BillConfirmation caseRecord={caseRecord} busy={busy} readOnly={readOnly} run={run} />;
+  }
   if (caseRecord.pending_question) return <TransactionPicker caseRecord={caseRecord} busy={busy} readOnly={readOnly} run={run} />;
 
   if (!decision || caseRecord.status === 'intake') {

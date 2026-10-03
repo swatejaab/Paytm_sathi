@@ -2,7 +2,7 @@ import { runAgent } from './agent/graph';
 import { addMessage, addTimeline, hasConsent, loadCaseForOwner, newId, supersedePendingActions } from './caseStore';
 import { insertCase, nowIso, recordAudit, updateCase } from './db';
 import { HttpError } from './errors';
-import type { CaseRecord, Principal } from './types';
+import type { CaseRecord, ParsedBillLine, Principal } from './types';
 
 const READ_CONSENT = 'prepare_resolution_options' as const;
 
@@ -129,6 +129,50 @@ export function requestHandoff(principal: Principal, caseId: string, reason?: st
   });
   addMessage(record, 'assistant', 'A Saathi specialist will pick this up with your Resolution Passport, so you will not need to repeat your story.');
   recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'human_handoff', detail: { reason: reason ?? null } });
+  updateCase(record);
+  return record;
+}
+
+export async function confirmBill(
+  principal: Principal,
+  caseId: string,
+  input: { document_id: string; confirmed: boolean; total_inr?: number },
+): Promise<CaseRecord> {
+  const record = loadCaseForOwner(principal, caseId, 'document:upload');
+  const question = record.pending_question;
+  if (!question || question.type !== 'confirm_bill' || question.document_id !== input.document_id) {
+    throw new HttpError(409, 'This case is not waiting for that bill to be confirmed.');
+  }
+  record.pending_question = null;
+  if (!input.confirmed) {
+    addTimeline(record, { title: 'Bill total not confirmed', detail: 'A specialist will verify the bill instead.', actor: 'customer' });
+    addMessage(record, 'assistant', 'No problem. I will keep the bill aside for a specialist to verify; automated steps stay paused.');
+    await runAgent(record, principal, 'documents_updated');
+    updateCase(record);
+    return record;
+  }
+  const total = input.total_inr ?? question.total_inr;
+  // Keep the itemized lines only when they reconcile to the confirmed total; otherwise use one confirmed total line.
+  const lineTotal = question.lines.reduce((sum, line) => sum + line.amount_inr, 0);
+  const lines: ParsedBillLine[] =
+    question.lines.length && lineTotal === total
+      ? question.lines
+      : [{ line: 1, description: 'Bill total (confirmed by you)', amount_inr: total }];
+  record.confirmed_bill = {
+    document_id: question.document_id,
+    document_name: question.document_name,
+    total_inr: total,
+    lines,
+    confirmed_at: nowIso(),
+  };
+  addMessage(record, 'user', `Yes, the bill total is INR ${total.toLocaleString('en-IN')}.`);
+  addTimeline(record, {
+    title: `You confirmed the bill total: INR ${total.toLocaleString('en-IN')}`,
+    detail: `${question.document_name}${input.total_inr && input.total_inr !== question.total_inr ? ' (you corrected the amount)' : ''}.`,
+    actor: 'customer',
+  });
+  recordAudit({ case_id: caseId, actor: principal.sub, event: 'bill_confirmed', detail: { document_id: question.document_id, total_inr: total } });
+  await runAgent(record, principal, 'documents_updated');
   updateCase(record);
   return record;
 }

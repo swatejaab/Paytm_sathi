@@ -7,9 +7,10 @@ import { loadCaseForRead } from '../caseStore';
 import { listAudit, listCases } from '../db';
 import { parseBody } from '../errors';
 import { buildPassport } from '../passport';
+import { addSpecialistNote, claimCase, resolveBySpecialist, reviewCase } from '../support';
 import { LANGUAGE_CODES } from '../languages';
 import type { CaseRecord } from '../types';
-import { confirmTransaction, createCase, requestHandoff, setConsent } from '../workflow';
+import { confirmBill, confirmTransaction, createCase, requestHandoff, setConsent } from '../workflow';
 
 export const caseRouter = Router();
 
@@ -126,4 +127,46 @@ caseRouter.get('/cases/:caseId/events', requireAuth('case:read', 'case:read:any'
     clearInterval(heartbeat);
     unsubscribe();
   });
+});
+
+const noteSchema = z.object({ text: z.string().trim().min(2).max(600), to_customer: z.boolean().default(false) }).strict();
+const reviewSchema = z
+  .object({
+    verify_documents: z.boolean().default(false),
+    option_id: z.string().min(2).max(60).optional(),
+    message: z.string().max(400).optional(),
+  })
+  .strict();
+const resolveSchema = z.object({ note: z.string().trim().min(3).max(400) }).strict();
+
+caseRouter.post('/support/cases/:caseId/claim', requireAuth('support:act'), (req, res) => {
+  res.json(claimCase(getPrincipal(req), String(req.params.caseId)));
+});
+
+caseRouter.post('/support/cases/:caseId/notes', requireAuth('support:act'), (req, res) => {
+  const body = parseBody(noteSchema, req.body);
+  res.json(addSpecialistNote(getPrincipal(req), String(req.params.caseId), body.text, body.to_customer));
+});
+
+caseRouter.post('/support/cases/:caseId/review', requireAuth('support:act'), async (req, res) => {
+  const body = parseBody(reviewSchema, req.body);
+  res.json(await reviewCase(getPrincipal(req), String(req.params.caseId), body));
+});
+
+caseRouter.post('/support/cases/:caseId/resolve', requireAuth('support:act'), (req, res) => {
+  const body = parseBody(resolveSchema, req.body);
+  res.json(resolveBySpecialist(getPrincipal(req), String(req.params.caseId), body.note));
+});
+
+const billConfirmationSchema = z
+  .object({
+    document_id: z.string().min(3).max(40),
+    confirmed: z.boolean(),
+    total_inr: z.number().int().positive().max(10_000_000).optional(),
+  })
+  .strict();
+
+caseRouter.post('/cases/:caseId/bill-confirmation', requireAuth('document:upload'), async (req, res) => {
+  const body = parseBody(billConfirmationSchema, req.body);
+  res.json(await confirmBill(getPrincipal(req), String(req.params.caseId), body));
 });

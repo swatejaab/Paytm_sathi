@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { runAgent } from '../src/agent/graph';
 import { detectLanguage } from '../src/agent/explainer';
 import { insertCase } from '../src/db';
-import type { AgentRun, CaseRecord, Principal } from '../src/types';
+import type { AgentRun, CaseRecord, Principal, Transaction } from '../src/types';
 import { api, bearer, createCase, HOSPITAL_MESSAGE, login, UPI_MESSAGE, waitFor } from './helpers';
 
 const graphRuns = (record: CaseRecord): AgentRun[] => record.agent_runs ?? [];
@@ -82,7 +82,7 @@ describe('agent graph', () => {
     assert.deepEqual(nodesOf(first), ['classifier', 'consent_gate', 'context_retriever', 'transaction_auditor']);
     assert.equal(first?.outcome, 'awaiting_transaction');
 
-    const candidate = record.pending_question!.candidates.find((item) => item.amount_inr === 8500)!;
+    const candidate = (record.pending_question as { candidates: Transaction[] }).candidates.find((item) => item.amount_inr === 8500)!;
     const confirmed = await api()
       .post(`/api/cases/${record.case_id}/transaction-confirmation`)
       .set(bearer(token))

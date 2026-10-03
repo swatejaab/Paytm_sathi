@@ -58,6 +58,7 @@ export interface Settings {
   mochaTradeApiUrl: string;
   mockPartnerDelayMs: number;
   loginAttemptsPerMinute: number;
+  demoDate: string;
   maxDocumentBytes: number;
   maxAudioBytes: number;
 }
@@ -93,6 +94,8 @@ export const settings: Settings = {
   mochaTradeApiUrl: readString('MOCHA_TRADE_API_URL'),
   mockPartnerDelayMs: readInt('MOCK_PARTNER_DELAY_MS', 3500),
   loginAttemptsPerMinute: readInt('LOGIN_ATTEMPTS_PER_MINUTE', 10),
+  // "Today" for proactive alerts, pinned so the synthetic EMI due date stays two days away in every demo.
+  demoDate: readString('DEMO_DATE', '2026-10-03'),
   maxDocumentBytes: 5 * 1024 * 1024,
   maxAudioBytes: 10 * 1024 * 1024,
 };
