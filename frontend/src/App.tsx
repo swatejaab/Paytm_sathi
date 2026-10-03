@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, loadSession, saveSession, setUnauthorizedHandler } from './api';
 import { CustomerWorkspace } from './components/CustomerWorkspace';
 import { HomeView } from './components/HomeView';
+import { MobileApp } from './mobile/MobileApp';
+import { readViewMode, saveViewMode, ViewToggle, type ViewMode } from './mobile/ViewToggle';
 import { Login } from './components/Login';
 import { SupportQueue } from './components/SupportQueue';
 import { TopBar } from './components/TopBar';
@@ -21,6 +23,11 @@ export default function App() {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatus>(OFFLINE);
   const [tab, setTab] = useState<'home' | 'saathi'>('home');
+  const [view, setViewState] = useState<ViewMode>(readViewMode);
+  const setView = (mode: ViewMode) => {
+    saveViewMode(mode);
+    setViewState(mode);
+  };
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
 
   const logout = useCallback(() => {
@@ -60,9 +67,32 @@ export default function App() {
     setSession(next);
   };
 
+  // App view: a mobile banking experience (phone frame on wide screens). Specialists keep the desk layout.
+  if (view === 'app' && session?.user.role !== 'support') {
+    return (
+      <div className="phone-stage">
+        <div className="stage-bar">
+          <span className="stage-brand">Paytm Saathi</span>
+          <ViewToggle mode={view} onChange={setView} />
+        </div>
+        <div className="phone-frame">
+          <div className="phone-screen">
+            <MobileApp session={session} integrations={integrations} onLogin={login} onLogout={logout} onWebView={() => setView('web')} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <TopBar session={session} apiOnline={apiOnline} integrations={integrations} onLogout={logout} />
+      <TopBar
+        session={session}
+        apiOnline={apiOnline}
+        integrations={integrations}
+        onLogout={logout}
+        viewToggle={<ViewToggle mode={view} onChange={setView} />}
+      />
       <div className="demo-banner">
         Synthetic demo data only. Claim, credit, and payment outcomes are simulated; partners make the real decisions.
       </div>

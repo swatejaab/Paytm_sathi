@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { IntegrationStatus, Session } from '../types';
 
 interface Props {
@@ -5,6 +6,7 @@ interface Props {
   apiOnline: boolean | null;
   integrations: IntegrationStatus;
   onLogout: () => void;
+  viewToggle?: ReactNode;
 }
 
 function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?: string }) {
@@ -16,7 +18,7 @@ function Pill({ ok, label, title }: { ok: boolean | null; label: string; title?:
   );
 }
 
-export function TopBar({ session, apiOnline, integrations, onLogout }: Props) {
+export function TopBar({ session, apiOnline, integrations, onLogout, viewToggle }: Props) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -38,6 +40,7 @@ export function TopBar({ session, apiOnline, integrations, onLogout }: Props) {
           title="Approved actions are sent through this channel"
         />
       </div>
+      {viewToggle}
       {session && (
         <div className="topbar-user">
           <span>
