@@ -39,7 +39,7 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 
 1. Sign in as Riya. The **Home** tab is her Financial Twin: net position, "₹41,500 is due before your salary but your balance is ₹23,400", the upcoming-bills inbox with a projected balance after each item, money tiles, goals, and cash flow. Tap a mode chip (RECOVER / PROTECT / PLAN) or **See my options** to open the Saathi tab with the question ready. Click **Turn on alerts**, and show the two "Saathi noticed" cards (EMI due in 2 days and INR 4,600 short; an unusual INR 8,500 debit). Tick **Allow Saathi to read my case records**. Without consent the case is saved but nothing is read.
 2. Click **Hospital demo**. Saathi classifies the event, reads the bill, policy, and cash context through the MCP gateway, and shows `₹80,000 − ₹55,000 − ₹10,000 = ₹15,000`.
-3. In **Plan**, compare five options scored on cost, risk, time, and effort. Open **Why this score?** to see guardrails: affordability, exact-gap borrowing, emergency buffer, and confidence gate.
+3. In **Plan**, open **How the INR 55,000 cover was calculated**: room capped at INR 5,000/day (clause 3.2), INR 5,000 of non-medical consumables excluded (4.3), INR 5,000 deductible (6.1). Then compare five options scored on cost, risk, time, and effort. Open **Why this score?** to see guardrails: affordability, exact-gap borrowing, emergency buffer, and confidence gate.
 4. Click **Review & approve** on *Claim + 3-month plan*. Check the exact steps, partners, amounts, and payload hash, then approve.
 5. Watch **Timeline** receive partner callbacks until the case is **Resolved**. Open **Agents** to show each graph run: which specialist node ran, the MCP tools it called, and how long it took.
 6. Open **Passport** (Tell It Once packet) and **Trust ledger** (every gateway allow and deny).
@@ -115,6 +115,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 3. Auth + case API | `auth.ts` (demo JWT, role scopes, approval tokens), `routes/cases.ts`, ownership checks in `caseStore.ts` |
 | 4. MCP tools | `mcp/tools.ts` (22 tools across identity, insurer, hospital, payments, lender, knowledge), `mcp/gateway.ts` |
 | 5. Evidence + RAG | `documents.ts` (PDF/TXT/JSON extraction, redaction, cited retrieval), photo OCR via OpenAI vision, `routes/evidence.ts`, OpenAI summaries |
+| 6a. Coverage rules | `coverage.ts`: each bill line marked payable / capped (room limit) / partly excluded (non-medical items), then the deductible and sum-insured ceiling, every amount with its clause |
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |

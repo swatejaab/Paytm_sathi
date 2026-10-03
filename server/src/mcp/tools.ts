@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
+import { assessCoverage, type CoverageBillLine } from '../coverage';
 import { calculateEmi, checkAffordability } from '../decision';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
@@ -108,14 +109,39 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Estimate coverage for a bill total with the governing clause.',
+    description: 'Assess each bill line against the policy schedule (room limit, non-medical items, deductible) and estimate cover.',
     fixture: 'sample_documents.json#policy',
-    input: z.object({ case_id: caseId, bill_total_inr: inr }).strict(),
-    handler: (_context, input: { bill_total_inr: number }) => {
-      const { policy } = fixtures.documents;
+    input: z
+      .object({
+        case_id: caseId,
+        bill_total_inr: inr,
+        lines: z
+          .array(
+            z
+              .object({
+                line: z.number().int().min(0).max(999),
+                description: z.string().min(1).max(120),
+                amount_inr: inr,
+                days: z.number().int().min(1).max(365).optional(),
+                non_medical_inr: inr.optional(),
+              })
+              .strict(),
+          )
+          .max(60)
+          .optional(),
+      })
+      .strict(),
+    handler: (_context, input: { bill_total_inr: number; lines?: CoverageBillLine[] }) => {
+      const { policy, bill } = fixtures.documents;
       const clause = policy.clauses.find((candidate) => candidate.clause_id === policy.coverage_clause_id)!;
+      const lines = input.lines?.length ? input.lines : bill.lines;
+      if (lines.reduce((sum, line) => sum + line.amount_inr, 0) !== input.bill_total_inr) {
+        throw new GatewayError('invalid_input', 'Bill lines must add up to the bill total.');
+      }
+      const assessment = assessCoverage(lines, policy.schedule);
       return {
-        estimated_coverage_inr: Math.min(policy.estimated_coverage_inr, input.bill_total_inr),
+        estimated_coverage_inr: assessment.estimated_coverage_inr,
+        assessment,
         clause_id: clause.clause_id,
         page: clause.page,
         confidence: policy.coverage_confidence,

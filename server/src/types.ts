@@ -113,6 +113,7 @@ export interface Decision {
   requires_verification: boolean;
   commission_considered: false;
   weights: { cost: number; risk: number; time: number; effort: number };
+  coverage_breakdown?: import('./coverage').CoverageAssessment | null;
 }
 
 export interface EvidencePassage {

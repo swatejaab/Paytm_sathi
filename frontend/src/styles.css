@@ -449,3 +449,13 @@ html, body { overflow-x: hidden; }
 .kfs-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
 .kfs-grid dt { color: var(--muted); }
 .kfs-grid dd { margin: 0; }
+
+/* Coverage breakdown */
+.coverage-breakdown { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: #fbfdff; }
+.coverage-breakdown summary { cursor: pointer; font-weight: 700; font-size: 13.5px; }
+.coverage-breakdown .table { margin-top: 8px; }
+.cov-payable { background: var(--green-soft); color: var(--green); }
+.cov-capped { background: var(--amber-soft); color: var(--amber); }
+.cov-partly_excluded { background: var(--amber-soft); color: var(--amber); }
+.cov-excluded { background: var(--red-soft); color: var(--red); }
+.total-row td { border-top: 2px solid var(--navy); }

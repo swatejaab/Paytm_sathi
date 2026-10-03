@@ -46,6 +46,73 @@ function GapMath({ decision }: { decision: Decision }) {
   );
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  payable: 'Payable',
+  capped: 'Capped',
+  partly_excluded: 'Partly excluded',
+  excluded: 'Excluded',
+};
+
+function CoverageBreakdown({ decision }: { decision: Decision }) {
+  const breakdown = decision.coverage_breakdown;
+  if (!breakdown) return null;
+  return (
+    <details className="coverage-breakdown">
+      <summary>
+        How the {inr(breakdown.estimated_coverage_inr)} cover was calculated, line by line ({breakdown.rules_version})
+      </summary>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Bill line</th>
+            <th className="num">Billed</th>
+            <th className="num">Payable</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {breakdown.lines.map((line) => (
+            <tr key={line.line}>
+              <td>
+                {line.description}
+                <span className={`badge cov-${line.status}`}>{STATUS_LABEL[line.status]}</span>
+              </td>
+              <td className="num">{inr(line.billed_inr)}</td>
+              <td className="num">
+                <strong>{inr(line.payable_inr)}</strong>
+              </td>
+              <td className="small">
+                {line.reason} <span className="muted">Clause {line.clause_id}</span>
+              </td>
+            </tr>
+          ))}
+          <tr>
+            <td>Deductible per admission</td>
+            <td />
+            <td className="num">−{inr(breakdown.deductible_inr)}</td>
+            <td className="small muted">Clause {breakdown.deductible_clause_id}</td>
+          </tr>
+          <tr className="total-row">
+            <td>
+              <strong>Estimated cover</strong>
+            </td>
+            <td className="num">{inr(breakdown.lines.reduce((sum, line) => sum + line.billed_inr, 0))}</td>
+            <td className="num">
+              <strong>{inr(breakdown.estimated_coverage_inr)}</strong>
+            </td>
+            <td className="small muted">Sum insured {inr(breakdown.sum_insured_inr)}. The insurer makes the final decision.</td>
+          </tr>
+        </tbody>
+      </table>
+      {breakdown.assumptions.map((note) => (
+        <p key={note} className="alert alert-warn small">
+          {note}
+        </p>
+      ))}
+    </details>
+  );
+}
+
 function ScoreBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="score-bar">
@@ -434,6 +501,7 @@ export function PlanView({ caseRecord, busy, readOnly, run }: Props) {
     <div className="plan">
       <p className="eyebrow">Here's your clear path</p>
       <GapMath decision={decision} />
+      <CoverageBreakdown decision={decision} />
       {transaction && (
         <div className="txn-summary">
           <strong>

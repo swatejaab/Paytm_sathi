@@ -28,6 +28,7 @@ import { sarvamAvailable } from '../config';
 import { translateWithSarvam } from '../integrations';
 import { runDeclarativeDecision } from '../playbooks/declarative';
 import { classifyWithPlaybooks, playbookForCase } from '../playbooks/registry';
+import type { CoverageAssessment } from '../coverage';
 import { addLocalizedMessage } from './localize';
 import { RunTracer } from './trace';
 
@@ -35,6 +36,7 @@ const READ_CONSENT = 'prepare_resolution_options' as const;
 
 interface Coverage {
   estimated_coverage_inr: number;
+  assessment: CoverageAssessment;
   clause_id: string;
   page: number;
   confidence: number;
@@ -103,6 +105,17 @@ function node(id: AgentNodeId, run: (state: State, context: RunContext) => NodeR
       return { error: reason, visited: [id] };
     }
   };
+}
+
+// Only the fields the insurer contract accepts.
+function billLines(lines: { line: number; description: string; amount_inr: number; days?: number; non_medical_inr?: number }[]) {
+  return lines.map(({ line, description, amount_inr, days, non_medical_inr }) => ({
+    line,
+    description: description.slice(0, 120),
+    amount_inr,
+    ...(days ? { days } : {}),
+    ...(non_medical_inr !== undefined ? { non_medical_inr } : {}),
+  }));
 }
 
 function playbookPassage(playbook: Playbook): EvidencePassage {
@@ -198,7 +211,7 @@ const policyRag = node('policy_rag', async (_state, context) => {
   await callTool(context, 'insurer.get_policy');
   const clauses = await callTool<EvidencePassage[]>(context, 'knowledge.search_policy', {
     query: 'hospital inpatient claim room bill documents',
-    top_k: 3,
+    top_k: 5,
   });
   const checklist = await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
   return {
@@ -211,7 +224,7 @@ const billAuditor = node('bill_auditor', async (state, context) => {
   const { record } = context;
   const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
   const lineTotal = bill.lines.reduce((sum, line) => sum + line.amount_inr, 0);
-  const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
+  const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
   const missing = state.gathered.checklist?.missing ?? [];
   const findings = [
     lineTotal === bill.total_inr ? `Lines reconcile to ${formatInr(bill.total_inr)}` : `Lines total ${formatInr(lineTotal)}, not ${formatInr(bill.total_inr)}`,
@@ -388,7 +401,7 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
     : (state.gathered.bill ?? await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
   const coverage =
     (confirmed ? undefined : state.gathered.coverage) ??
-    await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
+    await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
   const checklist = state.gathered.checklist ?? await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
   const profile = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
   const roughGap = Math.max(bill.total_inr - coverage.estimated_coverage_inr - profile.available_to_pay_inr, 0);
@@ -412,7 +425,8 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
     statedAmountInr: parseStatedAmount(record.message_for_rules ?? record.customer_message),
     verification: verificationNeeded(record),
   });
-  return `Formula ${record.decision.formula_version}; gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
+  record.decision.coverage_breakdown = coverage.assessment;
+  return `Formula ${record.decision.formula_version}; cover ${formatInr(coverage.estimated_coverage_inr)} (${coverage.assessment.rules_version}); gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }
 
 const decision = node('decision', async (state, context) => {

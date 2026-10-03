@@ -10,10 +10,29 @@
     "currency": "INR",
     "total_inr": 80000,
     "lines": [
-      { "line": 4, "description": "Room and nursing", "amount_inr": 30000 },
-      { "line": 5, "description": "Diagnostics", "amount_inr": 10000 },
-      { "line": 6, "description": "Procedure", "amount_inr": 25000 },
-      { "line": 7, "description": "Pharmacy and supplies", "amount_inr": 15000 }
+      {
+        "line": 4,
+        "description": "Room and nursing (3 days)",
+        "amount_inr": 30000,
+        "days": 3
+      },
+      {
+        "line": 5,
+        "description": "Diagnostics",
+        "amount_inr": 10000
+      },
+      {
+        "line": 6,
+        "description": "Procedure",
+        "amount_inr": 25000
+      },
+      {
+        "line": 7,
+        "description": "Pharmacy and supplies",
+        "amount_inr": 15000,
+        "non_medical_inr": 5000,
+        "note": "Includes INR 5,000 of non-medical consumables (kits, gloves, toiletries)"
+      }
     ]
   },
   "policy": {
@@ -35,7 +54,21 @@
         "clause_id": "3.2",
         "page": 4,
         "title": "Room category limit",
-        "text": "Room and nursing expenses are subject to the room category limit selected in the policy schedule. Excess room charges may affect related claim amounts.",
+        "text": "Room and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable.",
+        "estimated_coverage_inr": null
+      },
+      {
+        "clause_id": "4.3",
+        "page": 6,
+        "title": "Non-medical items",
+        "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable.",
+        "estimated_coverage_inr": null
+      },
+      {
+        "clause_id": "6.1",
+        "page": 8,
+        "title": "Deductible",
+        "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured.",
         "estimated_coverage_inr": null
       },
       {
@@ -46,15 +79,37 @@
         "estimated_coverage_inr": null
       }
     ],
-    "estimated_coverage_inr": 55000
+    "estimated_coverage_inr": 55000,
+    "schedule": {
+      "sum_insured_inr": 500000,
+      "room_rent_limit_per_day_inr": 5000,
+      "deductible_per_claim_inr": 5000,
+      "room_clause_id": "3.2",
+      "non_medical_clause_id": "4.3",
+      "deductible_clause_id": "6.1",
+      "eligible_clause_id": "3.1"
+    }
   },
   "claim_documents": {
     "clause_id": "5.4",
     "page": 9,
-    "required": ["Itemized final bill", "Discharge summary", "Prescriptions", "Investigation reports", "Payment receipts"],
-    "available": ["Itemized final bill", "Prescriptions", "Investigation reports", "Payment receipts"]
+    "required": [
+      "Itemized final bill",
+      "Discharge summary",
+      "Prescriptions",
+      "Investigation reports",
+      "Payment receipts"
+    ],
+    "available": [
+      "Itemized final bill",
+      "Prescriptions",
+      "Investigation reports",
+      "Payment receipts"
+    ]
   },
-  "missing_documents": ["Discharge summary"],
+  "missing_documents": [
+    "Discharge summary"
+  ],
   "expected_calculation": {
     "bill_total_inr": 80000,
     "coverage_estimate_inr": 55000,

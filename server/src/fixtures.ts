@@ -1,12 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from './config';
+import type { CoverageSchedule } from './coverage';
 import type { Role, Transaction } from './types';
 
 export interface BillLine {
   line: number;
   description: string;
   amount_inr: number;
+  days?: number;
+  non_medical_inr?: number;
+  note?: string;
 }
 
 export interface PolicyClause {
@@ -37,6 +41,7 @@ export interface SampleDocuments {
     insurer: string;
     coverage_clause_id: string;
     coverage_confidence: number;
+    schedule: CoverageSchedule;
     clauses: PolicyClause[];
     estimated_coverage_inr: number;
   };

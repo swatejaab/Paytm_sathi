@@ -102,6 +102,7 @@ export interface Decision {
   requires_verification: boolean;
   commission_considered: false;
   weights: { cost: number; risk: number; time: number; effort: number };
+  coverage_breakdown?: CoverageAssessment | null;
 }
 
 export interface EvidencePassage {
@@ -429,4 +430,26 @@ export interface KeyFactStatement {
   disbursed_to: string;
   grievance_contact: string;
   notice: string;
+}
+
+export interface CoverageAssessment {
+  rules_version: string;
+  lines: {
+    line: number;
+    description: string;
+    category: 'room' | 'pharmacy' | 'medical';
+    billed_inr: number;
+    payable_inr: number;
+    not_payable_inr: number;
+    status: 'payable' | 'capped' | 'partly_excluded' | 'excluded';
+    clause_id: string;
+    reason: string;
+  }[];
+  payable_before_deductible_inr: number;
+  deductible_inr: number;
+  deductible_clause_id: string;
+  sum_insured_inr: number;
+  estimated_coverage_inr: number;
+  not_covered_inr: number;
+  assumptions: string[];
 }
