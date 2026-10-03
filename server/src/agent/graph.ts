@@ -29,7 +29,7 @@ import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionM
 import { sarvamAvailable } from '../config';
 import { translateWithSarvam } from '../integrations';
 import { runDeclarativeDecision } from '../playbooks/declarative';
-import { classifyWithPlaybooks, playbookForCase } from '../playbooks/registry';
+import { classifyWithPlaybooks, namesSituation, playbookForCase } from '../playbooks/registry';
 import type { CoverageAssessment } from '../coverage';
 import { householdContext } from '../insurance';
 import { addLocalizedMessage } from './localize';
@@ -488,6 +488,10 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
   });
   record.decision.coverage_breakdown = coverage.assessment;
   const notes: string[] = [];
+  const said = [record.message_for_rules ?? record.customer_message, ...record.messages.filter((m) => m.role === 'user').map((m) => m.content)].join(' ');
+  if (!namesSituation(playbookForCase(record), said)) {
+    notes.push('I treated this as a medical emergency. If it is something else, such as an EMI or a payment problem, tell me and I will change the plan.');
+  }
   if (!confirmed && query.assumed_thousands) notes.push(`I read "${query.raw_bill}" as ${formatInr(bill.total_inr)}. Tell me the exact amount if that is wrong.`);
   if (!confirmed && query.bill_inr === null) notes.push(`You did not mention an amount, so this uses the hospital's current bill of ${formatInr(bill.total_inr)}.`);
   if (query.can_pay_inr !== null) {
@@ -557,6 +561,12 @@ const decision = node('decision', async (state, context) => {
   return { summary: `${detail}. ${feasible}/${decided.options.length} options pass guardrails; best: ${best?.title ?? 'none'}.` };
 });
 
+// The assumptions behind a plan (what was read from the message, what was taken from the accounts) belong in
+// the reply itself, not only in the plan tab, so the customer can correct them.
+export function assumptionNotes(record: CaseRecord): string[] {
+  return (record.decision?.warnings ?? []).filter((warning) => /^(I treated|I read|Using|That is more|You did not)/.test(warning));
+}
+
 const explainer = node('explainer', async (_state, context) => {
   const { record } = context;
   if (record.event_type === 'general_financial_support') {
@@ -587,7 +597,7 @@ const explainer = node('explainer', async (_state, context) => {
       return { summary: `Answered from the knowledge graph (${knowledge.backend}) with ${knowledge.sources.length} source(s).` };
     }
   }
-  await addLocalizedMessage(record, explainDecision(record));
+  await addLocalizedMessage(record, [explainDecision(record), ...assumptionNotes(record)].join(' '));
   const language = record.messages.at(-1)?.language ?? (record.language === 'hinglish' ? 'Hinglish' : 'English');
   return { summary: `Explained in ${language} using decision facts only.` };
 });

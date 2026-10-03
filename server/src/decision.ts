@@ -148,8 +148,8 @@ export function humanSupportDraft(urgency: Urgency, reason?: string): OptionDraf
     trade_offs: [
       'You do not repeat your story; the specialist receives the same source-linked passport.',
       urgency === 'high'
-        ? 'A specialist callback takes up to one working day in this demo, which can delay urgent steps.'
-        : 'A specialist responds within one working day in this demo.',
+        ? 'A specialist callback can take up to one working day, which can delay urgent steps.'
+        : 'A specialist responds within one working day.',
     ],
     writes: [
       {
@@ -554,7 +554,7 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
           rule: 'Urgency check',
           passed: input.urgency !== 'high',
           blocking: false,
-          detail: `Settlement takes about ${CLAIM_SETTLEMENT_DAYS} days in this demo (assumption), which can delay discharge.`,
+          detail: `Settlement takes about ${CLAIM_SETTLEMENT_DAYS} days on average, which can delay discharge.`,
         },
       ],
       trade_offs: ['No borrowing, but the hospital may not discharge until the balance is settled.', documentTradeOff],
@@ -965,7 +965,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
 
 export function computeHumanOnlyDecision(input: { eventType: EventType; urgency: Urgency; playbook: Playbook | null }): Decision {
   const reason = input.playbook
-    ? `The "${input.playbook.title}" journey is not automated in this demo, so a specialist continues from your passport.`
+    ? `The "${input.playbook.title}" journey is handled by a specialist, who continues from your passport.`
     : 'This situation has no automated playbook in the demo, so a specialist continues from your passport.';
   const options = rankOptions([humanSupportDraft(input.urgency, reason)]);
   return {

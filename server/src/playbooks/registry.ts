@@ -124,11 +124,18 @@ export function playbookForCase(record: Pick<CaseRecord, 'event_type' | 'playboo
 }
 
 export function classifyWithPlaybooks(message: string): { playbook: PlaybookDefinition; event_type: EventType; urgency: Urgency } {
-  const normalized = message.toLowerCase();
+  // "Emergency fund" is a savings question, not an emergency, so it never triggers the hospital journey.
+  const normalized = message.toLowerCase().replace(/\b(?:emergency|emergancy)\s+(?:fund|savings?|corpus|kosh)\b/g, ' ');
   const has = (terms: string[]) => terms.some((term) => normalized.includes(term.toLowerCase()));
   const match = PLAYBOOKS.find((playbook) => has(playbook.triggers.any)) ?? PLAYBOOKS.find((playbook) => has(playbook.triggers.weak));
   const playbook = match ?? playbookForEvent('general_financial_support');
   return { playbook, event_type: playbook.event_type, urgency: playbook.urgency };
+}
+
+// True when the message names the situation directly rather than only hinting at it ("emergency", "papa").
+export function namesSituation(playbook: PlaybookDefinition, message: string): boolean {
+  const normalized = message.toLowerCase();
+  return playbook.triggers.any.some((term) => normalized.includes(term.toLowerCase()));
 }
 
 export function toolAllowedByPlaybook(playbook: PlaybookDefinition, tool: string, kind: 'read' | 'write'): boolean {

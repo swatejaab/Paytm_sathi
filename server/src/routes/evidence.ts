@@ -38,7 +38,7 @@ import { cogneeAvailable } from '../config';
 import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 import { parseBillQuery } from '../decision';
-import { runAgent } from '../agent/graph';
+import { assumptionNotes, runAgent } from '../agent/graph';
 const READ_CONSENT = 'prepare_resolution_options' as const;
 
 export const evidenceRouter = Router();
@@ -380,7 +380,7 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
     updateCase(record);
     await redecideAfterDocuments(principal, record);
     const fresh = record; // runAgent updates the record in place; reloading would discard the new decision
-    const notes = (fresh.decision?.warnings ?? []).filter((warning) => /^(Using|I read|That is more)/.test(warning));
+    const notes = assumptionNotes(fresh);
     await addLocalizedMessage(fresh, ['I recalculated your plan with these numbers.', explainDecision(fresh), ...notes].filter(Boolean).join(' '));
     recordAudit({ case_id: caseId, actor: principal.sub, event: 'plan_recalculated', detail: { bill_inr: update.bill_inr, can_pay_inr: update.can_pay_inr, room_days: update.room_days } });
     updateCase(fresh);

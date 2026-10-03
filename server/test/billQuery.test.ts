@@ -25,3 +25,12 @@ describe('bill question parsing', () => {
     assert.equal(parseStatedAmount('3 days ago'), null);
   });
 });
+
+describe('emergency wording', () => {
+  it('treats an emergency with an amount as hospital, but not an emergency fund question', async () => {
+    const { classifyEvent } = await import('../src/decision');
+    assert.equal(classifyEvent('i have a emergancy of 1lakh now what should i do').event_type, 'hospitalization');
+    assert.equal(classifyEvent('how much emergency fund should I keep').event_type, 'general_financial_support');
+    assert.equal(classifyEvent('emergency, refund of 2000 not credited').event_type, 'failed_refund');
+  });
+});

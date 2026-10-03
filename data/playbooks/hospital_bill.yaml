@@ -7,7 +7,7 @@ urgency: high
 priority: 10
 triggers:
   any: [hospital, hospitalized, hospitalised, admitted, surgery, icu, discharge, medical, treatment, operation, accident, doctor, nursing home, ilaj, ilaaj, अस्पताल, हॉस्पिटल, भर्ती, ऑपरेशन, इलाज, डॉक्टर]
-  weak: [papa, father, mother, mummy, पापा, पिताजी, माँ, मम्मी]
+  weak: [papa, father, mother, mummy, emergency, emergancy, emergncy, emergeny, emergensy, emrgency, aapat, पापा, पिताजी, माँ, मम्मी, इमरजेंसी, आपातकाल]
 engine: builtin:hospital_gap
 auditor: bill_auditor
 tools:
