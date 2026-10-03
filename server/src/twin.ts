@@ -4,12 +4,12 @@ import { DATA_DIR, settings } from './config';
 import { recordAudit } from './db';
 import { formatDay, formatInr } from './decision';
 import { fixtures } from './fixtures';
+import { listGoals } from './goals';
 
 interface TwinExtras {
   investments: { name: string; kind: string; value_inr: number; source: string }[];
   credit_cards: { name: string; outstanding_inr: number; limit_inr: number; due_date: string; source: string }[];
   insurance: { policy: string; kind: string; cover_inr: number; premium_inr: number; renewal_date: string; insurer: string }[];
-  goals: { goal: string; target_inr: number; saved_inr: number; target_date: string }[];
   obligations: { title: string; kind: string; amount_inr: number; due_date: string }[];
   household?: { age: number; dependents: number; note?: string };
 }
@@ -17,6 +17,10 @@ interface TwinExtras {
 const extras = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'twin.json'), 'utf8')) as {
   customers: Record<string, TwinExtras>;
 };
+
+export function investmentsFor(customerId: string): TwinExtras['investments'] {
+  return extras.customers[customerId]?.investments ?? [];
+}
 
 export interface TwinLine {
   label: string;
@@ -48,7 +52,7 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
   const profile = fixtures.profiles[customerId];
   if (!profile) return null;
   const loans = fixtures.loans.accounts[customerId];
-  const more = extras.customers[customerId] ?? { investments: [], credit_cards: [], insurance: [], goals: [], obligations: [] };
+  const more = extras.customers[customerId] ?? { investments: [], credit_cards: [], insurance: [], obligations: [] };
   const today = settings.demoDate;
 
   const assets: TwinLine[] = [
@@ -70,7 +74,7 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
   while (salaryDate < today) salaryDate = addMonths(salaryDate, 1);
 
   const obligations: TwinObligation[] = [
-    ...more.obligations.map((item) => ({ ...item, source: 'Synthetic bills and mandates' })),
+    ...more.obligations.map((item) => ({ ...item, source: 'Bills and mandates (sample)' })),
     ...(loans?.loans ?? []).map((loan) => ({
       title: `${loan.product} EMI`,
       kind: 'emi',
@@ -154,18 +158,9 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
     obligations,
     insurance: more.insurance.map((policy) => ({ ...policy, days_to_renewal: dayDiff(today, policy.renewal_date) })),
     renewals_due: renewalSoon.map((policy) => policy.policy),
-    goals: more.goals.map((goal) => {
-      const months = Math.max(Math.round(dayDiff(today, goal.target_date) / 30.4), 1);
-      const remaining = Math.max(goal.target_inr - goal.saved_inr, 0);
-      return {
-        ...goal,
-        progress_pct: Math.min(Math.round((goal.saved_inr / goal.target_inr) * 100), 100),
-        monthly_needed_inr: Math.ceil(remaining / months / 100) * 100,
-        months_left: months,
-      };
-    }),
+    goals: listGoals(customerId).filter((goal) => goal.status !== 'completed'),
     household: more.household ?? null,
-    notice: 'Synthetic demo data. Saathi reads these records for you; nothing here is shared without your consent.',
+    notice: 'Saathi reads these records for you; nothing here is shared without your consent.',
   };
 }
 

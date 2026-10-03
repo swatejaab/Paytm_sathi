@@ -1,0 +1,109 @@
+{
+  "label": "Synthetic PAN-linked holdings for the demo. Simulates a consolidated account statement (CDSL/NSDL demat, CAMS/KFintech mutual funds) plus Account Aggregator deposits. Not real customer data.",
+  "sources": [
+    { "id": "cas_demat", "name": "CDSL and NSDL demat statement (simulated)", "covers": ["stocks", "bonds"] },
+    { "id": "cas_mf", "name": "CAMS and KFintech mutual fund statement (simulated)", "covers": ["mutual_funds"] },
+    { "id": "aa", "name": "Account Aggregator: banks and deposits (simulated)", "covers": ["bank_accounts", "fixed_deposits"] },
+    { "id": "retirement", "name": "EPFO and PPF passbooks (simulated)", "covers": ["retirement"] }
+  ],
+  "customers": {
+    "demo-customer-01": {
+      "pan": "BKXPK4821M",
+      "pan_name": "NEHA KULKARNI",
+      "as_of": "2026-10-02",
+      "bank_accounts": [
+        { "institution": "HDFC Bank", "account_type": "Salary savings account", "masked": "XXXX4821", "balance_inr": 38420 }
+      ],
+      "fixed_deposits": [
+        { "institution": "HDFC Bank", "name": "Sweep-in FD (emergency fund)", "principal_inr": 19400, "value_inr": 20000, "rate_pct": 7.1, "maturity_date": "2027-03-15" }
+      ],
+      "mutual_funds": [
+        { "scheme": "Parag Parikh Flexi Cap Fund - Direct Growth", "amc": "PPFAS Mutual Fund", "category": "Flexi cap", "registrar": "CAMS", "units": 4105.849, "nav_inr": 84.27, "invested_inr": 288000, "value_inr": 346000, "sip_inr": 5000 },
+        { "scheme": "UTI Nifty 50 Index Fund - Direct Growth", "amc": "UTI Mutual Fund", "category": "Index", "registrar": "KFintech", "units": 902.345, "nav_inr": 168.45, "invested_inr": 131000, "value_inr": 152000, "sip_inr": 3000 }
+      ],
+      "stocks": [
+        { "symbol": "INFY", "name": "Infosys Ltd", "exchange": "NSE", "depository": "CDSL", "quantity": 8, "avg_price_inr": 1420, "ltp_inr": 1550, "invested_inr": 11360, "value_inr": 12400 },
+        { "symbol": "HDFCBANK", "name": "HDFC Bank Ltd", "exchange": "NSE", "depository": "CDSL", "quantity": 5, "avg_price_inr": 1890, "ltp_inr": 2070, "invested_inr": 9450, "value_inr": 10350 },
+        { "symbol": "ITC", "name": "ITC Ltd", "exchange": "NSE", "depository": "CDSL", "quantity": 25, "avg_price_inr": 310, "ltp_inr": 290, "invested_inr": 7750, "value_inr": 7250 }
+      ],
+      "retirement": [
+        { "name": "Public Provident Fund", "institution": "State Bank of India", "invested_inr": 36000, "value_inr": 40000 }
+      ],
+      "gold": [],
+      "history": [
+        { "month": "2026-05", "net_worth_inr": 548000 },
+        { "month": "2026-06", "net_worth_inr": 561000 },
+        { "month": "2026-07", "net_worth_inr": 579000 },
+        { "month": "2026-08", "net_worth_inr": 592000 },
+        { "month": "2026-09", "net_worth_inr": 608000 },
+        { "month": "2026-10", "net_worth_inr": 620000 }
+      ]
+    },
+    "demo-customer-02": {
+      "pan": "AQMPM7310K",
+      "pan_name": "ARJUN MEHTA",
+      "as_of": "2026-10-02",
+      "bank_accounts": [
+        { "institution": "ICICI Bank", "account_type": "Salary savings account", "masked": "XXXX7310", "balance_inr": 64200 },
+        { "institution": "Kotak Mahindra Bank", "account_type": "Savings account (emergency fund)", "masked": "XXXX2206", "balance_inr": 90000 }
+      ],
+      "fixed_deposits": [
+        { "institution": "ICICI Bank", "name": "Fixed deposit", "principal_inr": 93500, "value_inr": 100000, "rate_pct": 7.25, "maturity_date": "2027-06-30" }
+      ],
+      "mutual_funds": [
+        { "scheme": "Mirae Asset Large Cap Fund - Direct Growth", "amc": "Mirae Asset Mutual Fund", "category": "Large cap", "registrar": "KFintech", "units": 1478.927, "nav_inr": 121.71, "invested_inr": 148000, "value_inr": 180000, "sip_inr": 10000 },
+        { "scheme": "Axis ELSS Tax Saver Fund - Direct Growth", "amc": "Axis Mutual Fund", "category": "ELSS", "registrar": "KFintech", "units": 1310.003, "nav_inr": 106.87, "invested_inr": 120000, "value_inr": 140000, "sip_inr": 0 }
+      ],
+      "stocks": [
+        { "symbol": "TCS", "name": "Tata Consultancy Services Ltd", "exchange": "NSE", "depository": "NSDL", "quantity": 10, "avg_price_inr": 3550, "ltp_inr": 3900, "invested_inr": 35500, "value_inr": 39000 },
+        { "symbol": "RELIANCE", "name": "Reliance Industries Ltd", "exchange": "NSE", "depository": "NSDL", "quantity": 16, "avg_price_inr": 1380, "ltp_inr": 1450, "invested_inr": 22080, "value_inr": 23200 },
+        { "symbol": "LT", "name": "Larsen & Toubro Ltd", "exchange": "NSE", "depository": "NSDL", "quantity": 6, "avg_price_inr": 3420, "ltp_inr": 3800, "invested_inr": 20520, "value_inr": 22800 }
+      ],
+      "retirement": [
+        { "name": "Employees' Provident Fund", "institution": "EPFO", "invested_inr": 185000, "value_inr": 210000 }
+      ],
+      "gold": [
+        { "name": "Sovereign Gold Bond 2023-24 Series III", "units": 8, "invested_inr": 47600, "value_inr": 48000 }
+      ],
+      "history": [
+        { "month": "2026-05", "net_worth_inr": 821000 },
+        { "month": "2026-06", "net_worth_inr": 839000 },
+        { "month": "2026-07", "net_worth_inr": 858000 },
+        { "month": "2026-08", "net_worth_inr": 874000 },
+        { "month": "2026-09", "net_worth_inr": 892000 },
+        { "month": "2026-10", "net_worth_inr": 909000 }
+      ]
+    },
+    "demo-customer-03": {
+      "pan": "CJRPS8642Q",
+      "pan_name": "RIYA SHARMA",
+      "as_of": "2026-10-02",
+      "bank_accounts": [
+        { "institution": "Axis Bank", "account_type": "Salary savings account", "masked": "XXXX8642", "balance_inr": 23400 }
+      ],
+      "fixed_deposits": [
+        { "institution": "Axis Bank", "name": "Fixed deposit (emergency fund)", "principal_inr": 17200, "value_inr": 18000, "rate_pct": 6.9, "maturity_date": "2027-01-20" }
+      ],
+      "mutual_funds": [
+        { "scheme": "Nippon India Index Fund - Nifty 50 Plan - Direct Growth", "amc": "Nippon India Mutual Fund", "category": "Index", "registrar": "KFintech", "units": 1513.302, "nav_inr": 40.97, "invested_inr": 56000, "value_inr": 62000, "sip_inr": 4000 }
+      ],
+      "stocks": [
+        { "symbol": "TATAMOTORS", "name": "Tata Motors Ltd", "exchange": "NSE", "depository": "CDSL", "quantity": 15, "avg_price_inr": 760, "ltp_inr": 700, "invested_inr": 11400, "value_inr": 10500 },
+        { "symbol": "IRCTC", "name": "Indian Railway Catering and Tourism Corp Ltd", "exchange": "NSE", "depository": "CDSL", "quantity": 2, "avg_price_inr": 820, "ltp_inr": 1000, "invested_inr": 1640, "value_inr": 2000 }
+      ],
+      "retirement": [
+        { "name": "Public Provident Fund", "institution": "Post Office", "invested_inr": 36000, "value_inr": 40000 },
+        { "name": "Employees' Provident Fund", "institution": "EPFO", "invested_inr": 88000, "value_inr": 96000 }
+      ],
+      "gold": [],
+      "history": [
+        { "month": "2026-05", "net_worth_inr": 13000 },
+        { "month": "2026-06", "net_worth_inr": 15800 },
+        { "month": "2026-07", "net_worth_inr": 18200 },
+        { "month": "2026-08", "net_worth_inr": 20100 },
+        { "month": "2026-09", "net_worth_inr": 22600 },
+        { "month": "2026-10", "net_worth_inr": 24400 }
+      ]
+    }
+  }
+}

@@ -188,6 +188,51 @@ export interface ConsentRecord {
   actor: string;
 }
 
+export type QuickAction =
+  | 'open_plan'
+  | 'upload_bill'
+  | 'upload_policy'
+  | 'create_goal'
+  | 'prepare_option'
+  | 'secure_account'
+  | 'handoff'
+  | 'new_chat'
+  | 'open_insights'
+  | 'open_goals'
+  | 'report_transaction';
+
+// A tappable reply under an assistant message. "send" replies go through the normal chat pipeline as text.
+export interface QuickReply {
+  label: string;
+  send?: string;
+  action?: QuickAction;
+  payload?: Record<string, unknown>;
+}
+
+export interface GapLine {
+  label: string;
+  amount_inr: number;
+  op: '' | '-' | '=';
+  source: string;
+}
+
+export interface GoalDraft {
+  name: string;
+  type: string;
+  target_inr: number;
+  target_date: string | null;
+  current_savings_inr: number;
+  monthly_contribution_inr: number | null;
+}
+
+export type ChatCard =
+  | { type: 'gap'; lines: GapLine[]; formula: string }
+  | { type: 'plan' }
+  | { type: 'transactions' }
+  | { type: 'bill_confirmation' }
+  | { type: 'afford'; assessment: Record<string, unknown> }
+  | { type: 'goal_draft'; goal: GoalDraft; required_monthly_inr: number | null; months_left: number | null };
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -195,6 +240,120 @@ export interface ChatMessage {
   original?: string;
   language?: string;
   source?: 'saathi' | 'openai';
+  quick_replies?: QuickReply[];
+  card?: ChatCard;
+}
+
+export type JourneyId =
+  | 'hospital'
+  | 'bill'
+  | 'upi_fraud'
+  | 'failed_refund'
+  | 'emi'
+  | 'protection'
+  | 'afford'
+  | 'goal'
+  | 'specialist'
+  | 'general';
+
+export type SlotSource =
+  | 'customer_statement'
+  | 'uploaded_document'
+  | 'account_records'
+  | 'insurer_estimate'
+  | 'insurer_record'
+  | 'hospital_record'
+  | 'customer_choice';
+
+// What Saathi found through the partner MCP servers after consent, kept so later turns don't fetch again.
+export interface FetchedRecords {
+  checked_at: string;
+  policy: {
+    policy_name: string;
+    insurer: string;
+    document_id: string;
+    file_name: string;
+    sum_insured_inr: number;
+    insured_members: string[];
+    cashless_network: string[];
+  } | null;
+  admission: {
+    admission_id: string;
+    hospital: string;
+    patient: string;
+    relation: string;
+    ward: string;
+    reason: string;
+    cashless: boolean;
+    document_id: string;
+    document_name: string;
+    total_inr: number;
+    lines: ParsedBillLine[];
+    missing_documents: string[];
+  } | null;
+  cash: {
+    balance_inr: number;
+    next_salary_date: string | null;
+    scheduled_debits: { title: string; amount_inr: number; due_date: string }[];
+    safe_to_pay_inr: number;
+    mutual_funds: { name: string; value_inr: number }[];
+  } | null;
+}
+
+// One remembered value in a conversation, with where it came from. Unknown values are simply absent.
+export interface Slot<T> {
+  value: T;
+  source: SlotSource;
+  ref: string;
+  confidence: number;
+  updated_at: string;
+}
+
+export interface ContextSlots {
+  bill_inr?: Slot<number>;
+  has_insurance?: Slot<boolean>;
+  insurance_cover_inr?: Slot<number>;
+  policy_sum_insured_inr?: Slot<number>;
+  self_pay_inr?: Slot<number>;
+  emi_inr?: Slot<number>;
+  emi_due_date?: Slot<string>;
+  salary_date?: Slot<string>;
+  debit_inr?: Slot<number>;
+  purchase_inr?: Slot<number>;
+  purchase_item?: Slot<string>;
+}
+
+export type AwaitingField =
+  | 'bill_inr'
+  | 'bill_kind'
+  | 'bill_choice'
+  | 'has_insurance'
+  | 'insurance_cover_inr'
+  | 'self_pay_inr'
+  | 'records_consent'
+  | 'amount_role'
+  | 'purchase_inr'
+  | 'goal_target'
+  | 'goal_date';
+
+export interface ConversationContext {
+  journey: JourneyId | null;
+  slots: ContextSlots;
+  awaiting: AwaitingField | null;
+  // An amount the customer gave without saying what it was, kept until they clarify.
+  unassigned_amount_inr?: number | null;
+  // What the customer first said the bill was, kept for comparison after they confirm an uploaded bill.
+  stated_bill_inr?: number | null;
+  // The question to answer once the customer allows Saathi to read their records.
+  after_consent?: 'plan' | 'afford' | 'goal' | 'spending' | 'cashflow' | null;
+  records_consent_declined?: boolean;
+  records?: FetchedRecords | null;
+  // The customer said the hospital's bill on record is not the bill they are asking about.
+  hospital_bill_declined?: boolean;
+  goal_draft?: Partial<GoalDraft> | null;
+  missing: string[];
+  gap: GapCalculation | null;
+  updated_at: string;
 }
 
 export interface TimelineEntry {
@@ -209,6 +368,8 @@ export interface ParsedBillLine {
   line: number;
   description: string;
   amount_inr: number;
+  days?: number;
+  non_medical_inr?: number;
 }
 
 export type PendingQuestion =
@@ -304,7 +465,7 @@ export interface ResolutionPassport {
   facts: Fact[];
   calculation: GapCalculation | null;
   evidence_sources: { document_name: string; clause_id?: string; page: number; title?: string }[];
-  documents: { document_name: string; document_type: string; origin: 'synthetic_fixture' | 'customer_upload' }[];
+  documents: { document_name: string; document_type: string; origin: 'customer_upload' }[];
   missing_documents: string[];
   transaction: Transaction | null;
   recommended_option: string | null;
@@ -330,6 +491,7 @@ export type AgentNodeId =
 
 export type AgentTrigger =
   | 'intake'
+  | 'details_updated'
   | 'consent_granted'
   | 'transaction_confirmed'
   | 'documents_updated'
@@ -359,6 +521,10 @@ export interface AgentRun {
 export interface CaseRecord {
   case_id: string;
   customer_id: string;
+  title?: string;
+  // True once the customer renamed the conversation, so automatic titles stop.
+  title_locked?: boolean;
+  context?: ConversationContext;
   event_type: EventType;
   urgency: Urgency;
   language?: Language;

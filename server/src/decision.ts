@@ -1,4 +1,5 @@
-import type { AffordabilityRules, BillLine, FinancialProfile, LenderOffer, LoanAccount, LoanContext } from './fixtures';
+import { parseAmounts } from './assistant/nlu';
+import type { AffordabilityRules, FinancialProfile, LenderOffer, LoanAccount, LoanContext } from './fixtures';
 import { classifyWithPlaybooks } from './playbooks/registry';
 import type {
   Decision,
@@ -6,7 +7,6 @@ import type {
   Fact,
   GapCalculation,
   Guardrail,
-  PlannedWrite,
   Playbook,
   ResolutionOption,
   RiskLevel,
@@ -18,14 +18,15 @@ export const FORMULA_VERSION = 'saathi-decision-v1';
 export const SCORE_WEIGHTS = { cost: 0.35, risk: 0.3, time: 0.2, effort: 0.15 } as const;
 export const CONFIDENCE_THRESHOLD = 0.75;
 const RISK_POINTS: Record<RiskLevel, number> = { low: 100, medium: 60, high: 20 };
-const CLAIM_SETTLEMENT_DAYS = 7;
 
 const round1 = (value: number): number => Math.round(value * 10) / 10;
 const clamp = (value: number): number => Math.min(100, Math.max(0, value));
 
 export function formatInr(amount: number): string {
-  return `${amount < 0 ? '-' : ''}INR ${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
+  return `${amount < 0 ? '-' : ''}₹${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
 }
+
+export const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 // "2026-10-10" -> "10 Oct" for customer-facing sentences.
 export function formatDay(date: string): string {
@@ -148,8 +149,8 @@ export function humanSupportDraft(urgency: Urgency, reason?: string): OptionDraf
     trade_offs: [
       'You do not repeat your story; the specialist receives the same source-linked passport.',
       urgency === 'high'
-        ? 'A specialist callback takes up to one working day in this demo, which can delay urgent steps.'
-        : 'A specialist responds within one working day in this demo.',
+        ? 'A specialist callback can take up to one working day, which can delay urgent steps.'
+        : 'A specialist usually responds within one working day.',
     ],
     writes: [
       {
@@ -165,7 +166,7 @@ export function humanSupportDraft(urgency: Urgency, reason?: string): OptionDraf
   };
 }
 
-function confidenceGate(facts: Fact[], forced: { required: boolean; reason?: string }): Guardrail {
+export function confidenceGate(facts: Fact[], forced: { required: boolean; reason?: string }): Guardrail {
   const weakFacts = facts.filter((fact) => !fact.assumption && fact.confidence < CONFIDENCE_THRESHOLD);
   if (forced.required || weakFacts.length) {
     return {
@@ -182,403 +183,6 @@ function confidenceGate(facts: Fact[], forced: { required: boolean; reason?: str
     passed: true,
     blocking: true,
     detail: `Key facts meet the ${CONFIDENCE_THRESHOLD} confidence threshold.`,
-  };
-}
-
-export interface HospitalDecisionInput {
-  caseId: string;
-  urgency: Urgency;
-  bill: { document_id: string; file_name: string; total_inr: number; lines: BillLine[] };
-  coverage: {
-    estimated_coverage_inr: number;
-    clause_id: string;
-    page: number;
-    confidence: number;
-    policy_document_id: string;
-    policy_file_name: string;
-  };
-  assumptions: { clause_id: string; page: number; title: string }[];
-  claimChecklist: { clause_id: string; page: number; missing: string[] };
-  profile: FinancialProfile;
-  offers: LenderOffer[];
-  rules: AffordabilityRules;
-  partners: { insurer: string; lender: string; hospital: string };
-  statedAmountInr: number | null;
-  verification: { required: boolean; reason?: string };
-}
-
-export function computeHospitalDecision(input: HospitalDecisionInput): Decision {
-  const { bill, coverage, profile, partners } = input;
-  const calculation = calculateExactGap({
-    bill_total_inr: bill.total_inr,
-    bill_line_total_inr: bill.lines.reduce((sum, line) => sum + line.amount_inr, 0),
-    coverage_estimate_inr: coverage.estimated_coverage_inr,
-    customer_contribution_inr: profile.available_to_pay_inr,
-  });
-  const gap = calculation.exact_gap_inr;
-  const contribution = calculation.customer_contribution_inr;
-  const lineRange = bill.lines.length
-    ? `Lines ${bill.lines[0]!.line}-${bill.lines[bill.lines.length - 1]!.line}`
-    : 'Bill total';
-  const missing = input.claimChecklist.missing;
-
-  const facts: Fact[] = [
-    {
-      name: 'bill_total_inr',
-      label: 'Hospital bill total',
-      value: bill.total_inr,
-      unit: 'INR',
-      source: { type: 'bill_line', ref: lineRange, document: bill.file_name },
-      confidence: 0.99,
-    },
-    {
-      name: 'estimated_coverage_inr',
-      label: 'Policy coverage estimate',
-      value: coverage.estimated_coverage_inr,
-      unit: 'INR',
-      source: { type: 'policy_clause', ref: `Clause ${coverage.clause_id}, page ${coverage.page}`, document: coverage.policy_file_name },
-      confidence: coverage.confidence,
-    },
-    {
-      name: 'customer_contribution_inr',
-      label: 'You can pay now',
-      value: contribution,
-      unit: 'INR',
-      source: { type: 'customer_profile', ref: profile.profile_id, document: profile.source },
-      confidence: 0.95,
-    },
-    {
-      name: 'exact_gap_inr',
-      label: 'Exact funding gap',
-      value: gap,
-      unit: 'INR',
-      source: { type: 'calculation', ref: `${FORMULA_VERSION}: ${calculation.formula}` },
-      confidence: Math.min(0.99, coverage.confidence, 0.95),
-    },
-    {
-      name: 'monthly_income_inr',
-      label: 'Monthly income',
-      value: profile.monthly_income_inr,
-      unit: 'INR',
-      source: { type: 'customer_profile', ref: profile.profile_id, document: profile.source },
-      confidence: 0.9,
-    },
-    {
-      name: 'existing_emi_inr',
-      label: 'Existing EMIs',
-      value: profile.existing_emi_inr,
-      unit: 'INR',
-      source: { type: 'customer_profile', ref: profile.profile_id, document: profile.source },
-      confidence: 0.9,
-    },
-    {
-      name: 'emergency_savings_inr',
-      label: 'Emergency savings',
-      value: profile.emergency_savings_inr,
-      unit: 'INR',
-      source: { type: 'customer_profile', ref: profile.profile_id, document: profile.source },
-      confidence: 0.9,
-    },
-    ...input.assumptions.map(
-      (assumption): Fact => ({
-        name: `assumption_clause_${assumption.clause_id}`,
-        label: assumption.title,
-        value: 'Not applied to the estimate; insurer must confirm',
-        source: { type: 'policy_clause', ref: `Clause ${assumption.clause_id}, page ${assumption.page}`, document: coverage.policy_file_name },
-        confidence: 0.6,
-        assumption: true,
-      }),
-    ),
-    ...missing.map(
-      (document): Fact => ({
-        name: 'missing_document',
-        label: 'Missing claim document',
-        value: document,
-        source: { type: 'document_checklist', ref: `Clause ${input.claimChecklist.clause_id}, page ${input.claimChecklist.page}`, document: coverage.policy_file_name },
-        confidence: 0.9,
-      }),
-    ),
-  ];
-
-  const warnings: string[] = [];
-  if (input.statedAmountInr && input.statedAmountInr !== bill.total_inr) {
-    warnings.push(
-      `You mentioned ${formatInr(input.statedAmountInr)}, but the itemized bill shows ${formatInr(bill.total_inr)}. ` +
-        'Saathi uses the bill and will confirm the difference with you.',
-    );
-  }
-
-  const gate = confidenceGate(facts, input.verification);
-  const documentWrites: PlannedWrite[] = missing.map((document) => ({
-    tool: 'hospital.request_document',
-    partner: partners.hospital,
-    amount_inr: 0,
-    summary: `Request the ${document.toLowerCase()} from the hospital`,
-    input: { case_id: input.caseId, document },
-  }));
-  const claimWrite: PlannedWrite = {
-    tool: 'claim.submit',
-    partner: partners.insurer,
-    amount_inr: bill.total_inr,
-    summary: `Submit a claim for the ${formatInr(bill.total_inr)} bill (estimated cover ${formatInr(coverage.estimated_coverage_inr)})`,
-    input: {
-      case_id: input.caseId,
-      policy_document_id: coverage.policy_document_id,
-      bill_document_id: bill.document_id,
-      claimed_amount_inr: bill.total_inr,
-      estimated_coverage_inr: coverage.estimated_coverage_inr,
-      pending_documents: missing,
-    },
-  };
-  const payLink = (amount: number): PlannedWrite[] =>
-    amount > 0
-      ? [
-          {
-            tool: 'payments.create_link',
-            partner: 'Paytm Payments (simulated)',
-            amount_inr: amount,
-            summary: `Pay your ${formatInr(amount)} share to the hospital with a Paytm payment link`,
-            input: { case_id: input.caseId, amount_inr: amount, payee: 'hospital', purpose: `Patient share for ${bill.file_name}` },
-          },
-        ]
-      : [];
-  const documentTradeOff = missing.length
-    ? `The claim still needs: ${missing.join(', ')}. Saathi requests it from the hospital.`
-    : 'The claim document set is complete.';
-
-  const pickOffer = (kind: LenderOffer['kind'], amount: number) =>
-    input.offers.find((offer) => offer.kind === kind && amount >= offer.min_amount_inr && amount <= offer.max_amount_inr);
-
-  const drafts: OptionDraft[] = [];
-  const gapOffer = gap > 0 ? pickOffer('exact_gap', gap) : undefined;
-  let gapPlanExtraCost = 0;
-
-  if (gap === 0) {
-    drafts.push({
-      option_id: 'claim_and_pay',
-      title: 'Claim + pay the balance',
-      summary: `Insurance and the ${formatInr(contribution)} you can pay now cover the bill. No credit is needed.`,
-      steps: ['Approve the claim with your Resolution Passport', `Pay ${formatInr(bill.total_inr - coverage.estimated_coverage_inr)} to the hospital`],
-      metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 2, risk: 'low' },
-      guardrails: [gate],
-      trade_offs: ['No borrowing and no interest.', documentTradeOff],
-      writes: [...documentWrites, claimWrite, ...payLink(bill.total_inr - coverage.estimated_coverage_inr)],
-      handoff: false,
-      self_serve: false,
-    });
-  }
-
-  if (gapOffer) {
-    const emi = calculateEmi(gap, gapOffer.annual_rate_pct, gapOffer.tenure_months);
-    const fee = Math.round((gap * gapOffer.processing_fee_pct) / 100);
-    const affordability = checkAffordability(profile, emi.emi_inr, input.rules);
-    gapPlanExtraCost = emi.total_interest_inr + fee;
-    drafts.push({
-      option_id: 'claim_plus_gap_plan',
-      title: `Claim + ${gapOffer.tenure_months}-month plan`,
-      summary:
-        `Claim from insurance, pay ${formatInr(contribution)} now, and cover only the ${formatInr(gap)} gap ` +
-        `with a ${gapOffer.tenure_months}-month plan paid directly to the hospital.`,
-      steps: [
-        'Approve the claim with your Resolution Passport',
-        `Pay the ${formatInr(contribution)} you can afford now`,
-        `Accept the ${formatInr(gap)} plan (EMI ${formatInr(emi.emi_inr)} for ${gapOffer.tenure_months} months)`,
-      ],
-      metrics: {
-        borrow_inr: gap,
-        extra_cost_inr: gapPlanExtraCost,
-        monthly_emi_inr: emi.emi_inr,
-        time_to_funds_days: gapOffer.disbursal_days,
-        effort_steps: 3,
-        risk: affordability.affordable ? 'low' : 'high',
-      },
-      guardrails: [
-        gate,
-        { rule: 'Affordability', passed: affordability.affordable, blocking: true, detail: affordability.detail },
-        { rule: 'Borrow only the exact gap', passed: true, blocking: false, detail: `Borrows ${formatInr(gap)}, equal to the verified gap.` },
-      ],
-      trade_offs: [
-        `It costs about ${formatInr(gapPlanExtraCost)} in interest and fees and keeps your emergency savings untouched.`,
-        documentTradeOff,
-      ],
-      writes: [
-        ...documentWrites,
-        claimWrite,
-        ...payLink(contribution),
-        {
-          tool: 'lending.submit_application',
-          partner: partners.lender,
-          amount_inr: gap,
-          summary: `Apply for ${formatInr(gap)} over ${gapOffer.tenure_months} months, paid to the hospital`,
-          input: {
-            case_id: input.caseId,
-            offer_id: gapOffer.offer_id,
-            amount_inr: gap,
-            tenure_months: gapOffer.tenure_months,
-            disburse_to: gapOffer.disburse_to,
-          },
-        },
-      ],
-      handoff: false,
-      self_serve: false,
-    });
-  }
-
-  if (gap > 0) {
-    const savingsAfter = profile.emergency_savings_inr - gap;
-    const enough = savingsAfter >= 0;
-    const keepsBuffer = savingsAfter >= profile.minimum_emergency_buffer_inr;
-    drafts.push({
-      option_id: 'claim_plus_savings',
-      title: 'Claim + use emergency savings',
-      summary: `Claim from insurance, pay ${formatInr(contribution)} now, and cover the ${formatInr(gap)} gap from savings.`,
-      steps: [
-        'Approve the claim with your Resolution Passport',
-        `Pay the ${formatInr(contribution)} you can afford now`,
-        `Move ${formatInr(gap)} from emergency savings`,
-      ],
-      metrics: {
-        borrow_inr: 0,
-        extra_cost_inr: 0,
-        monthly_emi_inr: 0,
-        time_to_funds_days: 0,
-        effort_steps: 3,
-        risk: enough && keepsBuffer ? 'low' : 'high',
-      },
-      guardrails: [
-        gate,
-        {
-          rule: 'Savings cover the gap',
-          passed: enough,
-          blocking: true,
-          detail: `Emergency savings are ${formatInr(profile.emergency_savings_inr)}; the gap is ${formatInr(gap)}.`,
-        },
-        {
-          rule: 'Keep the emergency buffer',
-          passed: keepsBuffer,
-          blocking: false,
-          detail: `Using savings leaves ${formatInr(Math.max(savingsAfter, 0))}; your safety buffer is ${formatInr(profile.minimum_emergency_buffer_inr)}.`,
-        },
-      ],
-      trade_offs: [
-        keepsBuffer
-          ? 'No interest, and your safety buffer stays intact.'
-          : `No interest, but it leaves ${formatInr(Math.max(savingsAfter, 0))}, below your ${formatInr(profile.minimum_emergency_buffer_inr)} safety buffer.`,
-        documentTradeOff,
-      ],
-      writes: [...documentWrites, claimWrite, ...payLink(contribution)],
-      handoff: false,
-      self_serve: false,
-    });
-  }
-
-  const fullOffer = pickOffer('personal', bill.total_inr);
-  if (fullOffer) {
-    const emi = calculateEmi(bill.total_inr, fullOffer.annual_rate_pct, fullOffer.tenure_months);
-    const fee = Math.round((bill.total_inr * fullOffer.processing_fee_pct) / 100);
-    const affordability = checkAffordability(profile, emi.emi_inr, input.rules);
-    const extraCost = emi.total_interest_inr + fee;
-    const overBorrow = bill.total_inr - gap;
-    drafts.push({
-      option_id: 'full_bill_loan',
-      title: `Borrow the full ${formatInr(bill.total_inr)}`,
-      summary: `Take a ${fullOffer.tenure_months}-month personal loan for the whole bill and use the claim payout to prepay later.`,
-      steps: [
-        `Apply for a ${formatInr(bill.total_inr)} personal loan`,
-        'Pay the hospital in full',
-        'Submit the claim and use the payout to prepay the loan',
-      ],
-      metrics: {
-        borrow_inr: bill.total_inr,
-        extra_cost_inr: extraCost,
-        monthly_emi_inr: emi.emi_inr,
-        time_to_funds_days: fullOffer.disbursal_days,
-        effort_steps: 3,
-        risk: !affordability.affordable ? 'high' : overBorrow > 0 ? 'medium' : 'low',
-      },
-      guardrails: [
-        gate,
-        { rule: 'Affordability', passed: affordability.affordable, blocking: true, detail: affordability.detail },
-        {
-          rule: 'Borrow only the exact gap',
-          passed: overBorrow <= 0,
-          blocking: false,
-          detail: `It borrows ${formatInr(overBorrow)} more than the verified gap of ${formatInr(gap)}.`,
-        },
-      ],
-      trade_offs: [
-        gapPlanExtraCost > 0
-          ? `It costs about ${formatInr(extraCost)}, roughly ${Math.round(extraCost / gapPlanExtraCost)}x the exact-gap plan.`
-          : `It costs about ${formatInr(extraCost)} in interest and fees.`,
-        `It borrows ${formatInr(overBorrow)} more than you need.`,
-      ],
-      writes: [
-        ...documentWrites,
-        {
-          tool: 'lending.submit_application',
-          partner: partners.lender,
-          amount_inr: bill.total_inr,
-          summary: `Apply for ${formatInr(bill.total_inr)} over ${fullOffer.tenure_months} months, paid to the hospital`,
-          input: {
-            case_id: input.caseId,
-            offer_id: fullOffer.offer_id,
-            amount_inr: bill.total_inr,
-            tenure_months: fullOffer.tenure_months,
-            disburse_to: fullOffer.disburse_to,
-          },
-        },
-        claimWrite,
-      ],
-      handoff: false,
-      self_serve: false,
-    });
-  }
-
-  if (gap > 0) {
-    drafts.push({
-      option_id: 'wait_for_claim',
-      title: 'Wait for the claim settlement',
-      summary: 'Submit the claim and ask the hospital to hold the balance until the insurer settles.',
-      steps: ['Approve the claim with your Resolution Passport', 'Ask the hospital to hold the balance until settlement'],
-      metrics: {
-        borrow_inr: 0,
-        extra_cost_inr: 0,
-        monthly_emi_inr: 0,
-        time_to_funds_days: CLAIM_SETTLEMENT_DAYS,
-        effort_steps: 2,
-        risk: input.urgency === 'high' ? 'high' : 'medium',
-      },
-      guardrails: [
-        gate,
-        {
-          rule: 'Urgency check',
-          passed: input.urgency !== 'high',
-          blocking: false,
-          detail: `Settlement takes about ${CLAIM_SETTLEMENT_DAYS} days in this demo (assumption), which can delay discharge.`,
-        },
-      ],
-      trade_offs: ['No borrowing, but the hospital may not discharge until the balance is settled.', documentTradeOff],
-      writes: [...documentWrites, claimWrite],
-      handoff: false,
-      self_serve: false,
-    });
-  }
-
-  drafts.push(humanSupportDraft(input.urgency, input.verification.required ? input.verification.reason : undefined));
-  const options = rankOptions(drafts);
-  return {
-    formula_version: FORMULA_VERSION,
-    computed_at: new Date().toISOString(),
-    event_type: 'hospitalization',
-    calculation,
-    facts,
-    options,
-    recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
-    explanation: explainOptions(options),
-    warnings,
-    requires_verification: !gate.passed,
-    commission_considered: false,
-    weights: { ...SCORE_WEIGHTS },
   };
 }
 
@@ -615,12 +219,19 @@ export function computeUpiDecision(input: UpiDecisionInput): Decision {
   ].filter(Boolean);
 
   const gate = confidenceGate(facts, { required: false });
+  const pauseUpi = {
+    tool: 'payments.pause_upi',
+    partner: input.paymentsPartner,
+    amount_inr: 0,
+    summary: `Pause UPI on your account and block ${transaction.counterparty}`,
+    input: { case_id: input.caseId, transaction_id: transaction.transaction_id, block_payee: true },
+  };
   const drafts: OptionDraft[] = [
     {
       option_id: 'dispute_and_protect',
       title: 'Open a dispute + secure the account',
       summary: `Open a dispute for the ${formatInr(transaction.amount_inr)} debit to ${transaction.counterparty} and follow the protective checklist.`,
-      steps: ['Approve the dispute with your Resolution Passport', 'Block UPI and change your UPI PIN in the app'],
+      steps: ['Approve the dispute with your Resolution Passport', 'Saathi pauses UPI and blocks the payee', 'Change your UPI PIN in the app'],
       metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 2, risk: 'low' },
       guardrails: [
         gate,
@@ -644,7 +255,23 @@ export function computeUpiDecision(input: UpiDecisionInput): Decision {
             reason: 'unauthorized_upi_debit',
           },
         },
+        pauseUpi,
       ],
+      handoff: false,
+      self_serve: false,
+    },
+    {
+      option_id: 'secure_account',
+      title: 'Secure my account only',
+      summary: `Pause UPI and block ${transaction.counterparty} now, without opening a dispute yet.`,
+      steps: ['Approve pausing UPI and blocking the payee', 'Change your UPI PIN in the app', 'Raise the dispute when you are ready'],
+      metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 1, risk: 'medium' },
+      guardrails: [
+        gate,
+        { rule: 'Prompt reporting', passed: false, blocking: false, detail: 'It protects the account, but the money is only recovered through a dispute; delaying it can reduce recovery chances.' },
+      ],
+      trade_offs: ['Stops further debits right away.', 'Does not start recovering the money.'],
+      writes: [pauseUpi],
       handoff: false,
       self_serve: false,
     },
@@ -817,7 +444,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
     {
       option_id: 'shift_due_date',
       title: 'Move the EMI date past payday',
-      summary: `Ask the lender to move the ${formatInr(loan.emi_inr)} EMI from ${loan.next_due_date} to ${requestedDate}, the day after your salary arrives.`,
+      summary: `Ask the lender to move the ${formatInr(loan.emi_inr)} EMI from ${formatDay(loan.next_due_date)} to ${formatDay(requestedDate)}, the day after your salary arrives.`,
       steps: [`Approve the due-date request (${formatInr(loan.due_date_shift.fee_inr)} fee)`, 'Pay the EMI after your salary is credited'],
       metrics: { borrow_inr: 0, extra_cost_inr: loan.due_date_shift.fee_inr, monthly_emi_inr: 0, time_to_funds_days: 1, effort_steps: 1, risk: 'low' },
       guardrails: [
@@ -834,7 +461,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
           rule: 'Salary arrives inside the allowed shift',
           passed: shiftDays <= loan.due_date_shift.max_days,
           blocking: true,
-          detail: `Salary is expected ${salaryDelayDays} day(s) after the due date; the request needs ${shiftDays} of the ${loan.due_date_shift.max_days} allowed days.`,
+          detail: `Salary is expected ${plural(salaryDelayDays, 'day')} after the due date; the request needs ${shiftDays} of the ${loan.due_date_shift.max_days} allowed days.`,
         },
       ],
       trade_offs: ['No new credit and no bounce on your record.', 'Depends on the lender approving the request (simulated).'],
@@ -843,7 +470,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
           tool: 'lending.request_due_date_change',
           partner: input.lender,
           amount_inr: loan.due_date_shift.fee_inr,
-          summary: `Move EMI on ${loan.loan_id} from ${loan.next_due_date} to ${requestedDate}`,
+          summary: `Move EMI on ${loan.loan_id} from ${formatDay(loan.next_due_date)} to ${formatDay(requestedDate)}`,
           input: {
             case_id: input.caseId,
             loan_id: loan.loan_id,
@@ -935,7 +562,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
         rule: 'Credit record protected',
         passed: false,
         blocking: false,
-        detail: `A bounce costs about ${formatInr(bounceCost)} (${formatInr(loan.bounce_charge_inr)} charge + ${lateDays} day(s) late fee) and can be reported to credit bureaus.`,
+        detail: `A bounce costs about ${formatInr(bounceCost)} (${formatInr(loan.bounce_charge_inr)} charge + ${plural(lateDays, 'day')} late fee) and can be reported to credit bureaus.`,
       },
     ],
     trade_offs: ['No action now, but the most expensive path with credit-record risk.'],
@@ -956,7 +583,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
     options,
     recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
     explanation: `EMI ${formatInr(loan.emi_inr)} - ${formatInr(shortfall.available_before_due_inr)} available before ${loan.next_due_date} = ${formatInr(gap)} shortfall. ${explainOptions(options)}`,
-    warnings: context.salary.status === 'delayed' ? [`Salary is delayed to ${context.salary.expected_date}.`] : [],
+    warnings: context.salary.status === 'delayed' ? [`Salary is delayed to ${formatDay(context.salary.expected_date)}.`] : [],
     requires_verification: !gate.passed,
     commission_considered: false,
     weights: { ...SCORE_WEIGHTS },
@@ -965,8 +592,8 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
 
 export function computeHumanOnlyDecision(input: { eventType: EventType; urgency: Urgency; playbook: Playbook | null }): Decision {
   const reason = input.playbook
-    ? `The "${input.playbook.title}" journey is not automated in this demo, so a specialist continues from your passport.`
-    : 'This situation has no automated playbook in the demo, so a specialist continues from your passport.';
+    ? `Saathi can't automate the "${input.playbook.title}" steps yet, so a specialist continues from your passport.`
+    : "Saathi doesn't have an automated plan for this yet, so a specialist continues from your passport.";
   const options = rankOptions([humanSupportDraft(input.urgency, reason)]);
   return {
     formula_version: FORMULA_VERSION,
@@ -984,31 +611,13 @@ export function computeHumanOnlyDecision(input: { eventType: EventType; urgency:
   };
 }
 
-const HOSPITAL_TERMS = ['hospital', 'hospitalized', 'hospitalised', 'admitted', 'surgery', 'icu', 'discharge', 'अस्पताल', 'हॉस्पिटल', 'भर्ती', 'ऑपरेशन'];
-const UPI_TERMS = ['upi', 'unrecognized', 'unrecognised', 'not mine', 'fraud', 'scam', 'nahi kiya', "didn't make", 'did not make', 'unknown transaction', 'यूपीआई', 'धोखा', 'फ्रॉड', 'नहीं किया'];
-const EMI_TERMS = ['emi', 'salary delayed', 'loan payment', 'installment', 'instalment', 'ईएमआई', 'किस्त', 'सैलरी'];
-const FAMILY_TERMS = ['papa', 'father', 'mother', 'mummy', 'पापा', 'पिताजी', 'माँ', 'मम्मी'];
-
-// Triggers now live in the playbook YAML files; the term lists below are kept for reference only.
+// Event triggers live in the playbook YAML files.
 export function classifyEvent(message: string): { event_type: EventType; urgency: Urgency } {
   const { event_type, urgency } = classifyWithPlaybooks(message);
   return { event_type, urgency };
 }
 
-export function legacyClassifyEvent(message: string): { event_type: EventType; urgency: Urgency } {
-  const normalized = message.toLowerCase();
-  const has = (terms: string[]) => terms.some((term) => normalized.includes(term));
-  if (has(HOSPITAL_TERMS)) return { event_type: 'hospitalization', urgency: 'high' };
-  if (has(UPI_TERMS)) return { event_type: 'upi_dispute', urgency: 'high' };
-  if (has(EMI_TERMS)) return { event_type: 'emi_shortfall', urgency: 'medium' };
-  if (has(FAMILY_TERMS)) return { event_type: 'hospitalization', urgency: 'high' };
-  return { event_type: 'general_financial_support', urgency: 'low' };
-}
-
+// The first amount the customer wrote ("₹8,500", "5 lakh", "50k"), or null.
 export function parseStatedAmount(message: string): number | null {
-  const match =
-    /(?:₹|\binr\b|\brs\.?)\s*([0-9][0-9,]*)/i.exec(message) ?? /\b([0-9][0-9,]{2,})\s*(?:₹|inr|rs\b|rupees|rupaye|रुपये|रुपए|रु)/i.exec(message);
-  if (!match) return null;
-  const value = Number(match[1]!.replace(/,/g, ''));
-  return Number.isFinite(value) && value > 0 ? value : null;
+  return parseAmounts(message)[0]?.value ?? null;
 }

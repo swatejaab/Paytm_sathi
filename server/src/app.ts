@@ -8,6 +8,7 @@ import { HttpError } from './errors';
 import { GATEWAY_STATUS, GatewayError } from './mcp/errors';
 import { alertRouter } from './routes/alerts';
 import { mcpRouter } from './routes/mcp';
+import { moneyRouter } from './routes/money';
 import { authRouter } from './routes/auth';
 import { caseRouter } from './routes/cases';
 import { evidenceRouter } from './routes/evidence';
@@ -77,6 +78,7 @@ export function createApp() {
   app.use('/api', partnerRouter);
   app.use('/api', caseRouter);
   app.use('/api', alertRouter);
+  app.use('/api', moneyRouter);
   app.use('/api', evidenceRouter);
   app.use('/api', (_req, res) => {
     res.status(404).json({ detail: 'Not found' });

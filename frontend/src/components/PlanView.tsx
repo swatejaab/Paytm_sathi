@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { dateTime, inr } from '../format';
-import type { CaseAction, CaseRecord, Decision, ResolutionOption } from '../types';
+import type { CaseAction, CaseRecord, Decision, ResolutionOption, Transaction } from '../types';
 
-type Run = (operation: () => Promise<CaseRecord>) => Promise<void>;
+export type Run = (operation: () => Promise<CaseRecord>) => Promise<void>;
 
-interface Props {
+export interface Props {
   caseRecord: CaseRecord;
   busy: boolean;
   readOnly: boolean;
@@ -15,32 +15,31 @@ interface Props {
 function GapMath({ decision }: { decision: Decision }) {
   const calc = decision.calculation;
   if (!calc) return null;
-  const coverageFact = decision.facts.find((fact) => fact.name === 'estimated_coverage_inr');
-  const billFact = decision.facts.find((fact) => fact.name === 'bill_total_inr');
+  const source = (name: string) => decision.facts.find((fact) => fact.name === name)?.source.ref;
   return (
     <div className="gap-math">
       <div className="gap-tile">
         <small>Hospital bill</small>
         <strong>{inr(calc.bill_total_inr)}</strong>
-        <span>{billFact?.source.ref}</span>
+        <span>{source('bill_total_inr')}</span>
       </div>
       <span className="gap-op">−</span>
       <div className="gap-tile">
-        <small>Insurance estimate</small>
+        <small>Insurance cover</small>
         <strong>{inr(calc.coverage_estimate_inr)}</strong>
-        <span>{coverageFact?.source.ref}</span>
+        <span>{source('estimated_coverage_inr')}</span>
       </div>
       <span className="gap-op">−</span>
       <div className="gap-tile">
         <small>You can pay now</small>
         <strong>{inr(calc.customer_contribution_inr)}</strong>
-        <span>Your profile</span>
+        <span>{source('customer_contribution_inr')}</span>
       </div>
       <span className="gap-op">=</span>
       <div className="gap-tile gap-result">
-        <small>Exact gap</small>
+        <small>Funding gap</small>
         <strong>{inr(calc.exact_gap_inr)}</strong>
-        <span>{decision.formula_version}</span>
+        <span>max(bill − insurance − your payment, 0)</span>
       </div>
     </div>
   );
@@ -59,7 +58,7 @@ function CoverageBreakdown({ decision }: { decision: Decision }) {
   return (
     <details className="coverage-breakdown">
       <summary>
-        How the {inr(breakdown.estimated_coverage_inr)} cover was calculated, line by line ({breakdown.rules_version})
+        How the {inr(breakdown.estimated_coverage_inr)} cover was calculated, line by line
       </summary>
       <table className="table">
         <thead>
@@ -255,10 +254,7 @@ function ApprovalPanel({ caseRecord, action, busy, run }: { caseRecord: CaseReco
           <tbody>
             {action.payload.steps.map((step) => (
               <tr key={step.tool}>
-                <td>
-                  {step.summary}
-                  <code className="tool">{step.tool}</code>
-                </td>
+                <td>{step.summary}</td>
                 <td>{step.partner}</td>
                 <td>{step.amount_inr ? inr(step.amount_inr) : '-'}</td>
               </tr>
@@ -304,7 +300,7 @@ function ApprovalPanel({ caseRecord, action, busy, run }: { caseRecord: CaseReco
         </div>
       ))}
       <p className="muted small">
-        Includes Resolution Passport {action.payload.passport.passport_id}. Payload hash <code>{action.payload_hash.slice(0, 16)}...</code>
+        Includes Resolution Passport {action.payload.passport.passport_id}. Approval reference {action.payload_hash.slice(0, 10).toUpperCase()}.
       </p>
       <label className="checkbox">
         <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />I approve these exact steps
@@ -332,7 +328,7 @@ function ActionProgress({ action }: { action: CaseAction }) {
     <div className="progress card-inset">
       <div className="row space-between">
         <h3>{action.title}</h3>
-        <span className="badge">{action.channel === 'n8n' ? 'via n8n' : 'simulated partner'}</span>
+        <span className="badge">Simulated partner response</span>
       </div>
       {action.partner_requests.map((request) => (
         <div key={request.tool} className={`partner-request pr-${request.status}`}>
@@ -350,7 +346,7 @@ function ActionProgress({ action }: { action: CaseAction }) {
   );
 }
 
-function BillConfirmation({ caseRecord, busy, readOnly, run }: Props) {
+export function BillConfirmation({ caseRecord, busy, readOnly, run }: Props) {
   const question = caseRecord.pending_question;
   const [editing, setEditing] = useState(false);
   const [total, setTotal] = useState(question?.type === 'confirm_bill' ? String(question.total_inr) : '');
@@ -408,62 +404,101 @@ function BillConfirmation({ caseRecord, busy, readOnly, run }: Props) {
   );
 }
 
-function TransactionPicker({ caseRecord, busy, readOnly, run }: Props) {
+function TransactionDetails({ transaction }: { transaction: Transaction }) {
+  return (
+    <dl className="kv small">
+      <dt>Transaction ID</dt>
+      <dd>{transaction.transaction_id}</dd>
+      <dt>Paid to</dt>
+      <dd>
+        {transaction.counterparty}
+        {transaction.counterparty_vpa ? ` (${transaction.counterparty_vpa})` : ''}
+      </dd>
+      <dt>When</dt>
+      <dd>{dateTime(transaction.occurred_at)}</dd>
+      <dt>Channel</dt>
+      <dd>{transaction.channel}</dd>
+      <dt>Device</dt>
+      <dd>
+        {transaction.device}
+        {transaction.recognized_device ? '' : ' (not one of your usual devices)'}
+      </dd>
+      <dt>Location</dt>
+      <dd>{transaction.location}</dd>
+    </dl>
+  );
+}
+
+function TransactionRow({ transaction, children }: { transaction: Transaction; children?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="txn">
+      <div>
+        <strong>
+          {inr(transaction.amount_inr)} to {transaction.counterparty}
+        </strong>
+        <small>
+          {dateTime(transaction.occurred_at)} / {transaction.channel} / {transaction.location}
+        </small>
+        <div className="row gap-sm wrap">
+          <span className={`badge ${transaction.recognized_device ? '' : 'badge-red'}`}>{transaction.device}</span>
+          {transaction.first_time_counterparty ? (
+            <span className="badge badge-red">First-time payee</span>
+          ) : (
+            <span className="badge">Paid {transaction.prior_payments_to_counterparty} times before</span>
+          )}
+        </div>
+        <button className="link small" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? 'Hide details' : 'View transaction'}
+        </button>
+        {open && <TransactionDetails transaction={transaction} />}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function TransactionSummary({ transaction }: { transaction: Transaction }) {
+  return (
+    <div className="txn-list">
+      <TransactionRow transaction={transaction} />
+    </div>
+  );
+}
+
+export function TransactionPicker({ caseRecord, busy, readOnly, run }: Props) {
   const question = caseRecord.pending_question;
+  const [choice, setChoice] = useState<string | null>(null);
   if (!question || question.type !== 'confirm_transaction') return null;
+  const answer = (transactionId: string, recognized: boolean) => {
+    setChoice(`${transactionId}:${recognized}`);
+    void run(() => api.confirmTransaction(caseRecord.case_id, transactionId, recognized)).finally(() => setChoice(null));
+  };
   return (
     <div className="card-inset">
       <h3>{question.prompt}</h3>
-      <p className="muted small">Saathi loaded these from the payments MCP (synthetic). Nothing is filed until you approve.</p>
+      <p className="muted small">Saathi found these in your recent payments. Nothing is reported or disputed until you confirm.</p>
       <div className="txn-list">
         {question.candidates.map((transaction) => (
-          <div key={transaction.transaction_id} className="txn">
-            <div>
-              <strong>
-                {inr(transaction.amount_inr)} to {transaction.counterparty}
-              </strong>
-              <small>
-                {dateTime(transaction.occurred_at)} / {transaction.channel} / {transaction.location}
-              </small>
-              <div className="row gap-sm wrap">
-                <span className={`badge ${transaction.recognized_device ? '' : 'badge-red'}`}>{transaction.device}</span>
-                {transaction.first_time_counterparty ? (
-                  <span className="badge badge-red">First-time payee</span>
-                ) : (
-                  <span className="badge">Paid {transaction.prior_payments_to_counterparty} times before</span>
-                )}
-              </div>
-            </div>
+          <TransactionRow key={transaction.transaction_id} transaction={transaction}>
             {!readOnly && question.mode === 'select' && (
               <div className="txn-actions">
-                <button
-                  className="btn btn-primary"
-                  disabled={busy}
-                  onClick={() => run(() => api.confirmTransaction(caseRecord.case_id, transaction.transaction_id, false))}
-                >
-                  This is the payment
+                <button className="btn btn-primary" disabled={busy} onClick={() => answer(transaction.transaction_id, false)}>
+                  {choice === `${transaction.transaction_id}:false` ? 'Checking...' : 'This is the payment'}
                 </button>
               </div>
             )}
             {!readOnly && question.mode !== 'select' && (
               <div className="txn-actions">
-                <button
-                  className="btn btn-danger"
-                  disabled={busy}
-                  onClick={() => run(() => api.confirmTransaction(caseRecord.case_id, transaction.transaction_id, false))}
-                >
-                  I don't recognize this
+                <button className="btn btn-danger" disabled={busy} onClick={() => answer(transaction.transaction_id, false)}>
+                  {choice === `${transaction.transaction_id}:false` ? 'Reporting...' : "I don't recognize this payment"}
                 </button>
-                <button
-                  className="btn btn-ghost"
-                  disabled={busy}
-                  onClick={() => run(() => api.confirmTransaction(caseRecord.case_id, transaction.transaction_id, true))}
-                >
-                  This was me
+                <button className="btn btn-ghost" disabled={busy} onClick={() => answer(transaction.transaction_id, true)}>
+                  {choice === `${transaction.transaction_id}:true` ? 'Saving...' : 'This was me'}
                 </button>
               </div>
             )}
-          </div>
+          </TransactionRow>
         ))}
       </div>
     </div>
@@ -485,11 +520,9 @@ export function PlanView({ caseRecord, busy, readOnly, run }: Props) {
     return (
       <div className="empty-inline">
         <p className="muted">
-          {caseRecord.status === 'intake'
-            ? 'Options appear once consent is granted and evidence is gathered.'
-            : caseRecord.status === 'resolved'
-              ? 'This case is closed.'
-              : 'No options yet.'}
+          {caseRecord.status === 'resolved'
+            ? 'This conversation is closed.'
+            : 'Your plan appears here once Saathi has the details it needs. Keep chatting to fill them in.'}
         </p>
       </div>
     );
@@ -502,16 +535,7 @@ export function PlanView({ caseRecord, busy, readOnly, run }: Props) {
       <p className="eyebrow">Here's your clear path</p>
       <GapMath decision={decision} />
       <CoverageBreakdown decision={decision} />
-      {transaction && (
-        <div className="txn-summary">
-          <strong>
-            {inr(transaction.amount_inr)} to {transaction.counterparty}
-          </strong>
-          <small>
-            {dateTime(transaction.occurred_at)} / {transaction.device} / {transaction.location}
-          </small>
-        </div>
-      )}
+      {transaction && <TransactionSummary transaction={transaction} />}
 
       {decision.requires_verification && (
         <p className="alert alert-warn">
@@ -544,10 +568,9 @@ export function PlanView({ caseRecord, busy, readOnly, run }: Props) {
         ))}
       </div>
       <p className="muted small">
-        Ranking weights: cost {Math.round(decision.weights.cost * 100)}% / risk {Math.round(decision.weights.risk * 100)}% / time{' '}
-        {Math.round(decision.weights.time * 100)}% / effort {Math.round(decision.weights.effort * 100)}%. Commission is never an
-        input. Formula{' '}
-        {decision.formula_version}.
+        Options are ranked on cost {Math.round(decision.weights.cost * 100)}%, risk {Math.round(decision.weights.risk * 100)}%, time{' '}
+        {Math.round(decision.weights.time * 100)}% and effort {Math.round(decision.weights.effort * 100)}%. Partner commission is never
+        considered.
       </p>
     </div>
   );

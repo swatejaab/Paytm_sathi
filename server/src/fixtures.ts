@@ -22,33 +22,54 @@ export interface PolicyClause {
   estimated_coverage_inr: number | null;
 }
 
-export interface SampleDocuments {
+export interface HospitalBill {
+  document_id: string;
+  document_type: 'bill';
+  file_name: string;
+  page: number;
+  currency: string;
+  total_inr: number;
+  lines: BillLine[];
+}
+
+export interface HealthPolicy {
+  document_id: string;
+  document_type: 'policy';
+  file_name: string;
+  insurer: string;
+  policy_name: string;
+  insured_members: string[];
+  cashless_network: string[];
+  coverage_clause_id: string;
+  coverage_confidence: number;
+  schedule: CoverageSchedule;
+  clauses: PolicyClause[];
+}
+
+export interface HospitalAdmission {
+  admission_id: string;
+  hospital: string;
+  patient: string;
+  relation: string;
+  ward: string;
+  reason: string;
+  admitted_at: string;
+  cashless: boolean;
+  bill: HospitalBill;
+  claim_documents: { clause_id: string; page: number; required: string[]; available: string[] };
+  missing_documents: string[];
+}
+
+export interface HealthRecords {
+  policy: HealthPolicy | null;
+  admission: HospitalAdmission | null;
+}
+
+interface SampleDocuments {
   fixture_id: string;
   demo_only: boolean;
   description: string;
-  bill: {
-    document_id: string;
-    document_type: 'bill';
-    file_name: string;
-    page: number;
-    currency: string;
-    total_inr: number;
-    lines: BillLine[];
-  };
-  policy: {
-    document_id: string;
-    document_type: 'policy';
-    file_name: string;
-    insurer: string;
-    coverage_clause_id: string;
-    coverage_confidence: number;
-    schedule: CoverageSchedule;
-    clauses: PolicyClause[];
-    estimated_coverage_inr: number;
-  };
-  claim_documents: { clause_id: string; page: number; required: string[]; available: string[] };
-  missing_documents: string[];
-  expected_calculation: Record<string, number>;
+  customers: Record<string, HealthRecords>;
 }
 
 export interface DemoUser {
@@ -81,6 +102,8 @@ export interface LenderOffer {
   max_amount_inr: number;
   disbursal_days: number;
   disburse_to: 'hospital' | 'customer';
+  // Pre-approved offers are shown only to these customers; others are open to everyone.
+  eligible_customers?: string[];
 }
 
 export interface LoanAccount {
@@ -122,9 +145,17 @@ export const fixtures = {
   credit: readJson<{ bureau: string; reports: Record<string, CreditReport> }>('credit_reports.json'),
 };
 
+export function healthRecordsFor(customerId: string): HealthRecords {
+  return fixtures.documents.customers[customerId] ?? { policy: null, admission: null };
+}
+
+export function offersFor(customerId: string): LenderOffer[] {
+  return fixtures.lending.offers.filter((offer) => !offer.eligible_customers || offer.eligible_customers.includes(customerId));
+}
+
 export const PARTNERS = {
-  insurer: fixtures.documents.policy.insurer,
-  hospital: 'Synthetic hospital records desk (demo)',
+  insurer: 'Insurer partner (simulated)',
+  hospital: 'Hospital billing desk (simulated)',
   lender: fixtures.lending.partner,
   payments: fixtures.payments.partner,
 } as const;

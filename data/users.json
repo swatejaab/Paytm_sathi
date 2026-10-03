@@ -3,19 +3,25 @@
   "users": [
     {
       "user_id": "demo-customer-01",
-      "display_name": "Riya Sharma (demo)",
+      "display_name": "Neha Kulkarni",
       "role": "customer",
       "passcode": "2468"
     },
     {
       "user_id": "demo-customer-02",
-      "display_name": "Arjun Mehta (demo)",
+      "display_name": "Arjun Mehta",
       "role": "customer",
       "passcode": "1357"
     },
     {
+      "user_id": "demo-customer-03",
+      "display_name": "Riya Sharma",
+      "role": "customer",
+      "passcode": "8642"
+    },
+    {
       "user_id": "support-agent-01",
-      "display_name": "Saathi Support Desk (demo)",
+      "display_name": "Saathi Support Desk",
       "role": "support",
       "passcode": "9999"
     }

@@ -1,8 +1,121 @@
 {
   "label": "Synthetic UPI activity for the demo. Not real transactions.",
-  "partner": "Synthetic Paytm payments adapter (demo)",
+  "partner": "Paytm payments (sample records)",
   "accounts": {
     "demo-customer-01": {
+      "transactions": [
+        {
+          "transaction_id": "TXN-UPI-20261002-0214",
+          "direction": "debit",
+          "amount_inr": 8500,
+          "counterparty": "QuickKart Digital Services",
+          "counterparty_vpa": "quickkart.pay@demo",
+          "channel": "UPI collect request",
+          "occurred_at": "2026-10-02T02:14:00+05:30",
+          "device": "Unrecognized Android device",
+          "location": "Noida, UP (approximate)",
+          "recognized_device": false,
+          "first_time_counterparty": true,
+          "prior_payments_to_counterparty": 0,
+          "status": "success"
+        },
+        {
+          "transaction_id": "TXN-UPI-20260928-1840",
+          "direction": "debit",
+          "amount_inr": 8500,
+          "counterparty": "Powai Fresh Mart",
+          "counterparty_vpa": "powaifresh@demo",
+          "channel": "UPI QR scan",
+          "occurred_at": "2026-09-28T18:40:00+05:30",
+          "device": "Neha's registered phone",
+          "location": "Mumbai, MH (approximate)",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 9,
+          "status": "success"
+        },
+        {
+          "transaction_id": "TXN-UPI-20260927-0912",
+          "direction": "debit",
+          "amount_inr": 1240,
+          "counterparty": "Metro Card Recharge",
+          "counterparty_vpa": "metrocard@demo",
+          "channel": "UPI intent",
+          "occurred_at": "2026-09-27T09:12:00+05:30",
+          "device": "Neha's registered phone",
+          "location": "Mumbai, MH (approximate)",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 11,
+          "status": "success"
+        },
+        {
+          "transaction_id": "TXN-UPI-20260925-2210",
+          "direction": "debit",
+          "amount_inr": 649,
+          "counterparty": "StreamFlix Subscription",
+          "counterparty_vpa": "streamflix@demo",
+          "channel": "UPI autopay",
+          "occurred_at": "2026-09-25T22:10:00+05:30",
+          "device": "Autopay mandate",
+          "location": "Online",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 8,
+          "status": "success"
+        },
+        {
+          "transaction_id": "TXN-UPI-20260930-1122",
+          "direction": "debit",
+          "amount_inr": 2450,
+          "counterparty": "Suburban Power Distribution (BBPS)",
+          "counterparty_vpa": "suburbanpower.bbps@demo",
+          "channel": "UPI intent (payment failed at beneficiary bank)",
+          "occurred_at": "2026-09-30T11:22:00+05:30",
+          "device": "Neha's registered phone",
+          "location": "Mumbai, MH (approximate)",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 8,
+          "status": "failed_debited"
+        },
+        {
+          "transaction_id": "TXN-NEFT-20260910-1000",
+          "direction": "credit",
+          "amount_inr": 95000,
+          "counterparty": "Employer salary",
+          "counterparty_vpa": null,
+          "channel": "NEFT",
+          "occurred_at": "2026-09-10T10:00:00+05:30",
+          "device": "Bank transfer",
+          "location": "Online",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 12,
+          "status": "success"
+        }
+      ]
+    },
+    "demo-customer-02": {
+      "transactions": [
+        {
+          "transaction_id": "TXN-UPI-20260930-1305",
+          "direction": "debit",
+          "amount_inr": 2300,
+          "counterparty": "City Pharmacy",
+          "counterparty_vpa": "citypharma@demo",
+          "channel": "UPI QR scan",
+          "occurred_at": "2026-09-30T13:05:00+05:30",
+          "device": "Arjun's registered phone",
+          "location": "Bengaluru, KA (approximate)",
+          "recognized_device": true,
+          "first_time_counterparty": false,
+          "prior_payments_to_counterparty": 3,
+          "status": "success"
+        }
+      ]
+    },
+    "demo-customer-03": {
       "transactions": [
         {
           "transaction_id": "TXN-UPI-20261002-0214",
@@ -68,7 +181,7 @@
           "transaction_id": "TXN-NEFT-20260901-1000",
           "direction": "credit",
           "amount_inr": 90000,
-          "counterparty": "Employer salary (demo)",
+          "counterparty": "Employer salary",
           "counterparty_vpa": null,
           "channel": "NEFT",
           "occurred_at": "2026-09-01T10:00:00+05:30",
@@ -93,25 +206,6 @@
           "first_time_counterparty": false,
           "prior_payments_to_counterparty": 8,
           "status": "failed_debited"
-        }
-      ]
-    },
-    "demo-customer-02": {
-      "transactions": [
-        {
-          "transaction_id": "TXN-UPI-20260930-1305",
-          "direction": "debit",
-          "amount_inr": 2300,
-          "counterparty": "City Pharmacy",
-          "counterparty_vpa": "citypharma@demo",
-          "channel": "UPI QR scan",
-          "occurred_at": "2026-09-30T13:05:00+05:30",
-          "device": "Arjun's registered phone",
-          "location": "Bengaluru, KA (approximate)",
-          "recognized_device": true,
-          "first_time_counterparty": false,
-          "prior_payments_to_counterparty": 3,
-          "status": "success"
         }
       ]
     }

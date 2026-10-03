@@ -1,23 +1,33 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { timeOnly } from '../format';
-import type { AuditEvent, CaseRecord, ToolInfo } from '../types';
+import type { AuditEvent, CaseRecord } from '../types';
+
+const EVENT_LABELS: Record<string, string> = {
+  mcp_tool_call: 'Saathi read or prepared information',
+  consent_granted: 'You gave permission',
+  consent_revoked: 'You withdrew permission',
+  action_prepared: 'Action prepared for your review',
+  action_approved: 'You approved an action',
+  action_cancelled: 'You cancelled an action',
+  partner_event: 'Partner update (simulated)',
+  document_uploaded: 'Document added',
+  handoff_requested: 'Specialist requested',
+  conversation_renamed: 'Conversation renamed',
+  case_created: 'Conversation started',
+};
 
 function describe(event: AuditEvent): string {
   const detail = event.detail;
   if (event.decision === 'deny' && typeof detail.reason === 'string') return detail.reason;
-  if (event.event === 'action_approved') return `Payload ${String(detail.payload_hash ?? '').slice(0, 12)} approved`;
-  if (event.event === 'partner_event') return `${String(detail.status)} / ${String(detail.reference ?? '')}`;
-  if (event.event === 'document_uploaded') return `${String(detail.document_type)} / ${String(detail.characters)} characters (content not logged)`;
+  if (event.event === 'partner_event') return String(detail.status ?? '');
+  if (event.event === 'document_uploaded') return `${String(detail.document_type)} (contents are never logged)`;
   if (typeof detail.purpose === 'string') return detail.purpose.replace(/_/g, ' ');
-  if (typeof detail.server === 'string') return `${detail.server} MCP / ${String(detail.kind)}`;
   return '';
 }
 
 export function AuditView({ caseRecord }: { caseRecord: CaseRecord }) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [tools, setTools] = useState<ToolInfo[]>([]);
-  const [showTools, setShowTools] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,98 +40,31 @@ export function AuditView({ caseRecord }: { caseRecord: CaseRecord }) {
     };
   }, [caseRecord.case_id, caseRecord.updated_at]);
 
-  useEffect(() => {
-    if (showTools && !tools.length) {
-      api
-        .tools()
-        .then((result) => setTools(result.tools))
-        .catch(() => setTools([]));
-    }
-  }, [showTools, tools.length]);
-
   const denied = events.filter((event) => event.decision === 'deny').length;
-  const toolCalls = events.filter((event) => event.event === 'mcp_tool_call').length;
 
   return (
-    <div className="audit">
-      <div className="audit-summary">
-        <div>
-          <strong>{toolCalls}</strong>
-          <small>MCP tool calls</small>
-        </div>
-        <div>
-          <strong>{denied}</strong>
-          <small>Denied by the gateway</small>
-        </div>
-        <div>
-          <strong>{events.filter((event) => event.event === 'action_approved').length}</strong>
-          <small>Customer approvals</small>
-        </div>
-      </div>
+    <section className="audit">
+      <h3>Access log</h3>
       <p className="muted small">
-        The MCP gateway checks identity, case scope, consent, and approval on every call. It logs tool names, scopes, and
-        decisions, never document contents or keys.
+        Every time Saathi reads your records or prepares an action, it checks your identity, this conversation, your permission, and your
+        approval. {denied ? `${denied} request(s) were blocked.` : 'Nothing was blocked.'} Document contents and keys are never logged.
       </p>
-      <table className="table audit-table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Event</th>
-            <th>Tool</th>
-            <th>Decision</th>
-            <th>Detail</th>
-          </tr>
-        </thead>
-        <tbody>
+      {events.length === 0 ? (
+        <p className="muted">No activity yet.</p>
+      ) : (
+        <ul className="audit-list">
           {events.map((event) => (
-            <tr key={event.id}>
-              <td>{timeOnly(event.at)}</td>
-              <td>
-                {event.event.replace(/_/g, ' ')}
-                <small className="muted"> {event.actor}</small>
-              </td>
-              <td>{event.tool ? <code>{event.tool}</code> : '-'}</td>
-              <td>
-                <span className={`badge decision-${event.decision}`}>{event.decision}</span>
-              </td>
-              <td className="small">{describe(event)}</td>
-            </tr>
+            <li key={event.id}>
+              <small className="muted">{timeOnly(event.at)}</small>
+              <span>
+                {EVENT_LABELS[event.event] ?? event.event.replace(/_/g, ' ')}
+                {describe(event) && <small className="muted"> · {describe(event)}</small>}
+              </span>
+              <span className={`badge decision-${event.decision}`}>{event.decision === 'deny' ? 'Blocked' : event.decision === 'allow' ? 'Allowed' : 'Info'}</span>
+            </li>
           ))}
-        </tbody>
-      </table>
-
-      <button className="link" onClick={() => setShowTools(!showTools)}>
-        {showTools ? 'Hide' : 'Show'} the MCP tool catalog
-      </button>
-      {showTools && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Tool</th>
-              <th>Server</th>
-              <th>Kind</th>
-              <th>Gate</th>
-              <th>Fixture</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tools.map((tool) => (
-              <tr key={tool.name}>
-                <td>
-                  <code>{tool.name}</code>
-                  <small className="muted"> {tool.description}</small>
-                </td>
-                <td>{tool.server}</td>
-                <td>
-                  <span className={`badge ${tool.kind === 'write' ? 'badge-amber' : ''}`}>{tool.kind}</span>
-                </td>
-                <td className="small">{[tool.consent && 'consent', tool.approval_required && 'approval token'].filter(Boolean).join(' + ') || 'case scope'}</td>
-                <td className="small">{tool.fixture}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

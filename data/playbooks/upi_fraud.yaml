@@ -6,7 +6,7 @@ event_type: upi_dispute
 urgency: high
 priority: 20
 triggers:
-  any: [upi, unrecognized, unrecognised, not mine, fraud, scam, nahi kiya, "didn't make", did not make, unknown transaction, यूपीआई, धोखा, फ्रॉड, नहीं किया]
+  any: [upi, unrecognized, unrecognised, not mine, fraud, scam, nahi kiya, "didn't make", did not make, unknown transaction, "don't recognize", "don't recognise", do not recognize, unauthorized, unauthorised, "didn't authorize", unknown payment, यूपीआई, धोखा, फ्रॉड, नहीं किया]
 engine: builtin:upi_dispute
 auditor: transaction_auditor
 pick_transaction:
@@ -16,11 +16,11 @@ pick_transaction:
   match_stated_amount: true
 tools:
   read: [payments.get_balance, payments.list_transactions, payments.get_transaction, knowledge.search_playbook]
-  write: [payments.open_dispute, crm.handoff_to_agent]
+  write: [payments.open_dispute, payments.pause_upi, crm.handoff_to_agent]
 exit: dispute closed by the payment network
 guidance:
   title: Unrecognized UPI debit
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Confirm the debit is unfamiliar and note the transaction reference, time, and counterparty.
     - Block or pause UPI in the payment app and change the UPI PIN.

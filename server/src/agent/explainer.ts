@@ -1,15 +1,9 @@
-import { formatInr } from '../decision';
+import { detectLanguageOf } from '../assistant/nlu';
+import { formatDay, formatInr } from '../decision';
 import type { CaseRecord, Language } from '../types';
 
-const HINGLISH_MARKERS = [
-  'hai', 'hain', 'kya', 'karun', 'karu', 'mein', 'mera', 'mere', 'meri', 'nahi', 'nahin', 'kiya', 'maine',
-  'paisa', 'paise', 'aur', 'ab', 'kaise', 'kab', 'hua', 'gaya', 'chahiye', 'madad', 'bhai', 'papa', 'mummy',
-];
-
 export function detectLanguage(message: string): Language {
-  const words = new Set(message.toLowerCase().match(/[a-z]+/g) ?? []);
-  const hits = HINGLISH_MARKERS.filter((marker) => words.has(marker)).length;
-  return hits >= 2 ? 'hinglish' : 'en';
+  return detectLanguageOf(message);
 }
 
 // Builds the customer-facing explanation from the deterministic decision only.
@@ -23,18 +17,39 @@ export function explainDecision(record: CaseRecord): string {
   const parts: string[] = [];
 
   if (calc) {
-    parts.push(
-      hinglish
-        ? `Exact gap: ${formatInr(calc.bill_total_inr)} bill - ${formatInr(calc.coverage_estimate_inr)} insurance estimate - ${formatInr(calc.customer_contribution_inr)} jo aap abhi de sakte hain = ${formatInr(calc.exact_gap_inr)}.`
-        : `Exact gap: ${formatInr(calc.bill_total_inr)} bill - ${formatInr(calc.coverage_estimate_inr)} estimated cover - ${formatInr(calc.customer_contribution_inr)} you can pay = ${formatInr(calc.exact_gap_inr)}.`,
-    );
+    const insured = calc.coverage_estimate_inr > 0;
+    const coverFact = decision.facts.find((fact) => fact.name === 'estimated_coverage_inr');
+    const fromInsurer = coverFact?.source.type === 'policy_clause';
+    const cashless = fromInsurer && Boolean(record.context?.records?.admission?.cashless);
+    if (insured && fromInsurer) {
+      const cover = formatInr(calc.coverage_estimate_inr);
+      const pay = formatInr(calc.customer_contribution_inr);
+      const gap = formatInr(calc.exact_gap_inr);
+      parts.push(
+        hinglish
+          ? `${cashless ? 'Cashless' : 'Aapki policy'} ${cover} cover karegi. Aap abhi ${pay} de sakte hain. ${calc.exact_gap_inr > 0 ? `Asli gap sirf ${gap} hai.` : 'Koi gap nahi bacha.'}`
+          : `${cashless ? 'Cashless covers' : 'Your policy covers about'} ${cover}. You can pay ${pay} now. ${calc.exact_gap_inr > 0 ? `The real gap is ${gap}.` : 'There is no gap left to fund.'}`,
+      );
+    } else {
+      const terms = [
+        `${formatInr(calc.bill_total_inr)} bill`,
+        ...(insured ? [hinglish ? `${formatInr(calc.coverage_estimate_inr)} insurance` : `${formatInr(calc.coverage_estimate_inr)} expected insurance`] : []),
+        hinglish ? `${formatInr(calc.customer_contribution_inr)} jo aap abhi de sakte hain` : `${formatInr(calc.customer_contribution_inr)} you can pay`,
+      ];
+      parts.push(`Funding gap: ${terms.join(' - ')} = ${formatInr(calc.exact_gap_inr)}.`);
+    }
   }
 
   const factValue = (name: string) => decision.facts.find((fact) => fact.name === name)?.value;
   const shortfall = factValue('shortfall_inr');
-  if (hinglish && typeof shortfall === 'number' && shortfall > 0) {
+  if (typeof shortfall === 'number' && shortfall > 0) {
+    const emi = formatInr(Number(factValue('emi_inr')));
+    const due = formatDay(String(factValue('next_due_date')));
+    const available = formatInr(Math.max(Number(factValue('account_balance_inr')) - Number(factValue('committed_before_due_inr')), 0));
     parts.push(
-      `EMI ${formatInr(Number(factValue('emi_inr')))} hai, due date ${String(factValue('next_due_date'))} se pehle ${formatInr(Number(factValue('account_balance_inr')) - Number(factValue('committed_before_due_inr')))} available hai, toh ${formatInr(shortfall)} kam pad rahe hain.`,
+      hinglish
+        ? `EMI ${emi} hai, due date ${due} se pehle ${available} available hai, toh ${formatInr(shortfall)} kam pad rahe hain.`
+        : `Your EMI is ${emi}, due ${due}. About ${available} is free before then, so you are ${formatInr(shortfall)} short.`,
     );
   }
 
@@ -59,17 +74,22 @@ export function explainDecision(record: CaseRecord): string {
 
 export function consentNeededMessage(language: Language | undefined): string {
   return language === 'hinglish'
-    ? 'Maine aapka case save kar liya hai. Aapke policy, bill ya account records padhne se pehle, is case ke liye consent dijiye.'
-    : 'I saved your case. Before I read your synthetic policy, bill, or account records, please grant consent for this case.';
+    ? 'Aapke policy, bill ya account records padhne se pehle, is conversation ke liye permission dijiye.'
+    : 'Before I read your policy, bill, or account records, please allow access for this conversation.';
 }
 
 export function pickTransactionMessage(language: Language | undefined, count: number, stated: number | null, matched: boolean): string {
+  if (!count) {
+    return language === 'hinglish'
+      ? 'Mujhe aapke recent debits mein koi matching payment nahi mila. Aap ek Saathi specialist se baat kar sakte hain.'
+      : 'I could not find a matching debit in your recent transactions. A Saathi specialist can look into it with you.';
+  }
   if (language === 'hinglish') {
     return stated && matched
       ? `Mujhe ${formatInr(stated)} ke ${count} debit mile. Jo payment aapne nahi kiya, use chuniye. Kuch bhi file karne se pehle main evidence dikhaunga.`
       : 'Ye aapke recent debits hain. Jo payment aap nahi pehchaante, use chuniye. Kuch bhi file karne se pehle main evidence dikhaunga.';
   }
   return stated && matched
-    ? `I found ${count} debit(s) of ${formatInr(stated)}. Pick the one you don't recognize. I will show the evidence before anything is filed.`
-    : 'Here are your recent debits. Pick the one you do not recognize. I will show the evidence before anything is filed.';
+    ? `I found ${count} debit${count === 1 ? '' : 's'} of ${formatInr(stated)}. Pick the one you don't recognize. I will show the evidence before anything is filed.`
+    : "Here are your recent debits. Pick the one you don't recognize. I will show the evidence before anything is filed.";
 }

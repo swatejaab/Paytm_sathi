@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { approveAction, cancelAction, prepareAction } from '../actions';
 import { getPrincipal, requireAuth } from '../auth';
+import { createConversation, handleTurn, NEW_CHAT_TITLE } from '../assistant/turn';
 import { onCaseUpdate } from '../caseEvents';
-import { loadCaseForRead } from '../caseStore';
-import { listAudit, listCases } from '../db';
-import { parseBody } from '../errors';
+import { loadCaseForOwner, loadCaseForRead } from '../caseStore';
+import { deleteCase, listAudit, listCases, recordAudit, updateCase } from '../db';
+import { HttpError, parseBody } from '../errors';
 import { buildPassport } from '../passport';
 import { addSpecialistNote, claimCase, resolveBySpecialist, reviewCase } from '../support';
 import { LANGUAGE_CODES } from '../languages';
@@ -28,18 +29,88 @@ const prepareSchema = z.object({ option_id: z.string().min(2).max(60) }).strict(
 const approveSchema = z.object({ payload_hash: z.string().regex(/^[a-f0-9]{64}$/), confirm: z.literal(true) }).strict();
 
 function summarize(record: CaseRecord) {
+  const last = record.messages.at(-1);
   return {
     case_id: record.case_id,
     customer_id: record.customer_id,
+    title: record.title ?? (record.customer_message.split('\n')[0]?.slice(0, 60) || NEW_CHAT_TITLE),
+    journey: record.context?.journey ?? null,
     event_type: record.event_type,
     urgency: record.urgency,
     status: record.status,
     customer_message: record.customer_message.slice(0, 160),
+    last_message: last ? last.content.slice(0, 120) : null,
+    message_count: record.messages.length,
+    has_plan: Boolean(record.decision),
     recommended_option: record.decision?.options.find((option) => option.recommended)?.title ?? null,
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
 }
+
+const chatSchema = z
+  .object({
+    conversation_id: z.string().min(3).max(40).optional(),
+    message: z.string().trim().min(1).max(2000),
+    language: z.enum(LANGUAGE_CODES).optional(),
+  })
+  .strict();
+const newConversationSchema = z.object({ language: z.enum(LANGUAGE_CODES).optional() }).strict();
+const renameSchema = z.object({ title: z.string().trim().min(1).max(80) }).strict();
+
+caseRouter.post('/chat', requireAuth('case:create'), async (req, res) => {
+  const body = parseBody(chatSchema, req.body);
+  const record = await handleTurn(getPrincipal(req), body);
+  res.status(body.conversation_id ? 200 : 201).json(record);
+});
+
+caseRouter.post('/conversations', requireAuth('case:create'), (req, res) => {
+  const body = parseBody(newConversationSchema, req.body ?? {});
+  res.status(201).json(createConversation(getPrincipal(req), body.language));
+});
+
+caseRouter.patch('/cases/:caseId', requireAuth('case:create'), (req, res) => {
+  const body = parseBody(renameSchema, req.body);
+  const principal = getPrincipal(req);
+  const record = loadCaseForOwner(principal, String(req.params.caseId), 'case:create');
+  record.title = body.title;
+  record.title_locked = true;
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'conversation_renamed' });
+  updateCase(record);
+  res.json(summarize(record));
+});
+
+function assertDeletable(record: CaseRecord): void {
+  if (record.status === 'in_progress' || record.actions.some((action) => action.status === 'in_progress' || action.status === 'approved')) {
+    throw new HttpError(409, 'This conversation has a request in progress with a partner, so it cannot be deleted yet.');
+  }
+}
+
+caseRouter.delete('/cases/:caseId', requireAuth('case:create'), (req, res) => {
+  const principal = getPrincipal(req);
+  const record = loadCaseForOwner(principal, String(req.params.caseId), 'case:create');
+  assertDeletable(record);
+  deleteCase(record.case_id, principal.sub);
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'conversation_deleted' });
+  res.status(204).end();
+});
+
+caseRouter.delete('/conversations', requireAuth('case:create'), (req, res) => {
+  const principal = getPrincipal(req);
+  let deleted = 0;
+  let kept = 0;
+  for (const record of listCases(principal.sub)) {
+    try {
+      assertDeletable(record);
+      deleteCase(record.case_id, principal.sub);
+      deleted += 1;
+    } catch {
+      kept += 1;
+    }
+  }
+  recordAudit({ actor: principal.sub, event: 'conversations_deleted', detail: { deleted, kept } });
+  res.json({ deleted, kept });
+});
 
 caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) => {
   const body = parseBody(intakeSchema, req.body);
@@ -47,7 +118,11 @@ caseRouter.post('/cases/intake', requireAuth('case:create'), async (req, res) =>
 });
 
 caseRouter.get('/cases', requireAuth('case:read'), (req, res) => {
-  res.json({ cases: listCases(getPrincipal(req).sub).map(summarize) });
+  const cases = listCases(getPrincipal(req).sub)
+    .filter((record) => record.messages.length > 0)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .map(summarize);
+  res.json({ cases });
 });
 
 caseRouter.get('/support/cases', requireAuth('support:queue'), (_req, res) => {

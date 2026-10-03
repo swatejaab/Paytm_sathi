@@ -74,7 +74,7 @@ options:
 
 guidance:
   title: Term life cover check
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Cover needed is roughly 10 times annual income when someone depends on you, plus outstanding loans, minus savings and investments.
     - Subtract life cover you already have; buy pure term cover for the gap, not investment-linked plans.

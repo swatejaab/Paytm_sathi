@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, errorMessage } from '../api';
 import type { CreditScore, ScoreSimulation } from '../types';
 
 const ACTIONS: { id: ScoreSimulation['action']; label: string }[] = [
@@ -48,7 +48,7 @@ export function CreditScoreCard() {
       setCredit(await api.creditScore());
       setConsented(true);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not fetch your credit score.');
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -59,7 +59,7 @@ export function CreditScoreCard() {
     try {
       setSimulation(await api.simulateScore(action));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not run that scenario.');
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }

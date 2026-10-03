@@ -3,13 +3,19 @@ import { addTimeline, EVENT_LABELS, hasConsent, supersedePendingActions } from '
 import {
   calculateEmiShortfall,
   computeEmiDecision,
-  computeHospitalDecision,
   computeHumanOnlyDecision,
   computeUpiDecision,
+  formatDay,
   formatInr,
   parseStatedAmount,
+  plural,
 } from '../decision';
-import { sampleHospitalDocuments } from '../documents';
+import {
+  computeHospitalDecision,
+  type HospitalBillInput,
+  type HospitalInsuranceInput,
+  type SourcedValue,
+} from '../hospitalDecision';
 import {
   fixtures,
   PARTNERS,
@@ -17,12 +23,22 @@ import {
   type FinancialProfile,
   type LenderOffer,
   type LoanContext,
-  type SampleDocuments,
 } from '../fixtures';
 import { GatewayError } from '../mcp/errors';
 import { invokeTool } from '../mcp/gateway';
 import { recordAudit } from '../db';
-import type { AgentNodeId, AgentTrigger, CaseRecord, EvidencePassage, Playbook, Principal, Transaction } from '../types';
+import type {
+  AgentNodeId,
+  AgentTrigger,
+  CaseRecord,
+  EvidencePassage,
+  Playbook,
+  Principal,
+  Slot,
+  SlotSource,
+  SourceRef,
+  Transaction,
+} from '../types';
 import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionMessage } from './explainer';
 import { sarvamAvailable } from '../config';
 import { translateWithSarvam } from '../integrations';
@@ -50,8 +66,6 @@ interface Coverage {
 interface Gathered {
   profile?: FinancialProfile;
   clauses?: EvidencePassage[];
-  checklist?: { clause_id: string; page: number; missing: string[] };
-  bill?: SampleDocuments['bill'];
   coverage?: Coverage;
   playbook?: Playbook | null;
   transaction?: Transaction;
@@ -143,13 +157,16 @@ async function rulesText(record: CaseRecord): Promise<string> {
 
 const classifier = node('classifier', async (_state, context) => {
   const { record } = context;
-  const text = await rulesText(record);
-  if (text !== record.customer_message) record.message_for_rules = text;
-  const classification = classifyWithPlaybooks(text);
-  record.playbook_id = classification.playbook.id;
-  record.event_type = classification.event_type;
-  record.urgency = classification.urgency;
-  record.language = record.preferred_language ? 'en' : detectLanguage(record.customer_message);
+  // The conversation pipeline already understood the request; only uncategorised cases are classified here.
+  if (!record.playbook_id) {
+    const text = await rulesText(record);
+    if (text !== record.customer_message) record.message_for_rules = text;
+    const classification = classifyWithPlaybooks(text);
+    record.playbook_id = classification.playbook.id;
+    record.event_type = classification.event_type;
+    record.urgency = classification.urgency;
+  }
+  record.language = record.preferred_language ? 'en' : (record.language ?? detectLanguage(record.customer_message));
   addTimeline(record, {
     status: 'intake',
     title: 'Case opened',
@@ -157,8 +174,9 @@ const classifier = node('classifier', async (_state, context) => {
     actor: 'saathi',
   });
   recordAudit({ case_id: record.case_id, actor: context.principal.sub, event: 'case_created', detail: { event_type: record.event_type } });
+  const playbook = playbookForCase(record);
   return {
-    summary: `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency, language ${record.language}; playbook ${classification.playbook.id} v${classification.playbook.version} (${classification.playbook.engine}).`,
+    summary: `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency, language ${record.language}; playbook ${playbook.id} v${playbook.version} (${playbook.engine}).`,
   };
 });
 
@@ -177,7 +195,9 @@ const contextRetriever = node('context_retriever', async (state, context) => {
       title: 'Understanding the event',
       detail:
         record.event_type === 'hospitalization'
-          ? 'Hospitalization, high urgency. Loading the bill, policy, and cash context through the MCP gateway.'
+          ? record.context?.records
+            ? 'Hospital bill, high urgency. Using your insurer, hospital and bank records (read with your consent) and what you told Saathi.'
+            : 'Hospital bill, high urgency. Using the amounts from this conversation and loading your cash context through the MCP gateway.'
           : record.event_type === 'upi_dispute'
             ? 'Possible unrecognized UPI debit. Loading recent debits through the payments MCP.'
             : `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency.`,
@@ -199,7 +219,7 @@ const contextRetriever = node('context_retriever', async (state, context) => {
   }
   return {
     update: { gathered: { profile } },
-    summary: `Cash context loaded: ${formatInr(profile.available_to_pay_inr)} available now, ${formatInr(profile.emergency_savings_inr)} savings.${aaNote}`,
+    summary: `Account context loaded: ${formatInr(profile.emergency_savings_inr)} savings, ${formatInr(profile.monthly_income_inr)} monthly income.${aaNote}`,
   };
 });
 
@@ -209,46 +229,129 @@ const policyRag = node('policy_rag', async (_state, context) => {
     const playbook = await callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
     return { update: { gathered: { playbook } }, summary: playbook ? `Playbook ${playbook.playbook_id}: ${playbook.title}.` : 'No playbook found.' };
   }
+  if (!needsInsurerEstimate(record)) {
+    return { summary: 'No policy lookup needed: insurance is taken from what the customer said (or not counted).' };
+  }
   await callTool(context, 'insurer.get_policy');
   const clauses = await callTool<EvidencePassage[]>(context, 'knowledge.search_policy', {
     query: 'hospital inpatient claim room bill documents',
     top_k: 5,
   });
-  const checklist = await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
   return {
-    update: { gathered: { clauses, checklist } },
-    summary: `Cited clauses ${clauses.map((clause) => clause.clause_id).join(', ')}; claim checklist clause ${checklist.clause_id}.`,
+    update: { gathered: { clauses } },
+    summary: `Insurer estimate needed for the confirmed bill; cited clauses ${clauses.map((clause) => clause.clause_id).join(', ')}.`,
   };
 });
 
+const SLOT_SOURCE_TYPE: Record<SlotSource, SourceRef['type']> = {
+  customer_statement: 'customer_statement',
+  customer_choice: 'customer_statement',
+  uploaded_document: 'bill_line',
+  account_records: 'customer_profile',
+  insurer_estimate: 'policy_clause',
+  insurer_record: 'policy_clause',
+  hospital_record: 'bill_line',
+};
+
+function sourced(slot: Slot<number>): SourcedValue {
+  return {
+    value: slot.value,
+    source: { type: SLOT_SOURCE_TYPE[slot.source], ref: slot.ref },
+    confidence: slot.confidence,
+    confirmed_by_customer: slot.source === 'customer_statement' || slot.source === 'customer_choice',
+  };
+}
+
+// The hospital's own bill for the current admission, when that is the bill this plan uses.
+function admissionBill(record: CaseRecord) {
+  const admission = record.context?.records?.admission;
+  return admission && record.confirmed_bill?.document_id === admission.document_id ? admission : null;
+}
+
+// The bill to plan for: a bill the customer uploaded and confirmed, otherwise the amount they told Saathi.
+function hospitalBill(record: CaseRecord): HospitalBillInput | null {
+  const confirmed = record.confirmed_bill;
+  if (confirmed) {
+    const range = confirmed.lines.length > 1 ? `Lines ${confirmed.lines[0]!.line}-${confirmed.lines.at(-1)!.line}` : 'Bill total';
+    return {
+      value: confirmed.total_inr,
+      lines: confirmed.lines,
+      document_id: confirmed.document_id,
+      file_name: confirmed.document_name,
+      source: { type: 'bill_line', ref: range, document: confirmed.document_name },
+      confidence: 0.95,
+      confirmed_by_customer: true,
+    };
+  }
+  const slot = record.context?.slots.bill_inr;
+  return slot ? { ...sourced(slot), lines: null, document_id: null, file_name: null } : null;
+}
+
+// The insurer is asked for an estimate only when the customer is insured, has a policy on file, did not state
+// a cover amount, and there is an itemised bill (confirmed upload or the hospital's own record) to check.
+function needsInsurerEstimate(record: CaseRecord): boolean {
+  const slots = record.context?.slots;
+  return Boolean(slots?.has_insurance?.value && !slots.insurance_cover_inr && record.confirmed_bill && record.context?.records?.policy);
+}
+
+function hospitalEvidence(record: CaseRecord, clauses: EvidencePassage[]) {
+  const admission = admissionBill(record);
+  const documents = record.uploaded_documents.map((document) => ({
+    document_id: document.document_id,
+    document_type: document.document_type,
+    document_name: document.document_name,
+    text: document.text.slice(0, 4000),
+  }));
+  if (admission) {
+    documents.unshift({
+      document_id: admission.document_id,
+      document_type: 'bill',
+      document_name: admission.document_name,
+      text: [
+        `${admission.hospital}: ${admission.patient} (${admission.relation}), ${admission.ward}. ${admission.reason}.`,
+        ...admission.lines.map((line) => `Line ${line.line}: ${line.description} - ${formatInr(line.amount_inr)}`),
+        `Total: ${formatInr(admission.total_inr)}`,
+      ].join('\n'),
+    });
+  }
+  return {
+    demo_only: false,
+    documents,
+    retrieved_evidence: clauses,
+    missing_documents: admission?.missing_documents ?? [],
+    notice: admission
+      ? 'Figures come from your insurer, the hospital and your bank through Saathi partner connections (simulated for this prototype). The insurer decides the final claim amount.'
+      : clauses.length
+        ? 'Figures come from this conversation and the bill you confirmed. The insurer decides the final claim amount.'
+        : 'Figures come from what you told Saathi in this conversation. Upload a bill or policy to check them.',
+  };
+}
+
 const billAuditor = node('bill_auditor', async (state, context) => {
   const { record } = context;
-  const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
-  const lineTotal = bill.lines.reduce((sum, line) => sum + line.amount_inr, 0);
-  const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
-  const missing = state.gathered.checklist?.missing ?? [];
-  const findings = [
-    lineTotal === bill.total_inr ? `Lines reconcile to ${formatInr(bill.total_inr)}` : `Lines total ${formatInr(lineTotal)}, not ${formatInr(bill.total_inr)}`,
-  ];
-  const stated = parseStatedAmount(record.message_for_rules ?? record.customer_message);
-  if (stated && stated !== bill.total_inr) findings.push(`customer stated ${formatInr(stated)}`);
-  if (missing.length) findings.push(`missing: ${missing.join(', ')}`);
-
-  record.evidence = {
-    demo_only: true,
-    fixture_id: fixtures.documents.fixture_id,
-    documents: sampleHospitalDocuments(),
-    retrieved_evidence: state.gathered.clauses ?? [],
-    missing_documents: missing,
-    notice: 'Synthetic sample evidence; not a real coverage decision.',
-  };
+  const bill = hospitalBill(record);
+  if (!bill) throw new Error('The bill amount is missing, so the gap cannot be calculated yet.');
+  let coverage: Coverage | undefined;
+  if (needsInsurerEstimate(record) && bill.lines) {
+    coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.value, lines: billLines(bill.lines) });
+  }
+  const slots = record.context?.slots ?? {};
+  const insurance = coverage
+    ? `insurer estimate ${formatInr(coverage.estimated_coverage_inr)}`
+    : slots.insurance_cover_inr
+      ? `expected cover ${formatInr(slots.insurance_cover_inr.value)} (customer)`
+      : 'no insurance counted';
+  record.evidence = hospitalEvidence(record, state.gathered.clauses ?? []);
   addTimeline(record, {
     status: 'evidence_ready',
-    title: 'Evidence gathered',
-    detail: `Bill lines ${bill.lines.map((line) => line.line).join(', ')}, policy clauses ${(state.gathered.clauses ?? []).map((clause) => clause.clause_id).join(', ')}; missing: ${missing.join(', ') || 'none'}.`,
+    title: 'Facts gathered',
+    detail: `Bill ${formatInr(bill.value)} (${bill.file_name ?? 'as you told Saathi'}); ${insurance}.`,
     actor: 'saathi',
   });
-  return { update: { gathered: { bill, coverage } }, summary: `${findings.join('; ')}. Coverage estimate ${formatInr(coverage.estimated_coverage_inr)} (confidence ${coverage.confidence}).` };
+  return {
+    update: coverage ? { gathered: { coverage } } : {},
+    summary: `Bill ${formatInr(bill.value)} from ${bill.file_name ?? 'the conversation'}; ${insurance}.`,
+  };
 });
 
 const transactionAuditor = node('transaction_auditor', async (state, context) => {
@@ -260,7 +363,9 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
     match_stated_amount: true,
   };
   if (!state.transaction_id) {
-    const stated = picker.match_stated_amount ? parseStatedAmount(record.message_for_rules ?? record.customer_message) : null;
+    const stated = picker.match_stated_amount
+      ? (record.context?.slots.debit_inr?.value ?? parseStatedAmount(record.message_for_rules ?? record.customer_message))
+      : null;
     let candidates = await callTool<Transaction[]>(context, 'payments.list_transactions', {
       ...picker.filter,
       limit: 5,
@@ -270,24 +375,24 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
       candidates = await callTool<Transaction[]>(context, 'payments.list_transactions', { ...picker.filter, limit: 5 });
     }
     record.pending_question = { type: 'confirm_transaction', prompt: picker.prompt, candidates, mode: picker.mode };
-    addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${candidates.length} candidate debit(s).`, actor: 'saathi' });
+    addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${plural(candidates.length, 'matching debit')}.`, actor: 'saathi' });
     await addLocalizedMessage(
       record,
       pickTransactionMessage(record.language, candidates.length, stated, Boolean(stated && candidates.some((candidate) => candidate.amount_inr === stated))),
     );
-    return { summary: `${candidates.length} candidate debit(s); waiting for the customer to pick one.`, paused: 'awaiting_transaction' };
+    return { summary: `${plural(candidates.length, 'candidate debit')}; waiting for the customer to pick one.`, paused: 'awaiting_transaction' };
   }
 
   const transaction = await callTool<Transaction>(context, 'payments.get_transaction', { transaction_id: state.transaction_id });
   const playbook = await callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
   record.evidence = {
-    demo_only: true,
+    demo_only: false,
     documents: [],
     retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
     missing_documents: [],
     transaction,
     playbook,
-    notice: 'Synthetic transaction and playbook; dispute outcomes are simulated.',
+    notice: 'Transaction details from your payment records. Dispute outcomes are decided by the bank and payment network.',
   };
   addTimeline(record, {
     status: 'evidence_ready',
@@ -312,12 +417,12 @@ const emiAuditor = node('emi_auditor', async (state, context) => {
   const loan = loans.loans[0];
   const playbook = state.gathered.playbook ?? null;
   record.evidence = {
-    demo_only: true,
+    demo_only: false,
     documents: [],
     retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
     missing_documents: [],
     playbook,
-    notice: 'Synthetic loan account, salary schedule, and playbook; lender outcomes are simulated.',
+    notice: 'Loan and salary details from your records and this conversation. The lender decides any change to your EMI.',
   };
   addTimeline(record, {
     status: 'evidence_ready',
@@ -354,7 +459,27 @@ async function emiDecision(state: State, context: RunContext): Promise<string> {
   const offerSet = shortfall > 0
     ? await callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: shortfall })
     : null;
-  const { loans: _loans, ...loanContext } = loans;
+  const { loans: _loans, ...recorded } = loans;
+  const slots = record.context?.slots ?? {};
+  // The customer knows their payday best; a date they gave replaces the payroll schedule on record.
+  const loanContext = slots.salary_date
+    ? {
+        ...recorded,
+        salary: {
+          ...recorded.salary,
+          expected_date: slots.salary_date.value,
+          status: slots.salary_date.value > loan.next_due_date ? ('delayed' as const) : recorded.salary.status,
+          source: 'What you told Saathi',
+        },
+      }
+    : recorded;
+  const notes: string[] = [];
+  if (slots.emi_due_date && slots.emi_due_date.value !== loan.next_due_date) {
+    notes.push(`You mentioned the EMI is due on ${formatDay(slots.emi_due_date.value)}; the lender's records show ${formatDay(loan.next_due_date)}, so Saathi plans for the lender's date.`);
+  }
+  if (slots.emi_inr && slots.emi_inr.value !== loan.emi_inr) {
+    notes.push(`You mentioned an EMI of ${formatInr(slots.emi_inr.value)}; the lender's records show ${formatInr(loan.emi_inr)}.`);
+  }
   record.decision = computeEmiDecision({
     caseId: record.case_id,
     urgency: record.urgency,
@@ -366,6 +491,7 @@ async function emiDecision(state: State, context: RunContext): Promise<string> {
     lender: fixtures.loans.partner,
     playbook,
   });
+  record.decision.warnings.push(...notes);
   return `Formula ${record.decision.formula_version}; shortfall ${formatInr(shortfall)}`;
 }
 
@@ -387,47 +513,69 @@ function verificationNeeded(record: CaseRecord): { required: boolean; reason?: s
 
 async function hospitalDecision(state: State, context: RunContext): Promise<string> {
   const { record } = context;
-  const confirmed = record.confirmed_bill;
-  // A bill the customer uploaded and confirmed replaces the hospital record; coverage is re-checked against its total.
-  const bill: SampleDocuments['bill'] = confirmed
-    ? {
-        document_id: confirmed.document_id,
-        document_type: 'bill',
-        file_name: confirmed.document_name,
-        page: 1,
-        currency: 'INR',
-        total_inr: confirmed.total_inr,
-        lines: confirmed.lines,
-      }
-    : (state.gathered.bill ?? await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
-  const coverage =
-    (confirmed ? undefined : state.gathered.coverage) ??
-    await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
-  const checklist = state.gathered.checklist ?? await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
+  const bill = hospitalBill(record);
+  if (!bill) throw new Error('The bill amount is missing, so the gap cannot be calculated yet.');
+  const slots = record.context?.slots ?? {};
+  let insurance: HospitalInsuranceInput | null = null;
+  let coverage: Coverage | undefined;
+  if (slots.has_insurance?.value) {
+    if (slots.insurance_cover_inr) {
+      insurance = { ...sourced(slots.insurance_cover_inr), policy_document_id: null, policy_file_name: null, assumptions: [] };
+    } else if (needsInsurerEstimate(record) && bill.lines) {
+      coverage = state.gathered.coverage ?? await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.value, lines: billLines(bill.lines) });
+      insurance = {
+        value: coverage.estimated_coverage_inr,
+        source: { type: 'policy_clause', ref: `Clause ${coverage.clause_id}, page ${coverage.page}`, document: coverage.policy_file_name },
+        confidence: coverage.confidence,
+        policy_document_id: coverage.policy_document_id,
+        policy_file_name: coverage.policy_file_name,
+        assumptions: coverage.assumptions,
+      };
+    } else {
+      throw new Error('The expected insurance cover is missing, so the gap cannot be calculated yet.');
+    }
+  }
+  const contribution: SourcedValue = slots.self_pay_inr
+    ? sourced(slots.self_pay_inr)
+    : { value: 0, source: { type: 'customer_statement', ref: 'No amount set aside yet' }, confidence: 1 };
   const profile = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
-  const roughGap = Math.max(bill.total_inr - coverage.estimated_coverage_inr - profile.available_to_pay_inr, 0);
+  const gap = Math.max(bill.value - Math.min(insurance?.value ?? 0, bill.value) - contribution.value, 0);
   const offerSets: { offers: LenderOffer[]; rules: AffordabilityRules }[] = [];
-  for (const amount of [roughGap, bill.total_inr].filter((value) => value > 0)) {
+  for (const amount of [...new Set([gap, bill.value])].filter((value) => value > 0 && value <= 10_000_000)) {
     offerSets.push(await callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: amount }));
   }
   const offers = [...new Map(offerSets.flatMap((set) => set.offers).map((offer) => [offer.offer_id, offer])).values()];
+  const admission = admissionBill(record);
+  const flags = (coverage?.assessment.lines ?? [])
+    .filter((line) => line.status === 'capped')
+    .map(
+      (line) =>
+        `Room-rent cap (policy clause ${line.clause_id}): ${formatInr(line.not_payable_inr)} of "${line.description}" is above the daily room limit, so the insurer will not pay it.`,
+    );
 
   record.decision = computeHospitalDecision({
     caseId: record.case_id,
     urgency: record.urgency,
     bill,
-    coverage,
-    assumptions: coverage.assumptions,
-    claimChecklist: checklist,
+    insurance,
+    contribution,
     profile,
     offers,
     rules: offerSets[0]?.rules ?? fixtures.lending.affordability_rules,
-    partners: { insurer: PARTNERS.insurer, lender: PARTNERS.lender, hospital: PARTNERS.hospital },
-    statedAmountInr: parseStatedAmount(record.message_for_rules ?? record.customer_message),
+    partners: {
+      insurer: PARTNERS.insurer,
+      lender: PARTNERS.lender,
+      hospital: admission ? `${admission.hospital} (simulated)` : PARTNERS.hospital,
+    },
+    statedBillInr: record.context?.stated_bill_inr ?? null,
     verification: verificationNeeded(record),
+    missingDocuments: admission?.missing_documents ?? [],
+    mutualFunds: record.context?.records?.cash?.mutual_funds ?? [],
+    flags,
   });
-  record.decision.coverage_breakdown = coverage.assessment;
-  return `Formula ${record.decision.formula_version}; cover ${formatInr(coverage.estimated_coverage_inr)} (${coverage.assessment.rules_version}); gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
+  record.decision.coverage_breakdown = coverage?.assessment ?? null;
+  if (record.context) record.context.gap = record.decision.calculation;
+  return `Formula ${record.decision.formula_version}; bill ${formatInr(bill.value)}, cover ${formatInr(insurance?.value ?? 0)}, you pay ${formatInr(contribution.value)}; gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }
 
 const decision = node('decision', async (state, context) => {
@@ -463,12 +611,12 @@ const decision = node('decision', async (state, context) => {
   } else {
     const playbook = state.gathered.playbook ?? null;
     record.evidence = {
-      demo_only: true,
+      demo_only: false,
       documents: [],
       retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
       missing_documents: [],
       playbook,
-      notice: 'This journey has no automated playbook in the demo.',
+      notice: 'A Saathi specialist handles this situation with you.',
     };
     record.decision = computeHumanOnlyDecision({ eventType: record.event_type, urgency: record.urgency, playbook });
     detail = 'Specialist route';

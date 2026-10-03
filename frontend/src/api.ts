@@ -1,21 +1,26 @@
 import type {
-  AgentNodeInfo,
   CreditScore,
   ScoreSimulation,
   AffordabilityAssessment,
+  AssetsResponse,
   CashForecast,
-  PlaybookInfo,
   FinancialTwin,
   ProactiveAlert,
   AuditEvent,
   CaseRecord,
   CaseSummary,
+  DocumentItem,
   EvidenceResponse,
+  FinancialContext,
+  Goal,
+  GoalInput,
+  GoalStatus,
+  Insights,
   IntegrationStatus,
   Passport,
   Session,
   SessionUser,
-  ToolInfo,
+  StandingConsents,
 } from './types';
 
 export class ApiError extends Error {
@@ -52,14 +57,22 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
 }
 
-function detailMessage(data: unknown): string | null {
+export const GENERIC_ERROR = 'Something went wrong while processing your request. Please try again.';
+const OFFLINE_ERROR = "Saathi can't be reached right now. Check your connection and try again.";
+
+// Only short, customer-readable details are shown. Server faults and validation internals become a plain message.
+function detailMessage(status: number, data: unknown): string {
+  if (status >= 500) return GENERIC_ERROR;
   const detail = (data as { detail?: unknown } | null)?.detail;
-  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'string' && detail.length <= 200) return detail;
   if (Array.isArray(detail)) {
-    return detail.map((item) => `${(item.loc ?? []).join('.')}: ${item.msg}`).join('; ');
+    const messages = detail.map((item: { msg?: unknown }) => (typeof item.msg === 'string' ? item.msg : '')).filter(Boolean);
+    if (messages.length) return `Please check your details: ${messages.slice(0, 2).join('; ')}`;
   }
-  return null;
+  return GENERIC_ERROR;
 }
+
+export const errorMessage = (caught: unknown): string => (caught instanceof ApiError ? caught.message : GENERIC_ERROR);
 
 async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const headers = new Headers(init.headers);
@@ -73,7 +86,7 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
   try {
     response = await fetch(path, { ...init, headers, body });
   } catch {
-    throw new ApiError(0, 'Saathi API is unreachable. Start the backend with "npm run dev".');
+    throw new ApiError(0, OFFLINE_ERROR);
   }
   const text = await response.text();
   let data: unknown = null;
@@ -83,44 +96,58 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
     data = null;
   }
   if (response.status === 401 && token) onUnauthorized?.();
-  if (!response.ok) throw new ApiError(response.status, detailMessage(data) ?? `Request failed (${response.status}).`);
+  if (!response.ok) throw new ApiError(response.status, detailMessage(response.status, data));
   return data as T;
 }
 
 const post = <T>(path: string, json: unknown = {}) => request<T>(path, { method: 'POST', json });
+const patch = <T>(path: string, json: unknown) => request<T>(path, { method: 'PATCH', json });
+const remove = (path: string) => request<null>(path, { method: 'DELETE' });
 
 export const api = {
-  health: () => request<{ status: string; service: string }>('/api/health'),
   integrations: () => request<IntegrationStatus>('/api/integrations/status'),
-  demoUsers: () => request<{ users: SessionUser[] }>('/api/auth/demo-users'),
+  accounts: () => request<{ users: SessionUser[] }>('/api/auth/demo-users'),
   login: (user_id: string, passcode: string) =>
     post<{ access_token: string; expires_in: number; user: SessionUser }>('/api/auth/login', { user_id, passcode }),
   listCases: () => request<{ cases: CaseSummary[] }>('/api/cases'),
   supportCases: () => request<{ cases: CaseSummary[] }>('/api/support/cases'),
   getCase: (caseId: string) => request<CaseRecord>(`/api/cases/${caseId}`),
-  createCase: (message: string, consent: boolean, language?: string) =>
-    post<CaseRecord>('/api/cases/intake', { message, consent_to_read_case_data: consent, ...(language ? { language } : {}) }),
-  chat: (caseId: string, message: string, language?: string) =>
-    post<CaseRecord>(`/api/cases/${caseId}/chat`, { message, confirm_external_processing: true, ...(language ? { language } : {}) }),
+  // Every chat message, typed, spoken, or tapped, goes through this one pipeline unchanged.
+  chat: (message: string, conversationId?: string | null, language?: string) =>
+    post<CaseRecord>('/api/chat', {
+      message,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+      ...(language ? { language } : {}),
+    }),
+  newConversation: (language?: string) => post<CaseRecord>('/api/conversations', language ? { language } : {}),
+  renameConversation: (caseId: string, title: string) => patch<CaseSummary>(`/api/cases/${caseId}`, { title }),
+  deleteConversation: (caseId: string) => remove(`/api/cases/${caseId}`),
+  deleteAllConversations: () => request<{ deleted: number; kept: number }>('/api/conversations', { method: 'DELETE' }),
+  goals: () => request<{ goals: Goal[] }>('/api/goals'),
+  createGoal: (goal: GoalInput) => post<Goal>('/api/goals', goal),
+  updateGoal: (goalId: string, changes: Partial<GoalInput> & { status?: GoalStatus }) => patch<Goal>(`/api/goals/${goalId}`, changes),
+  deleteGoal: (goalId: string) => remove(`/api/goals/${goalId}`),
+  insights: () => request<Insights>('/api/insights'),
+  financialContext: () => request<FinancialContext>('/api/financial-context'),
+  documents: () => request<{ documents: DocumentItem[] }>('/api/documents'),
+  consents: () => request<StandingConsents>('/api/consents'),
+  setConsents: (changes: Partial<StandingConsents>) => post<StandingConsents>('/api/consents', changes),
   speak: (text: string, language_code: string) =>
     post<{ audio_base64: string; mime_type: string }>('/api/voice/speak', { text, language_code, consent: true }),
   setConsent: (caseId: string, granted: boolean) =>
     post<CaseRecord>(`/api/cases/${caseId}/consents`, { purpose: 'prepare_resolution_options', granted }),
   confirmTransaction: (caseId: string, transaction_id: string, recognized: boolean) =>
     post<CaseRecord>(`/api/cases/${caseId}/transaction-confirmation`, { transaction_id, recognized }),
-  handoff: (caseId: string) => post<CaseRecord>(`/api/cases/${caseId}/handoff`, {}),
+  handoff: (caseId: string, reason?: string) => post<CaseRecord>(`/api/cases/${caseId}/handoff`, reason ? { reason } : {}),
   passport: (caseId: string) => request<Passport>(`/api/cases/${caseId}/passport`),
   audit: (caseId: string) => request<{ events: AuditEvent[] }>(`/api/cases/${caseId}/audit`),
-  tools: () => request<{ tools: ToolInfo[] }>('/api/mcp/tools'),
-  playbooks: () => request<{ playbooks: PlaybookInfo[] }>('/api/playbooks'),
-  agentGraph: () => request<{ graph: string; engine: string; nodes: AgentNodeInfo[] }>('/api/agent/graph'),
   evidence: (caseId: string) => request<EvidenceResponse>(`/api/cases/${caseId}/evidence`),
   uploadDocument: (caseId: string, documentType: 'bill' | 'policy', file: File, ocrConsent = false) => {
     const form = new FormData();
     form.append('document_type', documentType);
     if (ocrConsent) form.append('ocr_consent', 'true');
     form.append('file', file);
-    return request<{ document_name: string; page_count: number }>(`/api/cases/${caseId}/documents`, { method: 'POST', body: form });
+    return request<{ document_id: string; document_name: string; page_count: number }>(`/api/cases/${caseId}/documents`, { method: 'POST', body: form });
   },
   analyze: (caseId: string) => post<{ analysis: unknown }>(`/api/cases/${caseId}/analyze`, { confirm_external_processing: true }),
   transcribe: (audio: Blob, filename: string, language?: string) => {
@@ -144,6 +171,9 @@ export const api = {
   creditScore: () => post<CreditScore>('/api/credit/score', { consent: true }),
   simulateScore: (action: ScoreSimulation['action']) => post<ScoreSimulation>('/api/credit/simulate', { consent: true, action }),
   afford: (question: string) => post<AffordabilityAssessment>('/api/afford', { question }),
+  assets: () => request<AssetsResponse>('/api/assets'),
+  linkAssets: (body: { pan?: string; use_kyc_pan?: boolean }) => post<AssetsResponse>('/api/assets/link', { ...body, consent: true }),
+  unlinkAssets: () => request<AssetsResponse>('/api/assets/link', { method: 'DELETE' }),
   alerts: () => request<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts'),
   setAlerts: (enabled: boolean) => post<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts/settings', { enabled }),
   dismissAlert: (alertId: string) =>

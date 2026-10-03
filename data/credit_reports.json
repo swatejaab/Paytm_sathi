@@ -7,10 +7,54 @@
       "as_of": "2026-10-01",
       "accounts": [
         {
+          "account_id": "CC-PAYTM-5521",
+          "type": "credit_card",
+          "secured": false,
+          "lender": "Paytm credit card",
+          "opened": "2019-06-14",
+          "limit_inr": 60000,
+          "outstanding_inr": 6420,
+          "status": "active"
+        }
+      ],
+      "payment_history": {
+        "on_time_payments": 72,
+        "late_payments": []
+      },
+      "enquiries_6m": 0,
+      "new_accounts_6m": 0
+    },
+    "demo-customer-02": {
+      "report_id": "CR-DEMO-02",
+      "as_of": "2026-10-01",
+      "accounts": [
+        {
+          "account_id": "CC-PAYTM-2290",
+          "type": "credit_card",
+          "secured": false,
+          "lender": "Paytm credit card",
+          "opened": "2018-04-20",
+          "limit_inr": 150000,
+          "outstanding_inr": 8200,
+          "status": "active"
+        }
+      ],
+      "payment_history": {
+        "on_time_payments": 96,
+        "late_payments": []
+      },
+      "enquiries_6m": 0,
+      "new_accounts_6m": 0
+    },
+    "demo-customer-03": {
+      "report_id": "CR-DEMO-03",
+      "as_of": "2026-10-01",
+      "accounts": [
+        {
           "account_id": "LN-TW-4471",
           "type": "two_wheeler_loan",
           "secured": true,
-          "lender": "Synthetic NBFC (demo)",
+          "lender": "Consumer finance NBFC",
           "opened": "2024-08-05",
           "sanctioned_inr": 300000,
           "outstanding_inr": 214000,
@@ -20,7 +64,7 @@
           "account_id": "CC-PAYTM-1182",
           "type": "credit_card",
           "secured": false,
-          "lender": "Paytm credit card (demo)",
+          "lender": "Paytm credit card",
           "opened": "2022-07-12",
           "limit_inr": 40000,
           "outstanding_inr": 13500,
@@ -38,28 +82,6 @@
         ]
       },
       "enquiries_6m": 1,
-      "new_accounts_6m": 0
-    },
-    "demo-customer-02": {
-      "report_id": "CR-DEMO-02",
-      "as_of": "2026-10-01",
-      "accounts": [
-        {
-          "account_id": "CC-PAYTM-2290",
-          "type": "credit_card",
-          "secured": false,
-          "lender": "Paytm credit card (demo)",
-          "opened": "2018-04-20",
-          "limit_inr": 150000,
-          "outstanding_inr": 8200,
-          "status": "active"
-        }
-      ],
-      "payment_history": {
-        "on_time_payments": 96,
-        "late_payments": []
-      },
-      "enquiries_6m": 0,
       "new_accounts_6m": 0
     }
   }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api';
-import { factValue, sourceLabel } from '../format';
-import type { CaseRecord, EvidenceResponse, IntegrationStatus } from '../types';
+import { api, errorMessage } from '../api';
+import { factValue, sourceLabel, sourceTypeLabel } from '../format';
+import type { CaseRecord, EvidencePassage, EvidenceResponse, IntegrationStatus } from '../types';
 import { hasActiveConsent } from './CasePanel';
+import { LOW_CONFIDENCE } from './WhyPlan';
 
 type Run = (operation: () => Promise<CaseRecord>) => Promise<void>;
 
@@ -15,12 +16,17 @@ interface Props {
 }
 
 function Confidence({ value }: { value: number }) {
-  const level = value >= 0.9 ? 'high' : value >= 0.75 ? 'medium' : 'low';
+  const level = value >= 0.9 ? 'high' : value >= LOW_CONFIDENCE ? 'medium' : 'low';
   return (
-    <span className={`confidence confidence-${level}`} title={`Confidence ${value}`}>
-      {Math.round(value * 100)}%
+    <span className={`confidence confidence-${level}`} title="How sure Saathi is about this value">
+      {level === 'high' ? 'High' : level === 'medium' ? 'Medium' : 'Low'}
     </span>
   );
+}
+
+function citation(passage: EvidencePassage): string {
+  const where = passage.clause_id ? `Section ${passage.clause_id}` : `Page ${passage.page}`;
+  return `${passage.document_name} · ${where}`;
 }
 
 export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: Props) {
@@ -69,7 +75,7 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
       await api.analyze(caseRecord.case_id);
       await run(() => api.getCase(caseRecord.case_id));
     } catch (caught) {
-      setAiError(caught instanceof ApiError ? caught.message : 'Evidence analysis failed. No financial action was started.');
+      setAiError(errorMessage(caught));
     } finally {
       setAiBusy(false);
     }
@@ -82,52 +88,60 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
       {facts.length > 0 && (
         <section>
           <h3>Facts behind the plan</h3>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Fact</th>
-                <th>Value</th>
-                <th>Source</th>
-                <th>Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {facts.map((fact, index) => (
-                <tr key={`${fact.name}-${index}`} className={fact.assumption ? 'assumption' : ''}>
-                  <td>
-                    {fact.label}
-                    {fact.assumption && <span className="badge badge-amber">Assumption</span>}
-                    {fact.confirmed_by_customer && <span className="badge badge-green">You confirmed</span>}
-                  </td>
-                  <td>
-                    <strong>{factValue(fact)}</strong>
-                  </td>
-                  <td className="source">
-                    <span className="source-type">{fact.source.type.replace(/_/g, ' ')}</span>
-                    {sourceLabel(fact.source)}
-                  </td>
-                  <td>
-                    <Confidence value={fact.confidence} />
-                  </td>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fact</th>
+                  <th>Value</th>
+                  <th>Source</th>
+                  <th>Confidence</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {facts.map((fact, index) => (
+                  <tr key={`${fact.name}-${index}`} className={fact.assumption ? 'assumption' : ''}>
+                    <td>
+                      {fact.label}
+                      {fact.assumption && <span className="badge badge-amber">Assumption</span>}
+                      {fact.confirmed_by_customer && <span className="badge badge-green">You confirmed</span>}
+                      {fact.confidence < LOW_CONFIDENCE && (
+                        <small className="low-confidence">
+                          I couldn't confidently determine this from your {fact.source.type === 'policy_clause' ? 'policy' : 'documents'}. Please
+                          confirm it before relying on the plan.
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <strong>{factValue(fact)}</strong>
+                    </td>
+                    <td className="source">
+                      <span className="source-type">{sourceTypeLabel(fact.source.type)}</span>
+                      {sourceLabel(fact.source)}
+                    </td>
+                    <td>
+                      <Confidence value={fact.confidence} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       {evidence && evidence.retrieved_evidence.length > 0 && (
         <section>
-          <h3>Cited sources</h3>
+          <h3>Sources</h3>
           {evidence.retrieved_evidence.map((passage) => (
-            <blockquote key={`${passage.document_id}-${passage.clause_id ?? passage.page}`} className="citation">
-              <strong>
-                {passage.clause_id ? `Clause ${passage.clause_id} / page ${passage.page}` : `${passage.document_name} / page ${passage.page}`}
-              </strong>
-              {passage.title && <small>{passage.title}</small>}
+            <details key={`${passage.document_id}-${passage.clause_id ?? passage.page}`} className="citation">
+              <summary>
+                <strong>{citation(passage)}</strong>
+                {passage.title && <small>{passage.title}</small>}
+              </summary>
               <p>{passage.text}</p>
-              <small className="muted">{passage.document_name}</small>
-            </blockquote>
+              <small className="muted">Page {passage.page}</small>
+            </details>
           ))}
         </section>
       )}
@@ -154,8 +168,8 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
         <details className="card-inset">
           <summary>Add a bill or policy</summary>
           <p className="muted small">
-            Text-based PDF, TXT, JSON, or a JPG/PNG photo of a page. Maximum 5 MB each, four per case. Use synthetic files only.
-            Uploaded documents pause automated steps until a specialist verifies them.
+            PDF, text file, or a photo of a page. Up to 5 MB each and four per conversation. Saathi keeps only the extracted text, with
+            contact details removed.
           </p>
           <div className="upload-grid">
             <label className="field">
@@ -171,8 +185,8 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
             <label className="checkbox">
               <input type="checkbox" checked={ocrConsent} onChange={(event) => setOcrConsent(event.target.checked)} />
               {integrations.openai_available
-                ? 'Allow OpenAI to read the text in my photos. Only the extracted text is kept, with contact details redacted.'
-                : 'Photo OCR needs OpenAI, which is not configured. Upload a text-based PDF instead.'}
+                ? 'Allow Saathi to read the text in my photos with an AI service. Only the extracted text is kept, with contact details removed.'
+                : "Photos can't be read right now. Please upload a PDF or text file instead."}
             </label>
           )}
           <button
@@ -188,13 +202,13 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
 
       {integrations.openai_available && !readOnly && (
         <details className="card-inset">
-          <summary>Ask OpenAI to summarize the evidence</summary>
+          <summary>Get an AI summary of your documents</summary>
           <label className="checkbox">
-            <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />I consent to sending the
-            redacted case text and relevant evidence to OpenAI for this analysis.
+            <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />I agree to send the
+            redacted conversation text and documents to an AI service for this summary.
           </label>
           <button className="btn" disabled={!aiConsent || aiBusy} onClick={analyze}>
-            {aiBusy ? 'Analyzing...' : 'Analyze evidence'}
+            {aiBusy ? 'Reading your documents...' : 'Summarize'}
           </button>
           {aiError && <p className="alert alert-error">{aiError}</p>}
         </details>
@@ -226,7 +240,7 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
 
       {!readOnly && consented && (
         <div className="row space-between consent-row">
-          <span className="muted small">Consent: prepare resolution options (granted)</span>
+          <span className="muted small">You allowed Saathi to read your records for this conversation.</span>
           <button className="link danger" disabled={busy} onClick={() => run(() => api.setConsent(caseRecord.case_id, false))}>
             Revoke consent
           </button>

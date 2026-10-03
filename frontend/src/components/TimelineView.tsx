@@ -14,7 +14,7 @@ export function TimelineView({ caseRecord }: { caseRecord: CaseRecord }) {
     <div>
       {caseRecord.status === 'in_progress' && (
         <p className="alert alert-info">
-          <span className="live-dot" /> Live. Partner updates appear here as signed callbacks arrive.
+          <span className="live-dot" /> Live. Partner updates (simulated) appear here as they arrive.
         </p>
       )}
       <ol className="timeline">

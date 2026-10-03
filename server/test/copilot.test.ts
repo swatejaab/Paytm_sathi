@@ -6,7 +6,7 @@ import { api, bearer, login } from './helpers';
 
 describe('cash-flow copilot', () => {
   it('forecasts the pre-payday crunch day by day', () => {
-    const forecast = buildForecast('demo-customer-01')!;
+    const forecast = buildForecast('demo-customer-03')!;
     assert.equal(forecast.payday, '2026-10-10');
     assert.equal(forecast.first_negative_date, '2026-10-05');
     assert.deepEqual(forecast.lowest, { date: '2026-10-07', balance_inr: -18100 });
@@ -17,7 +17,7 @@ describe('cash-flow copilot', () => {
   });
 
   it('prices fixes and finds the cheapest plan, plus one without a new loan', () => {
-    const forecast = buildForecast('demo-customer-01')!;
+    const forecast = buildForecast('demo-customer-03')!;
     const ids = forecast.fixes.map((fix) => fix.id);
     assert.ok(ids.includes('shift_emi') && ids.includes('card_minimum') && ids.includes('bridge_loan'));
     assert.deepEqual(forecast.best_plan?.fix_ids, ['bridge_loan']);
@@ -26,7 +26,7 @@ describe('cash-flow copilot', () => {
   });
 
   it('answers what-if questions', () => {
-    const later = buildForecast('demo-customer-01', { salary_delay_days: 5 })!;
+    const later = buildForecast('demo-customer-03', { salary_delay_days: 5 })!;
     assert.equal(later.payday, '2026-10-15');
     assert.ok(later.crunch_inr > 18100);
     const healthy = buildForecast('demo-customer-02')!;
@@ -51,14 +51,14 @@ describe('can I afford it', () => {
     assert.equal(arjun.scenarios.find((scenario) => scenario.id === 'wait')?.months, 2);
     assert.equal(arjun.warning, null);
 
-    const riya = assessAffordability('demo-customer-01', { amount_inr: 120000, item: 'iPhone' })!;
+    const riya = assessAffordability('demo-customer-03', { amount_inr: 120000, item: 'iPhone' })!;
     assert.equal(riya.scenarios.find((scenario) => scenario.id === 'cash')?.status, 'not_possible');
     assert.equal(riya.recommended_id, 'card_emi');
-    assert.match(riya.warning ?? '', /INR 18,100 short/);
+    assert.match(riya.warning ?? '', /₹18,100 short/);
   });
 
   it('blocks credit that fails the affordability rules', () => {
-    const riya = assessAffordability('demo-customer-01', { amount_inr: 1500000, item: 'car', category: 'vehicle' })!;
+    const riya = assessAffordability('demo-customer-03', { amount_inr: 1500000, item: 'car', category: 'vehicle' })!;
     assert.equal(riya.verdict, 'not_now');
     assert.ok(riya.scenarios.every((scenario) => scenario.status !== 'comfortable' && scenario.status !== 'manageable'));
   });

@@ -14,7 +14,7 @@ async function prepare(token: string, caseId: string, optionId: string): Promise
   return response.body as CaseRecord;
 }
 
-const customer = { sub: 'demo-customer-01', role: 'customer' as const, display_name: 'Riya', scopes: ['case:read'] };
+const customer = { sub: 'demo-customer-01', role: 'customer' as const, display_name: 'Neha', scopes: ['case:read'] };
 
 describe('approval-bound actions', () => {
   test('approving the exact payload submits steps and the simulated partner resolves the case', async () => {
@@ -25,8 +25,9 @@ describe('approval-bound actions', () => {
     const action = prepared.actions.at(-1)!;
     assert.deepEqual(
       action.payload.steps.map((step) => step.tool),
-      ['hospital.request_document', 'claim.submit', 'payments.create_link', 'lending.submit_application'],
+      ['claim.submit', 'hospital.request_document', 'payments.create_link', 'lending.submit_application'],
     );
+    assert.equal(action.payload.steps.find((step) => step.tool === 'payments.create_link')?.amount_inr, 10000);
     assert.equal(action.payload.steps.find((step) => step.tool === 'lending.submit_application')?.amount_inr, 15000);
 
     const wrongHash = await api()

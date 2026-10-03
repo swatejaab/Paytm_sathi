@@ -88,8 +88,8 @@ describe('case intake and workflow', () => {
     const token = await login();
     const record = await createCase(token, 'I want help understanding my monthly money.');
     assert.equal(record.event_type, 'general_financial_support');
-    assert.equal(record.decision?.calculation, null);
-    assert.equal(record.decision?.recommended_option_id, 'human_support');
+    assert.equal(record.decision, null);
+    assert.doesNotMatch(record.assistant_message, /hospital|insurance|₹80,000/i);
     const evidence = await api().get(`/api/cases/${record.case_id}/evidence`).set(bearer(token));
     assert.deepEqual(evidence.body.documents, []);
     assert.equal(evidence.body.calculation, null);
@@ -138,7 +138,14 @@ describe('case intake and workflow', () => {
     const passport = await api().get(`/api/cases/${record.case_id}/passport`).set(bearer(token));
     assert.equal(passport.status, 200);
     assert.equal(passport.body.calculation.exact_gap_inr, 15000);
-    assert.ok(passport.body.evidence_sources.some((source: { clause_id?: string }) => source.clause_id === '3.1'));
+    assert.ok(
+      passport.body.evidence_sources.some(
+        (source: { document_name: string; clause_id: string }) => source.clause_id === '3.2' && /insurer record/.test(source.document_name),
+      ),
+      "the insurer's policy clauses are cited",
+    );
+    assert.deepEqual(passport.body.documents, [], 'nothing was uploaded by the customer');
+    assert.deepEqual(passport.body.missing_documents, ['Discharge summary']);
   });
 
   test('human handoff routes the case to the support queue', async () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, errorMessage } from '../api';
 import { inr } from '../format';
 import type { AffordabilityAssessment } from '../types';
 
@@ -27,7 +27,7 @@ export function AffordCard() {
       setResult(await api.afford(text));
     } catch (caught) {
       setResult(null);
-      setError(caught instanceof ApiError ? caught.message : 'Could not check that purchase.');
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -35,7 +35,7 @@ export function AffordCard() {
 
   return (
     <section className="card home-section afford" id="afford">
-      <p className="eyebrow">ASK / PROTECT</p>
+      <p className="eyebrow">Purchase check</p>
       <h3>Can I afford it?</h3>
       <div className="composer">
         <textarea

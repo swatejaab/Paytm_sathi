@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 import { settings } from '../src/config';
 import { analyzeCaseWithOpenAI, providers, transcribeWithSarvam } from '../src/integrations';
-import { api, bearer, buildPdf, createCase, login } from './helpers';
+import { api, bearer, buildPdf, chat, createCase, login, RIYA } from './helpers';
 
 const originalSettings = { ...settings };
 const originalProviders = { ...providers };
@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('document evidence', () => {
   test('uploaded policy evidence cites its own page and gates automated steps', async () => {
-    const token = await login();
+    const token = await login(...RIYA);
     const record = await createCase(token, 'Papa is in hospital. Please help with the policy and bill.');
     const upload = await api()
       .post(`/api/cases/${record.case_id}/documents`)
@@ -33,9 +33,16 @@ describe('document evidence', () => {
     assert.notEqual(citation.document_id, 'POLICY-DEMO-001');
     assert.equal(evidence.demo_only, false);
 
-    const updated = (await api().get(`/api/cases/${record.case_id}`).set(bearer(token))).body;
-    assert.equal(updated.decision.requires_verification, true);
-    assert.equal(updated.decision.recommended_option_id, 'human_support');
+    const afterUpload = (await api().get(`/api/cases/${record.case_id}`).set(bearer(token))).body;
+    assert.equal(afterUpload.context.slots.has_insurance.value, true);
+    assert.match(afterUpload.assistant_message, /couldn't confidently determine your coverage/);
+
+    await chat(token, 'Insurance should cover about ₹40,000', record.case_id);
+    await chat(token, 'The bill is ₹70,000', record.case_id);
+    const updated = await chat(token, 'I can pay ₹5,000', record.case_id);
+    assert.equal(updated.decision?.calculation?.exact_gap_inr, 25000);
+    assert.equal(updated.decision?.requires_verification, true);
+    assert.equal(updated.decision?.recommended_option_id, 'human_support');
   });
 
   test('PDF upload extracts page text without storing the original file', async () => {

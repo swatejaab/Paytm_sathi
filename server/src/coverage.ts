@@ -86,8 +86,8 @@ export function assessCoverage(lines: CoverageBillLine[], schedule: CoverageSche
         clause_id: schedule.room_clause_id,
         reason:
           payable < line.amount_inr
-            ? `${days} day(s) at ${inr(line.amount_inr / days)} a day; the policy pays up to ${inr(schedule.room_rent_limit_per_day_inr)} a day (${inr(cap)}).`
-            : `${days} day(s) within the ${inr(schedule.room_rent_limit_per_day_inr)} daily room limit.`,
+            ? `${days} day${days === 1 ? '' : 's'} at ${inr(line.amount_inr / days)} a day; the policy pays up to ${inr(schedule.room_rent_limit_per_day_inr)} a day (${inr(cap)}).`
+            : `${days} day${days === 1 ? '' : 's'} within the ${inr(schedule.room_rent_limit_per_day_inr)} daily room limit.`,
       };
     }
 

@@ -1,7 +1,7 @@
 import { extractText, getDocumentProxy } from 'unpdf';
-import { fixtures } from './fixtures';
+import { healthRecordsFor } from './fixtures';
 import { redactContactIdentifiers } from './redaction';
-import type { EvidenceDocument, EvidencePassage, UploadedDocument } from './types';
+import type { EvidencePassage, UploadedDocument } from './types';
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_PAGES = 20;
@@ -89,8 +89,9 @@ function overlap(a: Set<string>, b: Set<string>): number {
   return count;
 }
 
-export function retrievePolicyClauses(query: string, topK = 3): EvidencePassage[] {
-  const policy = fixtures.documents.policy;
+export function retrievePolicyClauses(customerId: string, query: string, topK = 3): EvidencePassage[] {
+  const { policy } = healthRecordsFor(customerId);
+  if (!policy) return [];
   const queryTerms = terms(query);
   return policy.clauses
     .map((clause, index) => ({ clause, index, score: overlap(queryTerms, terms(`${clause.title} ${clause.text}`)) }))
@@ -151,24 +152,4 @@ export function retrieveUploadedPassages(
 
 export function uploadedEvidenceQuery(customerMessage: string): string {
   return `${customerMessage} insurance policy coverage hospital inpatient claim documents`;
-}
-
-export function sampleHospitalDocuments(): EvidenceDocument[] {
-  const { bill, policy } = fixtures.documents;
-  return [
-    {
-      document_id: bill.document_id,
-      document_type: 'bill',
-      document_name: bill.file_name,
-      text: bill.lines.map((line) => `Line ${line.line}: ${line.description} - INR ${line.amount_inr}`).join('\n'),
-    },
-    {
-      document_id: policy.document_id,
-      document_type: 'policy',
-      document_name: policy.file_name,
-      text: policy.clauses
-        .map((clause) => `Clause ${clause.clause_id} (page ${clause.page}), ${clause.title}: ${clause.text}`)
-        .join('\n'),
-    },
-  ];
 }

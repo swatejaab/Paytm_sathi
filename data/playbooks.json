@@ -5,7 +5,7 @@
       "playbook_id": "PB-HOSP-CLAIM-01",
       "event_type": "hospitalization",
       "title": "Hospital bill with an insurance funding gap",
-      "source": "Saathi demo playbook v1",
+      "source": "Saathi playbook v1",
       "steps": [
         "Collect the itemized final bill and the health policy schedule.",
         "Check eligible inpatient expenses, room category limits, and claim document requirements.",
@@ -18,7 +18,7 @@
       "playbook_id": "PB-UPI-UNAUTH-01",
       "event_type": "upi_dispute",
       "title": "Unrecognized UPI debit",
-      "source": "Saathi demo playbook v1",
+      "source": "Saathi playbook v1",
       "steps": [
         "Confirm the debit is unfamiliar and note the transaction reference, time, and counterparty.",
         "Block or pause UPI in the payment app and change the UPI PIN.",
@@ -31,7 +31,7 @@
       "playbook_id": "PB-EMI-SHORT-01",
       "event_type": "emi_shortfall",
       "title": "EMI shortfall this month",
-      "source": "Saathi demo playbook v1",
+      "source": "Saathi playbook v1",
       "steps": [
         "Confirm the EMI amount, due date, and the expected shortfall.",
         "Check whether essential spending can be deferred without penalties.",

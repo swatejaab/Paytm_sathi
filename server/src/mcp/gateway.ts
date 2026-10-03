@@ -101,7 +101,11 @@ export async function invokeTool<T = unknown>(name: string, rawInput: Record<str
 
 // Account-level reads (not tied to a case), such as a soft credit check. Only allowlisted read tools,
 // only for the signed-in customer's own data, only with explicit consent on that request; always audited.
-const ACCOUNT_TOOLS = new Set(['bureau.get_credit_report', 'bureau.simulate_score']);
+const ACCOUNT_TOOLS = new Map([
+  ['bureau.get_credit_report', { purpose: 'self_check', consent: 'A soft credit check needs your explicit consent.' }],
+  ['bureau.simulate_score', { purpose: 'self_check', consent: 'A soft credit check needs your explicit consent.' }],
+  ['aa.fetch_holdings', { purpose: 'net_worth', consent: 'Linking your investments needs your explicit consent.' }],
+]);
 
 export async function invokeAccountTool<T = unknown>(
   name: string,
@@ -129,12 +133,13 @@ export async function invokeAccountTool<T = unknown>(
   }
   const parsed = tool.input.safeParse(rawInput);
   if (!parsed.success) throw denial('invalid_input', parsed.error.issues.map((issue) => issue.message).join('; '));
-  if (principal.role !== 'customer') throw denial('case_scope', 'Only the account owner can read their own credit report.');
+  const rule = ACCOUNT_TOOLS.get(name)!;
+  if (principal.role !== 'customer') throw denial('case_scope', 'Only the account owner can read their own financial records.');
   if (!principal.scopes.includes(tool.scope)) throw denial('scope', `Missing scope ${tool.scope}.`);
-  if (!options.consent) throw denial('consent_required', 'A soft credit check needs your explicit consent.');
+  if (!options.consent) throw denial('consent_required', rule.consent);
   try {
     const result = await callPartnerTool<T>(tool.server, name, parsed.data, { customer_id: principal.sub, case_id: 'ACCOUNT' });
-    audit('allow', { purpose: 'self_check' });
+    audit('allow', { purpose: rule.purpose });
     return result;
   } catch (error) {
     if (error instanceof GatewayError) throw denial(error.code, error.message);

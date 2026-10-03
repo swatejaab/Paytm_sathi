@@ -18,23 +18,15 @@ export function buildPassport(record: CaseRecord): ResolutionPassport {
       page: passage.page,
       title: passage.title,
     })),
-    documents: [
-      ...(record.evidence?.documents ?? []).map((document) => ({
-        document_name: document.document_name,
-        document_type: document.document_type,
-        origin: 'synthetic_fixture' as const,
-      })),
-      ...record.uploaded_documents.map((document) => ({
-        document_name: document.document_name,
-        document_type: document.document_type,
-        origin: 'customer_upload' as const,
-      })),
-    ],
+    documents: record.uploaded_documents.map((document) => ({
+      document_name: document.document_name,
+      document_type: document.document_type,
+      origin: 'customer_upload' as const,
+    })),
     missing_documents: record.evidence?.missing_documents ?? [],
     transaction: record.evidence?.transaction ?? null,
     recommended_option: recommended?.title ?? null,
     consents: record.consents,
-    notice:
-      'Synthetic demo packet. Saathi prepares and coordinates; insurers decide claims and regulated lenders decide credit.',
+    notice: 'Saathi prepares and coordinates; insurers decide claims, banks decide disputes, and regulated lenders decide credit.',
   };
 }

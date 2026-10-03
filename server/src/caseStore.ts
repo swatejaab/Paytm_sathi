@@ -1,16 +1,16 @@
 import crypto from 'node:crypto';
 import { assertScope } from './auth';
-import { findCase, nowIso, updateCase } from './db';
+import { findCase, nowIso, recordAudit, updateCase } from './db';
 import { HttpError } from './errors';
 import type { Actor, CaseRecord, ChatMessage, CaseStatus, ConsentPurpose, EventType, Principal } from './types';
 
 export const EVENT_LABELS: Record<EventType, string> = {
-  hospitalization: 'Hospitalization',
+  hospitalization: 'Hospital bill',
   upi_dispute: 'Unrecognized UPI payment',
   emi_shortfall: 'EMI shortfall',
   failed_refund: 'Failed UPI refund',
-  protection: 'Term life cover',
-  general_financial_support: 'General financial support',
+  protection: 'Life insurance check',
+  general_financial_support: 'Money question',
 };
 
 export const newId = (prefix: string, length = 8): string =>
@@ -34,7 +34,7 @@ export function addMessage(
   record: CaseRecord,
   role: 'user' | 'assistant',
   content: string,
-  extra: Pick<ChatMessage, 'original' | 'language' | 'source'> = {},
+  extra: Pick<ChatMessage, 'original' | 'language' | 'source' | 'quick_replies' | 'card'> = {},
 ): void {
   record.messages.push({ role, content, at: nowIso(), ...extra });
   if (role === 'assistant') record.assistant_message = content;
@@ -43,6 +43,16 @@ export function addMessage(
 export function hasConsent(record: CaseRecord, purpose: ConsentPurpose): boolean {
   const latest = record.consents.filter((consent) => consent.purpose === purpose).at(-1);
   return latest?.status === 'granted';
+}
+
+export function grantRecordsConsent(record: CaseRecord, principal: Principal, standing = false): void {
+  record.consents.push({ purpose: 'prepare_resolution_options', status: 'granted', granted_at: nowIso(), revoked_at: null, actor: principal.sub });
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'consent_granted', detail: { purpose: 'prepare_resolution_options', standing } });
+  addTimeline(record, {
+    title: standing ? 'Access allowed (remembered choice)' : 'Access allowed',
+    detail: `Purpose: prepare options. Saathi may read records relevant to this conversation only.${standing ? ' Turn this off any time in More > Consent management.' : ''}`,
+    actor: 'customer',
+  });
 }
 
 export function loadCaseForRead(principal: Principal, caseId: string): CaseRecord {

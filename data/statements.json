@@ -1,0 +1,38 @@
+{
+  "label": "Sample monthly bank-statement summaries for the prototype. Not real customer data.",
+  "customers": {
+    "demo-customer-01": {
+      "source": "Bank statement (sample)",
+      "months": [
+        { "month": "2026-04", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 7400, "Utilities": 2600, "Transport": 3800, "Health": 900, "Shopping": 5200, "Dining": 4100, "Family support": 10000, "Entertainment": 1300 } },
+        { "month": "2026-05", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 7900, "Utilities": 2900, "Transport": 3600, "Health": 1200, "Shopping": 4800, "Dining": 3900, "Family support": 10000, "Entertainment": 1600 } },
+        { "month": "2026-06", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 7600, "Utilities": 3100, "Transport": 4100, "Health": 800, "Shopping": 6100, "Dining": 4600, "Family support": 10000, "Entertainment": 1200 } },
+        { "month": "2026-07", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 8100, "Utilities": 2800, "Transport": 3900, "Health": 1500, "Shopping": 5400, "Dining": 4300, "Family support": 10000, "Entertainment": 1800 } },
+        { "month": "2026-08", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 7700, "Utilities": 2500, "Transport": 4000, "Health": 1100, "Shopping": 4600, "Dining": 4000, "Family support": 10000, "Entertainment": 1400 } },
+        { "month": "2026-09", "income_inr": 95000, "emi_inr": 0, "invested_inr": 8000, "spending": { "Rent": 22000, "Groceries": 8300, "Utilities": 2700, "Transport": 4300, "Health": 2600, "Shopping": 7200, "Dining": 4900, "Family support": 12000, "Entertainment": 1500 } }
+      ]
+    },
+    "demo-customer-02": {
+      "source": "Bank statement (sample)",
+      "months": [
+        { "month": "2026-04", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 7800, "Utilities": 2900, "Transport": 5600, "Health": 900, "Shopping": 8200, "Dining": 6900, "Entertainment": 3400 } },
+        { "month": "2026-05", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 8100, "Utilities": 3300, "Transport": 5900, "Health": 600, "Shopping": 9400, "Dining": 7400, "Entertainment": 4200 } },
+        { "month": "2026-06", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 7600, "Utilities": 3600, "Transport": 6200, "Health": 1400, "Shopping": 7100, "Dining": 6800, "Entertainment": 3900 } },
+        { "month": "2026-07", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 8300, "Utilities": 3100, "Transport": 5800, "Health": 800, "Shopping": 10200, "Dining": 7600, "Entertainment": 5100 } },
+        { "month": "2026-08", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 7900, "Utilities": 2800, "Transport": 6100, "Health": 700, "Shopping": 8600, "Dining": 7100, "Entertainment": 4300 } },
+        { "month": "2026-09", "income_inr": 120000, "emi_inr": 0, "invested_inr": 10000, "spending": { "Rent": 25000, "Groceries": 8200, "Utilities": 2700, "Transport": 6400, "Health": 1200, "Shopping": 9100, "Dining": 7900, "Entertainment": 4600 } }
+      ]
+    },
+    "demo-customer-03": {
+      "source": "Bank statement (sample)",
+      "months": [
+        { "month": "2026-04", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 9800, "Utilities": 3600, "Transport": 4200, "Education": 4000, "Health": 1800, "Shopping": 5200, "Dining": 3400, "Family support": 8000 } },
+        { "month": "2026-05", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 10200, "Utilities": 4100, "Transport": 4000, "Education": 4000, "Health": 1200, "Shopping": 4300, "Dining": 3100, "Family support": 8000 } },
+        { "month": "2026-06", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 9900, "Utilities": 4400, "Transport": 4300, "Education": 4000, "Health": 2400, "Shopping": 6100, "Dining": 3800, "Family support": 8000 } },
+        { "month": "2026-07", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 10400, "Utilities": 3900, "Transport": 4100, "Education": 4000, "Health": 1500, "Shopping": 4800, "Dining": 3600, "Family support": 8000 } },
+        { "month": "2026-08", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 10100, "Utilities": 3500, "Transport": 4400, "Education": 4000, "Health": 1600, "Shopping": 3900, "Dining": 3200, "Family support": 8000 } },
+        { "month": "2026-09", "income_inr": 90000, "emi_inr": 12000, "invested_inr": 5000, "spending": { "Rent": 12000, "Groceries": 11200, "Utilities": 3700, "Transport": 4600, "Education": 4000, "Health": 3900, "Shopping": 8600, "Dining": 4500, "Family support": 8000 } }
+      ]
+    }
+  }
+}

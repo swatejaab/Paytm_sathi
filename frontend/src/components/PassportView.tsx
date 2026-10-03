@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, errorMessage } from '../api';
 import { EVENT_LABELS, factValue, inr, sourceLabel } from '../format';
 import { passportSummary, printPassport } from '../passportPrint';
 import type { CaseRecord, Passport } from '../types';
@@ -14,7 +14,7 @@ export function PassportView({ caseRecord }: { caseRecord: CaseRecord }) {
     api
       .passport(caseRecord.case_id)
       .then((result) => !cancelled && setPassport(result))
-      .catch(() => !cancelled && setError('Could not load the passport.'));
+      .catch((caught) => !cancelled && setError(errorMessage(caught)));
     return () => {
       cancelled = true;
     };
@@ -62,7 +62,7 @@ export function PassportView({ caseRecord }: { caseRecord: CaseRecord }) {
               Copy summary
             </button>
             <button className="btn btn-ghost" onClick={download}>
-              JSON
+              Download data
             </button>
           </div>
         </div>
@@ -79,7 +79,7 @@ export function PassportView({ caseRecord }: { caseRecord: CaseRecord }) {
           <dd>"{passport.story}"</dd>
           {passport.calculation && (
             <>
-              <dt>Exact gap</dt>
+              <dt>Funding gap</dt>
               <dd>
                 {inr(passport.calculation.bill_total_inr)} − {inr(passport.calculation.coverage_estimate_inr)} −{' '}
                 {inr(passport.calculation.customer_contribution_inr)} = <strong>{inr(passport.calculation.exact_gap_inr)}</strong>

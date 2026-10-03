@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, errorMessage } from '../api';
 import { dateTime } from '../format';
 import type { CaseRecord, SessionUser } from '../types';
 
@@ -27,7 +27,7 @@ export function SpecialistDesk({ caseRecord, user, onChange }: Props) {
       onChange(await operation());
       if (clear) setMessage('');
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The action failed.');
+      setError(errorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -54,7 +54,7 @@ export function SpecialistDesk({ caseRecord, user, onChange }: Props) {
         <>
           <label className="field">
             <span>Message to the customer (or a recommendation note)</span>
-            <textarea rows={2} maxLength={400} value={message} onChange={(event) => setMessage(event.target.value)} />
+            <textarea className="input" rows={2} maxLength={400} value={message} onChange={(event) => setMessage(event.target.value)} />
           </label>
           <div className="row gap-sm wrap">
             <button
@@ -85,7 +85,7 @@ export function SpecialistDesk({ caseRecord, user, onChange }: Props) {
 
           {feasible.length > 0 && !['in_progress'].includes(caseRecord.status) && (
             <div className="row gap-sm wrap">
-              <select value={optionId} onChange={(event) => setOptionId(event.target.value)} aria-label="Option to recommend">
+              <select className="input" value={optionId} onChange={(event) => setOptionId(event.target.value)} aria-label="Option to recommend">
                 <option value="">Recommend an option...</option>
                 {feasible.map((option) => (
                   <option key={option.option_id} value={option.option_id}>

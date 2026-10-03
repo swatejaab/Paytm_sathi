@@ -59,6 +59,20 @@ export function applyPartnerEvent(event: PartnerEvent, channel: 'n8n' | 'local_m
       actor: 'saathi',
     });
     addMessage(record, 'assistant', 'A partner step failed. I routed the case to a specialist with the full trail.');
+  } else if (action.status === 'in_progress' && action.partner_requests.every((candidate) => candidate.status === 'completed') && action.option_id === 'secure_account') {
+    action.status = 'completed';
+    addTimeline(record, {
+      status: 'options_ready',
+      title: 'Account secured',
+      detail: 'UPI paused and the payee blocked (simulated). The dispute is still open to raise.',
+      actor: 'saathi',
+    });
+    addMessage(record, 'assistant', 'Your account is secured: UPI is paused and the payee is blocked (simulated). To try to get the money back, raise a dispute next. Reporting quickly helps.', {
+      quick_replies: [
+        { label: 'Raise dispute', action: 'prepare_option', payload: { option_id: 'dispute_and_protect' } },
+        { label: 'Contact support', action: 'handoff' },
+      ],
+    });
   } else if (action.status === 'in_progress' && action.partner_requests.every((candidate) => candidate.status === 'completed')) {
     action.status = 'completed';
     addTimeline(record, {
@@ -116,6 +130,11 @@ function mockMessages(action: CaseAction, request: PartnerRequest): { acknowledg
       return {
         acknowledged: `Dispute ${request.reference} registered with the payment network`,
         completed: `Provisional credit of ${formatInr(request.amount_inr)} issued while the dispute is investigated (simulated)`,
+      };
+    case 'payments.pause_upi':
+      return {
+        acknowledged: `UPI payments paused on your account (reference ${request.reference})`,
+        completed: 'Payee blocked and UPI paused. Change your UPI PIN in the app, then resume UPI when you are ready (simulated)',
       };
     default:
       return { acknowledged: `${request.partner} acknowledged ${request.tool}`, completed: `${request.partner} completed ${request.tool}` };

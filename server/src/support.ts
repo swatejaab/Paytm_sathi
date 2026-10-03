@@ -61,7 +61,7 @@ export async function reviewCase(
     desk(record).verified_documents = true;
     addTimeline(record, {
       title: 'Specialist verified your documents',
-      detail: `${record.uploaded_documents.length} upload(s) checked.`,
+      detail: `${record.uploaded_documents.length} upload${record.uploaded_documents.length === 1 ? '' : 's'} checked.`,
       actor: 'support',
     });
     recordAudit({ case_id: caseId, actor: principal.sub, event: 'documents_verified' });

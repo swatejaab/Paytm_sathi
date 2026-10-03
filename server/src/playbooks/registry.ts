@@ -123,9 +123,18 @@ export function playbookForCase(record: Pick<CaseRecord, 'event_type' | 'playboo
   return (record.playbook_id && playbookById(record.playbook_id)) || playbookForEvent(record.event_type);
 }
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Latin terms match whole words ("icu" must not fire inside "particular"); Indic terms match as substrings.
+function containsTerm(normalized: string, term: string): boolean {
+  const lowered = term.toLowerCase();
+  if (!/^[\x20-\x7e]+$/.test(lowered)) return normalized.includes(lowered);
+  return new RegExp(`(^|[^a-z0-9])${escapeRegExp(lowered)}($|[^a-z0-9])`).test(normalized);
+}
+
 export function classifyWithPlaybooks(message: string): { playbook: PlaybookDefinition; event_type: EventType; urgency: Urgency } {
-  const normalized = message.toLowerCase();
-  const has = (terms: string[]) => terms.some((term) => normalized.includes(term.toLowerCase()));
+  const normalized = message.toLowerCase().replace(/[’`]/g, "'");
+  const has = (terms: string[]) => terms.some((term) => containsTerm(normalized, term));
   const match = PLAYBOOKS.find((playbook) => has(playbook.triggers.any)) ?? PLAYBOOKS.find((playbook) => has(playbook.triggers.weak));
   const playbook = match ?? playbookForEvent('general_financial_support');
   return { playbook, event_type: playbook.event_type, urgency: playbook.urgency };

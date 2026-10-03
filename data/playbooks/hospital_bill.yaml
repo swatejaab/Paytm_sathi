@@ -6,7 +6,7 @@ event_type: hospitalization
 urgency: high
 priority: 10
 triggers:
-  any: [hospital, hospitalized, hospitalised, admitted, surgery, icu, discharge, अस्पताल, हॉस्पिटल, भर्ती, ऑपरेशन]
+  any: [hospital, hospitalized, hospitalised, admitted, surgery, icu, discharge, medical bill, treatment, operation, nursing home, अस्पताल, हॉस्पिटल, भर्ती, ऑपरेशन]
   weak: [papa, father, mother, mummy, पापा, पिताजी, माँ, मम्मी]
 engine: builtin:hospital_gap
 auditor: bill_auditor
@@ -16,7 +16,7 @@ tools:
 exit: all approved partner steps completed
 guidance:
   title: Hospital bill with an insurance funding gap
-  source: Saathi demo playbook v1
+  source: Saathi playbook v1
   steps:
     - Collect the itemized final bill and the health policy schedule.
     - Check eligible inpatient expenses, room category limits, and claim document requirements.

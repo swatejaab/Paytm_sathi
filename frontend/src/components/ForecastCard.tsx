@@ -1,128 +1,218 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { api, ApiError } from '../api';
-import { inr } from '../format';
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { api, errorMessage } from '../api';
+import { inr, inrCompact } from '../format';
 import type { CashForecast } from '../types';
-
-const PAD = { top: 34, right: 20, bottom: 30, left: 72 };
+import { Icon } from './Icon';
 
 const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+const DELAYS = [0, 3, 5, 7, 10];
 
-function BalanceChart({ forecast }: { forecast: CashForecast }) {
-  const [hover, setHover] = useState<number | null>(null);
-  // Draw at the container's real width so labels stay legible from phone to desktop.
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [WIDTH, setWidth] = useState(1000);
+function niceTicks(min: number, max: number, count = 5): number[] {
+  const span = Math.max(max - min, 1);
+  const raw = span / count;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((factor) => factor * magnitude).find((candidate) => candidate >= raw)!;
+  const start = Math.floor(min / step) * step;
+  const end = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let value = start; value <= end + step / 2; value += step) ticks.push(Math.round(value));
+  return ticks;
+}
+
+interface DayPoint {
+  date: string;
+  balance: number;
+  inflow: number;
+  outflow: number;
+  events: CashForecast['days'][number]['events'];
+}
+
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
   useEffect(() => {
-    const element = wrapRef.current;
+    const element = ref.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(Math.round(entry!.contentRect.width), 300)));
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry!.contentRect.width)));
     observer.observe(element);
+    setWidth(Math.floor(element.getBoundingClientRect().width));
     return () => observer.disconnect();
   }, []);
-  const HEIGHT = WIDTH < 600 ? 230 : 280;
-  const days = forecast.days;
-  const values = days.map((day) => day.balance_inr);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const span = max - min || 1;
-  const innerW = WIDTH - PAD.left - PAD.right;
-  const innerH = HEIGHT - PAD.top - PAD.bottom;
-  const x = (index: number) => PAD.left + (index / Math.max(days.length - 1, 1)) * innerW;
-  const y = (value: number) => PAD.top + ((max - value) / span) * innerH;
+  return [ref, width] as const;
+}
+
+function ComboChart({ forecast, points }: { forecast: CashForecast; points: DayPoint[] }) {
+  const [ref, width] = useWidth();
+  const [hover, setHover] = useState<number | null>(null);
+  const uid = useId().replace(/:/g, '');
+  const compact = width < 560;
+  const height = compact ? 280 : 340;
+  const pad = { top: 26, right: compact ? 14 : 22, bottom: 32, left: compact ? 48 : 60 };
+  const plotW = Math.max(width - pad.left - pad.right, 10);
+  const plotH = height - pad.top - pad.bottom;
+
+  const lo = Math.min(0, ...points.map((point) => Math.min(point.balance, -point.outflow)));
+  const hi = Math.max(1, ...points.map((point) => Math.max(point.balance, point.inflow)));
+  const ticks = niceTicks(lo, hi, compact ? 4 : 5);
+  const yMin = ticks[0]!;
+  const yMax = ticks.at(-1)!;
+  const band = plotW / points.length;
+  const x = (index: number) => pad.left + band * index + band / 2;
+  const y = (value: number) => pad.top + ((yMax - value) / (yMax - yMin || 1)) * plotH;
   const zeroY = y(0);
+  const barW = Math.max(Math.min(band * 0.56, 16), 2);
 
-  // Step line: the balance holds until the next event day.
-  const path = days
-    .map((day, index) => (index === 0 ? `M${x(0)},${y(day.balance_inr)}` : `H${x(index)}V${y(day.balance_inr)}`))
-    .join('');
-  const area = `${path}H${x(days.length - 1)}V${zeroY}H${x(0)}Z`;
-  const lowIndex = days.findIndex((day) => day.date === forecast.lowest.date);
-  const paydayIndex = days.findIndex((day) => day.date === forecast.payday);
-  const ticks = [max, (max + min) / 2, min].map((value) => Math.round(value / 1000) * 1000);
+  const line = points.map((point, index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(point.balance).toFixed(1)}`).join('');
+  const area = `${line}L${x(points.length - 1).toFixed(1)},${zeroY.toFixed(1)}L${x(0).toFixed(1)},${zeroY.toFixed(1)}Z`;
+  const lowIndex = points.findIndex((point) => point.date === forecast.lowest.date);
+  const paydayIndex = points.findIndex((point) => point.date === forecast.payday);
+  const labelEvery = Math.max(1, Math.ceil(points.length / (compact ? 5 : 8)));
 
-  const onMove = (event: PointerEvent<SVGRectElement>) => {
+  const pick = (event: PointerEvent<SVGRectElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
-    const ratio = (event.clientX - box.left) / box.width;
-    setHover(Math.max(0, Math.min(days.length - 1, Math.round(ratio * (days.length - 1)))));
+    const index = Math.floor(((event.clientX - box.left) / box.width) * points.length);
+    setHover(Math.max(0, Math.min(points.length - 1, index)));
   };
-  const hovered = hover === null ? null : days[hover]!;
+  const hovered = hover === null ? null : points[hover]!;
+  const tipLeft = hover === null ? 0 : Math.min(Math.max(x(hover), 110), Math.max(width - 110, 110));
 
   return (
-    <div className="chart-wrap" ref={wrapRef}>
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Projected balance for ${days.length} days. ${forecast.headline}`}>
-        {ticks.map((tick) => (
-          <g key={tick}>
-            <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} className="chart-grid" />
-            <text x={PAD.left - 8} y={y(tick) + 4} textAnchor="end" className="chart-axis">
-              {inr(tick)}
+    <div className="pbi-chart" ref={ref} onPointerLeave={() => setHover(null)}>
+      <ul className="pbi-legend" aria-hidden>
+        <li>
+          <i className="sw sw-line" /> Balance
+        </li>
+        <li>
+          <i className="sw sw-in" /> Money in
+        </li>
+        <li>
+          <i className="sw sw-out" /> Money out
+        </li>
+        <li>
+          <i className="sw sw-payday" /> Payday
+        </li>
+      </ul>
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label={`Projected daily balance for ${points.length} days. ${forecast.headline}`}>
+          <defs>
+            <linearGradient id={`${uid}-pos`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="var(--chart-1)" stopOpacity="0.32" />
+              <stop offset="1" stopColor="var(--chart-1)" stopOpacity="0.02" />
+            </linearGradient>
+            <clipPath id={`${uid}-above`}>
+              <rect x={pad.left} y={pad.top} width={plotW} height={Math.max(zeroY - pad.top, 0)} />
+            </clipPath>
+            <clipPath id={`${uid}-below`}>
+              <rect x={pad.left} y={zeroY} width={plotW} height={Math.max(pad.top + plotH - zeroY, 0)} />
+            </clipPath>
+          </defs>
+
+          {ticks.map((tick) => (
+            <g key={tick}>
+              <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'pbi-zero' : 'pbi-grid'} />
+              <text x={pad.left - 8} y={y(tick) + 4} textAnchor="end" className="pbi-axis">
+                {inrCompact(tick)}
+              </text>
+            </g>
+          ))}
+
+          {hover !== null && <rect x={x(hover) - band / 2} y={pad.top} width={band} height={plotH} className="pbi-hover" />}
+
+          {points.map((point, index) => (
+            <g key={point.date}>
+              {point.inflow > 0 && <rect x={x(index) - barW / 2} y={y(point.inflow)} width={barW} height={Math.max(zeroY - y(point.inflow), 1)} rx={2} className="pbi-bar-in" />}
+              {point.outflow > 0 && <rect x={x(index) - barW / 2} y={zeroY} width={barW} height={Math.max(y(-point.outflow) - zeroY, 1)} rx={2} className="pbi-bar-out" />}
+            </g>
+          ))}
+
+          <path d={area} fill={`url(#${uid}-pos)`} clipPath={`url(#${uid}-above)`} />
+          <path d={area} className="pbi-area-neg" clipPath={`url(#${uid}-below)`} />
+          <path d={line} className="pbi-line" clipPath={`url(#${uid}-above)`} />
+          <path d={line} className="pbi-line pbi-line-neg" clipPath={`url(#${uid}-below)`} />
+          {points.map((point, index) =>
+            point.events.length ? <circle key={point.date} cx={x(index)} cy={y(point.balance)} r={3} className={point.balance < 0 ? 'pbi-marker neg' : 'pbi-marker'} /> : null,
+          )}
+
+          {paydayIndex >= 0 && (
+            <g className="pbi-payday">
+              <line x1={x(paydayIndex)} x2={x(paydayIndex)} y1={pad.top} y2={pad.top + plotH} />
+              <rect x={x(paydayIndex) - 38} y={pad.top - 22} width={76} height={18} rx={9} />
+              <text x={x(paydayIndex)} y={pad.top - 9} textAnchor="middle">
+                Payday {shortDate(forecast.payday)}
+              </text>
+            </g>
+          )}
+
+          <g className="pbi-label">
+            <text x={x(0) + 6} y={y(points[0]!.balance) - 10}>
+              {inrCompact(points[0]!.balance)}
             </text>
           </g>
-        ))}
-        {min < 0 && (
-          <>
-            <rect x={PAD.left} y={zeroY} width={innerW} height={HEIGHT - PAD.bottom - zeroY} className="chart-negative" />
-            <text x={WIDTH - PAD.right - 6} y={HEIGHT - PAD.bottom - 6} textAnchor="end" className="chart-negative-label">
-              Below zero
-            </text>
-          </>
-        )}
-        <path d={area} className="chart-area" />
-        <line x1={PAD.left} x2={WIDTH - PAD.right} y1={zeroY} y2={zeroY} className="chart-zero" />
-        <path d={path} className="chart-line" />
-        {paydayIndex >= 0 && (
-          <g>
-            <line x1={x(paydayIndex)} x2={x(paydayIndex)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="chart-payday" />
-            <text x={x(paydayIndex)} y={PAD.top - 10} textAnchor="middle" className="chart-payday-label">
-              Payday {shortDate(forecast.payday)}
+          {lowIndex >= 0 && forecast.lowest.balance_inr < points[0]!.balance && (
+            <g className={`pbi-callout ${forecast.lowest.balance_inr < 0 ? 'neg' : ''}`}>
+              <circle cx={x(lowIndex)} cy={y(forecast.lowest.balance_inr)} r={6} />
+              <text
+                x={x(lowIndex) + (x(lowIndex) > width - 150 ? -10 : 10)}
+                y={y(forecast.lowest.balance_inr) + 18}
+                textAnchor={x(lowIndex) > width - 150 ? 'end' : 'start'}
+              >
+                Lowest {inrCompact(forecast.lowest.balance_inr)} · {shortDate(forecast.lowest.date)}
+              </text>
+            </g>
+          )}
+          <g className="pbi-label">
+            <text x={x(points.length - 1)} y={y(points.at(-1)!.balance) - 10} textAnchor="end">
+              {inrCompact(points.at(-1)!.balance)}
             </text>
           </g>
-        )}
-        {lowIndex >= 0 && forecast.lowest.balance_inr < 0 && (
-          <g>
-            <circle cx={x(lowIndex)} cy={y(forecast.lowest.balance_inr)} r={5} className="chart-low" />
-            <text
-              x={x(lowIndex) - PAD.left < 130 ? x(lowIndex) + 10 : x(lowIndex) - 10}
-              y={y(forecast.lowest.balance_inr) - 8}
-              textAnchor={x(lowIndex) - PAD.left < 130 ? 'start' : 'end'}
-              className="chart-low-label"
-            >
-              Lowest {inr(forecast.lowest.balance_inr)}
-            </text>
-          </g>
-        )}
-        {[0, Math.floor((days.length - 1) / 2), days.length - 1].map((index) => (
-          <text key={index} x={x(index)} y={HEIGHT - 10} textAnchor={index === 0 ? 'start' : index === days.length - 1 ? 'end' : 'middle'} className="chart-axis">
-            {shortDate(days[index]!.date)}
-          </text>
-        ))}
-        {hovered && (
-          <g pointerEvents="none">
-            <line x1={x(hover!)} x2={x(hover!)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="chart-crosshair" />
-            <circle cx={x(hover!)} cy={y(hovered.balance_inr)} r={4.5} className="chart-dot" />
-          </g>
-        )}
-        <rect
-          x={PAD.left}
-          y={0}
-          width={innerW}
-          height={HEIGHT}
-          fill="transparent"
-          onPointerMove={onMove}
-          onPointerLeave={() => setHover(null)}
-          tabIndex={0}
-          onFocus={() => setHover(0)}
-          onBlur={() => setHover(null)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowRight') setHover((current) => Math.min((current ?? -1) + 1, days.length - 1));
-            if (event.key === 'ArrowLeft') setHover((current) => Math.max((current ?? 1) - 1, 0));
-          }}
-          aria-label="Move across the chart to read each day's balance"
-        />
-      </svg>
+
+          {points.map((point, index) =>
+            index % labelEvery === 0 || index === points.length - 1 ? (
+              <text key={point.date} x={x(index)} y={height - 10} textAnchor="middle" className="pbi-axis">
+                {shortDate(point.date)}
+              </text>
+            ) : null,
+          )}
+
+          {hovered && <circle cx={x(hover!)} cy={y(hovered.balance)} r={5} className="pbi-focus" />}
+          <rect
+            x={pad.left}
+            y={pad.top}
+            width={plotW}
+            height={plotH}
+            fill="transparent"
+            onPointerMove={pick}
+            onPointerDown={pick}
+            tabIndex={0}
+            onFocus={() => setHover(0)}
+            onBlur={() => setHover(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowRight') setHover((current) => Math.min((current ?? -1) + 1, points.length - 1));
+              if (event.key === 'ArrowLeft') setHover((current) => Math.max((current ?? 1) - 1, 0));
+            }}
+            aria-label="Move across the chart to read each day"
+          />
+        </svg>
+      )}
       {hovered && (
-        <div className="chart-tooltip" style={{ left: `${(x(hover!) / WIDTH) * 100}%` }}>
-          <strong>{shortDate(hovered.date)}</strong>
-          <span className={hovered.balance_inr < 0 ? 'neg' : ''}>Balance {inr(hovered.balance_inr)}</span>
+        <div className="pbi-tip" style={{ left: tipLeft }} role="tooltip">
+          <strong>{new Date(`${hovered.date}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</strong>
+          <span>
+            <i className="sw sw-line" />
+            Balance <b className={hovered.balance < 0 ? 'neg' : ''}>{inr(hovered.balance)}</b>
+          </span>
+          {hovered.inflow > 0 && (
+            <span>
+              <i className="sw sw-in" />
+              Money in <b>{inr(hovered.inflow)}</b>
+            </span>
+          )}
+          {hovered.outflow > 0 && (
+            <span>
+              <i className="sw sw-out" />
+              Money out <b>{inr(hovered.outflow)}</b>
+            </span>
+          )}
           {hovered.events.map((event) => (
             <small key={event.id}>
               {event.direction === 'in' ? '+' : '−'}
@@ -131,6 +221,36 @@ function BalanceChart({ forecast }: { forecast: CashForecast }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function OutflowBars({ items }: { items: { title: string; amount_inr: number; due_date: string }[] }) {
+  const max = Math.max(...items.map((item) => item.amount_inr), 1);
+  return (
+    <ul className="pbi-bars">
+      {items.map((item) => (
+        <li key={`${item.title}-${item.due_date}`}>
+          <div className="pbi-bars-head">
+            <span>{item.title}</span>
+            <strong>{inr(item.amount_inr)}</strong>
+          </div>
+          <div className="pbi-bars-track">
+            <span style={{ width: `${(item.amount_inr / max) * 100}%` }} />
+          </div>
+          <small className="muted">Due {shortDate(item.due_date)}</small>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Tile({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: 'neg' | 'pos' }) {
+  return (
+    <div className={`pbi-tile ${tone ?? ''}`}>
+      <small>{label}</small>
+      <strong>{value}</strong>
+      {note && <span>{note}</span>}
     </div>
   );
 }
@@ -146,59 +266,102 @@ export function ForecastCard({ onAsk }: { onAsk: (message: string) => void }) {
     api
       .forecast(delay, skip)
       .then((result) => !cancelled && setForecast(result))
-      .catch((caught) => !cancelled && setError(caught instanceof ApiError ? caught.message : 'Could not build the forecast.'));
+      .catch((caught) => !cancelled && setError(errorMessage(caught)));
     return () => {
       cancelled = true;
     };
   }, [delay, skip]);
 
+  const points = useMemo<DayPoint[]>(
+    () =>
+      (forecast?.days ?? []).map((day) => ({
+        date: day.date,
+        balance: day.balance_inr,
+        events: day.events,
+        inflow: day.events.filter((event) => event.direction === 'in').reduce((sum, event) => sum + event.amount_inr, 0),
+        outflow: day.events.filter((event) => event.direction === 'out').reduce((sum, event) => sum + event.amount_inr, 0),
+      })),
+    [forecast],
+  );
   const optional = useMemo(() => (forecast?.items ?? []).filter((item) => item.flexible), [forecast]);
   if (error) return <section className="card home-section"><p className="alert alert-error">{error}</p></section>;
   if (!forecast) return <section className="card home-section"><p className="muted">Building your cash-flow forecast...</p></section>;
+
   const bestIds = new Set(forecast.best_plan?.fix_ids ?? []);
+  const moneyIn = points.reduce((sum, point) => sum + point.inflow, 0);
+  const moneyOut = points.reduce((sum, point) => sum + point.outflow, 0);
+  const beforePayday = forecast.items
+    .filter((item) => item.direction === 'out' && item.due_date < forecast.payday && !skip.includes(item.id))
+    .sort((a, b) => b.amount_inr - a.amount_inr)
+    .slice(0, 6);
 
   return (
-    <section className="card home-section forecast">
-      <div className="row space-between wrap">
+    <section className="card home-section forecast pbi">
+      <header className="pbi-head">
         <div>
-          <p className="eyebrow">Cash-flow Copilot</p>
+          <p className="eyebrow">Cash flow forecast</p>
           <h3>Projected balance, next {forecast.horizon_days} days</h3>
+          <small className="muted">From {shortDate(forecast.as_of)} · salary {inr(forecast.salary_inr)} expected {shortDate(forecast.payday)}</small>
         </div>
-        <div className="forecast-stats">
-          <div>
-            <small>Lowest before payday</small>
-            <strong className={forecast.lowest.balance_inr < 0 ? 'neg' : ''}>{inr(forecast.lowest.balance_inr)}</strong>
-          </div>
-          <div>
-            <small>Safe to spend now</small>
-            <strong>{inr(forecast.safe_to_spend_inr)}</strong>
-          </div>
-        </div>
-      </div>
-      <p className={forecast.crunch_inr > 0 ? 'alert alert-warn' : 'alert alert-info'}>{forecast.headline}</p>
-      <BalanceChart forecast={forecast} />
+      </header>
 
-      <div className="whatif">
-        <label>
-          What if my salary is late by{' '}
-          <select value={delay} onChange={(event) => setDelay(Number(event.target.value))}>
-            {[0, 3, 5, 7, 10].map((days) => (
-              <option key={days} value={days}>
-                {days} day{days === 1 ? '' : 's'}
-              </option>
-            ))}
-          </select>
-        </label>
-        {optional.map((item) => (
-          <label key={item.id} className="checkbox">
-            <input
-              type="checkbox"
-              checked={skip.includes(item.id)}
-              onChange={(event) => setSkip((current) => (event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id)))}
-            />
-            Skip {item.title} ({inr(item.amount_inr)})
-          </label>
-        ))}
+      <div className="pbi-tiles">
+        <Tile label="Balance today" value={inr(forecast.opening_balance_inr)} />
+        <Tile label={`Money in (${forecast.horizon_days} days)`} value={inr(moneyIn)} tone="pos" />
+        <Tile label={`Money out (${forecast.horizon_days} days)`} value={inr(moneyOut)} />
+        <Tile
+          label="Lowest balance"
+          value={inr(forecast.lowest.balance_inr)}
+          note={shortDate(forecast.lowest.date)}
+          tone={forecast.lowest.balance_inr < 0 ? 'neg' : undefined}
+        />
+        <Tile label="Safe to spend now" value={inr(forecast.safe_to_spend_inr)} tone={forecast.safe_to_spend_inr > 0 ? 'pos' : undefined} />
+        <Tile label={`Balance on ${shortDate(points.at(-1)?.date ?? forecast.as_of)}`} value={inr(forecast.end_balance_inr)} />
+      </div>
+
+      <div className="pbi-slicers" role="group" aria-label="What if">
+        <span className="pbi-slicer-label">Salary arrives</span>
+        <div className="pbi-chips">
+          {DELAYS.map((days) => (
+            <button key={days} className={`pbi-chip ${delay === days ? 'on' : ''}`} aria-pressed={delay === days} onClick={() => setDelay(days)}>
+              {days === 0 ? 'On time' : `${days} days late`}
+            </button>
+          ))}
+        </div>
+        {optional.length > 0 && (
+          <>
+            <span className="pbi-slicer-label">Include</span>
+            <div className="pbi-chips">
+              {optional.map((item) => {
+                const included = !skip.includes(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    className={`pbi-chip ${included ? 'on' : ''}`}
+                    aria-pressed={included}
+                    onClick={() => setSkip((current) => (included ? [...current, item.id] : current.filter((id) => id !== item.id)))}
+                  >
+                    {included && <Icon name="check" size={13} />}
+                    {item.title} ({inr(item.amount_inr)})
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      <p className={forecast.crunch_inr > 0 ? 'alert alert-warn' : 'alert alert-info'}>{forecast.headline}</p>
+
+      <div className="pbi-grid-layout">
+        <div className="pbi-visual">
+          <h4>Daily balance with money in and out</h4>
+          <ComboChart forecast={forecast} points={points} />
+        </div>
+        <div className="pbi-visual">
+          <h4>Biggest payments before payday</h4>
+          {beforePayday.length ? <OutflowBars items={beforePayday} /> : <p className="muted small">Nothing is due before your salary arrives.</p>}
+        </div>
       </div>
 
       {forecast.fixes.length > 0 && forecast.crunch_inr > 0 && (

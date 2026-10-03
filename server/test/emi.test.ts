@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { calculateEmiShortfall } from '../src/decision';
 import type { CaseRecord } from '../src/types';
-import { api, bearer, createCase, login, waitFor } from './helpers';
+import { api, bearer, createCase, login, RIYA, waitFor } from './helpers';
 
 const EMI_MESSAGE = 'Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?';
 
@@ -20,7 +20,7 @@ describe('EMI shortfall journey', () => {
   });
 
   it('recommends moving the due date past payday and explains it in Hinglish', async () => {
-    const token = await login();
+    const token = await login(...RIYA);
     const record = await createCase(token, EMI_MESSAGE);
     assert.equal(record.event_type, 'emi_shortfall');
     assert.equal(record.status, 'options_ready');
@@ -48,11 +48,12 @@ describe('EMI shortfall journey', () => {
     assert.equal(bounce.metrics.extra_cost_inr, 590 + 50 * 5);
 
     assert.equal(record.language, 'hinglish');
-    assert.match(record.assistant_message, /INR 4,600 kam pad rahe hain/);
+    assert.match(record.assistant_message, /₹4,600 kam pad rahe hain/);
+    assert.doesNotMatch(record.assistant_message, /\d{4}-\d{2}-\d{2}/, 'dates are written for people, not as ISO strings');
   });
 
   it('runs the approved due-date change through the gateway to resolution', async () => {
-    const token = await login();
+    const token = await login(...RIYA);
     const record = await createCase(token, EMI_MESSAGE);
     const prepared = await api().post(`/api/cases/${record.case_id}/actions`).set(bearer(token)).send({ option_id: 'shift_due_date' });
     assert.equal(prepared.status, 201);

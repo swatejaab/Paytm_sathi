@@ -15,10 +15,7 @@ import {
 } from '../documents';
 import { HttpError, parseBody } from '../errors';
 import {
-  allowedNumbers,
   analyzeCaseWithOpenAI,
-  answerCaseQuestion,
-  inventedNumbers,
   IntegrationDisabledError,
   ocrImageWithOpenAI,
   IntegrationInputError,
@@ -28,12 +25,11 @@ import {
   type AnalysisEvidence,
 } from '../integrations';
 import type { CaseRecord, UploadedDocument } from '../types';
-import { explainDecision } from '../agent/explainer';
-import { addMessage } from '../caseStore';
-import { isLanguageCode, LANGUAGE_CODES, LANGUAGE_PROMPT_NAMES } from '../languages';
+import { afterDocumentUpload } from '../assistant/turn';
+import { formatInr, plural } from '../decision';
+import { isLanguageCode, LANGUAGE_CODES } from '../languages';
 import { redactContactIdentifiers } from '../redaction';
 import { parseBillText } from '../billParser';
-import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
 
 export const evidenceRouter = Router();
@@ -53,7 +49,11 @@ const MAX_CASE_TEXT = 200_000;
 
 function uploadedEvidence(record: CaseRecord) {
   const policies = record.uploaded_documents.filter((document) => document.document_type === 'policy');
-  return retrieveUploadedPassages(uploadedEvidenceQuery(record.customer_message), policies);
+  const passages = retrieveUploadedPassages(uploadedEvidenceQuery(record.customer_message), policies);
+  // Clauses the insurer used to estimate cover for a confirmed bill are part of the evidence too.
+  const used = record.confirmed_bill ? (record.evidence?.retrieved_evidence ?? []) : [];
+  const seen = new Set(passages.map((passage) => `${passage.document_id}:${passage.clause_id}`));
+  return [...passages, ...used.filter((passage) => !seen.has(`${passage.document_id}:${passage.clause_id}`))];
 }
 
 function mapIntegrationError(error: unknown): never {
@@ -163,9 +163,14 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     uploaded_at: nowIso(),
   };
   record.uploaded_documents.push(document);
+  record.messages.push({
+    role: 'user',
+    content: `Uploaded ${documentType.data === 'bill' ? 'a bill' : 'an insurance policy'}: ${filename}`,
+    at: nowIso(),
+  });
   addTimeline(record, {
     title: `Document added: ${filename}`,
-    detail: `${documentType.data}, ${extracted.pageCount} page(s)${viaOcr ? ', read from a photo with OpenAI OCR' : ''}. Contact identifiers redacted; the original file was not stored.`,
+    detail: `${documentType.data}, ${plural(extracted.pageCount, 'page')}${viaOcr ? ', read from a photo with OpenAI OCR' : ''}. Contact identifiers redacted; the original file was not stored.`,
     actor: 'customer',
   });
   recordAudit({
@@ -175,7 +180,9 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length, ocr: viaOcr },
   });
 
-  const parsedBill = document.document_type === 'bill' && record.event_type === 'hospitalization' ? parseBillText(extracted.text) : null;
+  const journey = record.context?.journey ?? null;
+  const billJourney = record.event_type === 'hospitalization' || journey === null || journey === 'bill' || journey === 'general';
+  const parsedBill = document.document_type === 'bill' && billJourney ? parseBillText(extracted.text) : null;
   if (parsedBill) {
     record.pending_question = {
       type: 'confirm_bill',
@@ -186,16 +193,12 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
     };
     addTimeline(record, {
       title: 'Bill read; waiting for you to confirm the total',
-      detail: `${parsedBill.lines.length} line item(s), total INR ${parsedBill.total_inr.toLocaleString('en-IN')}.`,
+      detail: `${plural(parsedBill.lines.length, 'line item')}, total ${formatInr(parsedBill.total_inr)}.`,
       actor: 'saathi',
     });
-    await addLocalizedMessage(
-      record,
-      `I read INR ${parsedBill.total_inr.toLocaleString('en-IN')} as the total of ${document.document_name}${parsedBill.reconciled ? ' (the line items add up)' : ''}. Confirm it in your plan and I will recalculate the exact gap from your bill.`,
-    );
-  } else {
-    await redecideAfterDocuments(principal, record);
   }
+  const next = await afterDocumentUpload(principal, record, document, parsedBill);
+  if (next === 'redecide') await redecideAfterDocuments(principal, record);
   updateCase(record);
 
   res.status(201).json({
@@ -292,86 +295,4 @@ evidenceRouter.post('/voice/speak', requireAuth('voice:transcribe'), async (req,
   } catch (error) {
     mapIntegrationError(error);
   }
-});
-
-const chatSchema = z
-  .object({
-    message: z.string().trim().min(2).max(1000),
-    language: z.enum(LANGUAGE_CODES).optional(),
-    confirm_external_processing: z.literal(true),
-  })
-  .strict();
-
-// Facts the assistant may use: the deterministic decision, evidence citations, and the case status. No raw documents.
-function chatFacts(record: CaseRecord) {
-  const decision = record.decision;
-  return {
-    event: record.event_type,
-    status: record.status,
-    story: redactContactIdentifiers(record.customer_message),
-    calculation: decision?.calculation ?? null,
-    facts: decision?.facts.map(({ label, value, unit, source }) => ({ label, value, unit, source: source.ref })) ?? [],
-    options: decision?.options.map((option) => ({
-      title: option.title,
-      recommended: option.recommended,
-      feasible: option.feasible,
-      score: option.scores.total,
-      summary: option.summary,
-      metrics: option.metrics,
-      trade_offs: option.trade_offs,
-      blocked_by: option.guardrails.filter((guardrail) => !guardrail.passed).map((guardrail) => guardrail.detail),
-    })) ?? [],
-    explanation: decision?.explanation ?? null,
-    missing_documents: record.evidence?.missing_documents ?? [],
-    citations: (record.evidence?.retrieved_evidence ?? []).map((passage) => ({
-      document: passage.document_name,
-      clause: passage.clause_id,
-      page: passage.page,
-      title: passage.title,
-    })),
-    latest_timeline: record.timeline.slice(-5).map((entry) => entry.title),
-  };
-}
-
-evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req, res) => {
-  const principal = getPrincipal(req);
-  const caseId = String(req.params.caseId);
-  const body = parseBody(chatSchema, req.body);
-  const record = loadCaseForOwner(principal, caseId, 'ai:analyze');
-  const languageCode = body.language ?? record.preferred_language;
-  const languageName = isLanguageCode(languageCode)
-    ? LANGUAGE_PROMPT_NAMES[languageCode]
-    : record.language === 'hinglish'
-      ? 'Hinglish (Hindi in Latin script)'
-      : 'English';
-  const facts = chatFacts(record);
-
-  let answer: string;
-  let source: 'openai' | 'saathi' = 'openai';
-  try {
-    const result = await answerCaseQuestion(body.message, facts, languageName);
-    const invented = inventedNumbers(result.answer, allowedNumbers(facts));
-    if (invented.length) {
-      // Numeric guard: the model may only repeat numbers the decision service produced.
-      source = 'saathi';
-      answer = explainDecision(record) || 'I can only answer from your case facts. A Saathi specialist can help with this question.';
-      recordAudit({ case_id: caseId, actor: principal.sub, event: 'ai_answer_rejected', decision: 'deny', detail: { reason: 'invented_numbers', numbers: invented.slice(0, 5) } });
-    } else {
-      answer = result.answer;
-    }
-  } catch (error) {
-    mapIntegrationError(error);
-  }
-
-  const latest = loadCaseForOwner(principal, caseId, 'ai:analyze');
-  addMessage(latest, 'user', body.message);
-  addMessage(latest, 'assistant', answer, { source, ...(isLanguageCode(languageCode) ? { language: languageCode } : {}) });
-  recordAudit({
-    case_id: caseId,
-    actor: principal.sub,
-    event: 'external_ai_chat',
-    detail: { provider: 'openai', consent_purpose: 'answer_case_question_with_openai', answered_by: source },
-  });
-  updateCase(latest);
-  res.json(latest);
 });

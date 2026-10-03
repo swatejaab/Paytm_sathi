@@ -1,38 +1,47 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, loadSession, saveSession, setUnauthorizedHandler } from './api';
-import { CustomerWorkspace } from './components/CustomerWorkspace';
-import { HomeView } from './components/HomeView';
-import { MobileApp } from './mobile/MobileApp';
-import { readViewMode, saveViewMode, ViewToggle, type ViewMode } from './mobile/ViewToggle';
-import { Login } from './components/Login';
+import { AppHeader, BottomNav } from './components/AppHeader';
+import { SosButton } from './components/MoneySos';
 import { SupportQueue } from './components/SupportQueue';
-import { TopBar } from './components/TopBar';
+import { ErrorBoundary } from './components/ui';
+import { Goals } from './pages/Goals';
+import { Home } from './pages/Home';
+import { Insights } from './pages/Insights';
+import { Landing } from './pages/Landing';
+import { More } from './pages/More';
+import { Saathi } from './pages/Saathi';
+import { navigate, useRoute, type Page } from './router';
+import { useTheme } from './theme';
+import { ToastProvider } from './toast';
 import type { IntegrationStatus, Session } from './types';
+import type { ViewMode } from './viewMode';
 
-const OFFLINE: IntegrationStatus = {
+const NO_INTEGRATIONS: IntegrationStatus = {
   openai_available: false,
   sarvam_available: false,
   n8n_configured: false,
   partner_channel: 'local_mock',
   knowledge_backend: 'local_index',
-  lender_adapter: 'synthetic_fixture',
+  lender_adapter: 'local',
 };
 
-export default function App() {
+interface Props {
+  viewMode?: ViewMode;
+  onViewMode?: (mode: ViewMode) => void;
+}
+
+export default function App({ viewMode, onViewMode }: Props) {
   const [session, setSession] = useState<Session | null>(() => loadSession());
-  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
-  const [integrations, setIntegrations] = useState<IntegrationStatus>(OFFLINE);
-  const [tab, setTab] = useState<'home' | 'saathi'>('home');
-  const [view, setViewState] = useState<ViewMode>(readViewMode);
-  const setView = (mode: ViewMode) => {
-    saveViewMode(mode);
-    setViewState(mode);
-  };
+  const [theme, setTheme, toggleTheme] = useTheme();
+  const [integrations, setIntegrations] = useState<IntegrationStatus>(NO_INTEGRATIONS);
+  const [offline, setOffline] = useState(false);
   const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const route = useRoute();
 
   const logout = useCallback(() => {
     saveSession(null);
     setSession(null);
+    navigate('home', null, { replace: true });
   }, []);
 
   useEffect(() => {
@@ -44,87 +53,63 @@ export default function App() {
     let cancelled = false;
     const probe = async () => {
       try {
-        await api.health();
         const status = await api.integrations();
-        if (!cancelled) {
-          setApiOnline(true);
-          setIntegrations(status);
-        }
+        if (cancelled) return;
+        setIntegrations(status);
+        setOffline(false);
       } catch {
-        if (!cancelled) setApiOnline(false);
+        if (!cancelled) setOffline(true);
       }
     };
     void probe();
-    const timer = window.setInterval(probe, 15000);
+    const timer = window.setInterval(probe, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
   }, []);
 
-  const login = (next: Session) => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route.page]);
+
+  const login = (next: Session, page: Page, param: string | null = null) => {
     saveSession(next);
     setSession(next);
+    if (next.user.role === 'support') navigate('home', null, { replace: true });
+    else navigate(page, param, { replace: true });
   };
 
-  // App view: a mobile banking experience (phone frame on wide screens). Specialists keep the desk layout.
-  if (view === 'app' && session?.user.role !== 'support') {
-    return (
-      <div className="phone-stage">
-        <div className="stage-bar">
-          <span className="stage-brand">Paytm Saathi</span>
-          <ViewToggle mode={view} onChange={setView} />
-        </div>
-        <div className="phone-frame">
-          <div className="phone-screen">
-            <MobileApp session={session} integrations={integrations} onLogin={login} onLogout={logout} onWebView={() => setView('web')} />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Starting a chat from anywhere sends the exact text through the normal chat pipeline in a new conversation.
+  const ask = useCallback((text: string) => {
+    setSeed({ text, nonce: Date.now() });
+    navigate('saathi');
+  }, []);
+
+  const user = session?.user ?? null;
+  const customer = user?.role === 'customer';
+
+  let content;
+  if (!user) content = <Landing onLogin={login} />;
+  else if (user.role === 'support') content = <SupportQueue />;
+  else if (route.page === 'saathi')
+    content = <Saathi key="saathi" integrations={integrations} routeParam={route.param} seed={seed} onSeedUsed={() => setSeed(null)} />;
+  else if (route.page === 'insights') content = <Insights onAsk={ask} />;
+  else if (route.page === 'goals') content = <Goals onAsk={ask} />;
+  else if (route.page === 'more')
+    content = <More section={route.param} user={user} integrations={integrations} theme={theme} onTheme={setTheme} onAsk={ask} onLogout={logout} />;
+  else content = <Home name={user.display_name} onAsk={ask} />;
 
   return (
-    <div className="app">
-      <TopBar
-        session={session}
-        apiOnline={apiOnline}
-        integrations={integrations}
-        onLogout={logout}
-        viewToggle={<ViewToggle mode={view} onChange={setView} />}
-      />
-      <div className="demo-banner">
-        Synthetic demo data only. Claim, credit, and payment outcomes are simulated; partners make the real decisions.
+    <ToastProvider>
+      <div className={`app ${customer ? 'with-bottom-nav' : ''} page-${user ? route.page : 'landing'}`}>
+        <div className="app-bg" aria-hidden />
+        <AppHeader user={user} page={route.page} theme={theme} onToggleTheme={toggleTheme} onLogout={logout} viewMode={viewMode} onViewMode={onViewMode} />
+        {offline && <div className="offline-banner">Saathi can't be reached right now. Check your connection; we'll keep trying.</div>}
+        <ErrorBoundary key={`${route.page}-${user?.user_id ?? 'guest'}`}>{content}</ErrorBoundary>
+        {customer && route.page !== 'saathi' && <SosButton className="sos-fab" />}
+        {customer && <BottomNav page={route.page} />}
       </div>
-      {!session ? (
-        <Login onLogin={login} apiOnline={apiOnline} />
-      ) : session.user.role === 'support' ? (
-        <SupportQueue />
-      ) : (
-        <>
-          <nav className="app-tabs" aria-label="Main">
-            <button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>
-              🏠 Home
-            </button>
-            <button className={tab === 'saathi' ? 'active' : ''} onClick={() => setTab('saathi')}>
-              💬 Saathi
-            </button>
-          </nav>
-          {/* Both stay mounted so an open case survives switching tabs. */}
-          <div hidden={tab !== 'home'}>
-            <HomeView
-              displayName={session.user.display_name}
-              onAsk={(text) => {
-                setSeed({ text, nonce: Date.now() });
-                setTab('saathi');
-              }}
-            />
-          </div>
-          <div hidden={tab !== 'saathi'}>
-            <CustomerWorkspace integrations={integrations} seed={seed} onSeedUsed={() => setSeed(null)} />
-          </div>
-        </>
-      )}
-    </div>
+    </ToastProvider>
   );
 }

@@ -17,7 +17,7 @@ const server = app.listen(settings.port, settings.host, (error?: Error) => {
   console.log(
     `[saathi] Partner MCP servers: http://${settings.host}:${settings.port}/mcp/{insurer,hospital,payments,lender,aa,crm,knowledge}` +
       (settings.mcpPartnerTokenGenerated
-        ? ` (local demo token: ${settings.mcpPartnerToken}; set MCP_PARTNER_TOKEN to pin it)`
+        ? ' (random token for this run; set MCP_PARTNER_TOKEN to connect external MCP clients)'
         : ' (bearer token from MCP_PARTNER_TOKEN)'),
   );
   if (settings.jwtSecretEphemeral) {

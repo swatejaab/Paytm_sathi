@@ -127,7 +127,7 @@ export function scoreReport(report: CreditReport) {
       points: mix,
       max_points: 60,
       status: status(mix, 60),
-      detail: `${active.length} open account(s).`,
+      detail: `${active.length} open account${active.length === 1 ? '' : 's'}.`,
       tip: 'A mix of secured loans and cards, all paid on time, helps over time. Never borrow just for the score.',
     },
     {
@@ -137,7 +137,7 @@ export function scoreReport(report: CreditReport) {
       points: enquiries,
       max_points: 60,
       status: status(enquiries, 60),
-      detail: `${report.new_accounts_6m} new account(s) in 6 months.`,
+      detail: `${report.new_accounts_6m} new account${report.new_accounts_6m === 1 ? '' : 's'} in 6 months.`,
       tip: 'Space out loan and card applications; each hard enquiry lowers the score for a while.',
     },
   ];

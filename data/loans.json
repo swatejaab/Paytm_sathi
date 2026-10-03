@@ -1,10 +1,34 @@
 {
   "label": "Synthetic loan accounts and salary schedules for the demo. Not real customer data.",
-  "partner": "Synthetic lender (Mochatrade adapter placeholder)",
+  "partner": "Lending partner (sample records)",
   "accounts": {
     "demo-customer-01": {
       "salary": {
-        "source": "Synthetic payroll schedule",
+        "source": "Payroll schedule (sample)",
+        "usual_credit_day": 10,
+        "expected_date": "2026-10-10",
+        "amount_inr": 95000,
+        "status": "credited"
+      },
+      "committed_before_due_inr": 0,
+      "committed_note": "",
+      "loans": []
+    },
+    "demo-customer-02": {
+      "salary": {
+        "source": "Payroll schedule (sample)",
+        "usual_credit_day": 1,
+        "expected_date": "2026-10-01",
+        "amount_inr": 120000,
+        "status": "credited"
+      },
+      "committed_before_due_inr": 0,
+      "committed_note": "",
+      "loans": []
+    },
+    "demo-customer-03": {
+      "salary": {
+        "source": "Payroll schedule (sample)",
         "usual_credit_day": 1,
         "expected_date": "2026-10-10",
         "amount_inr": 90000,
@@ -24,18 +48,6 @@
           "late_fee_inr_per_day": 50
         }
       ]
-    },
-    "demo-customer-02": {
-      "salary": {
-        "source": "Synthetic payroll schedule",
-        "usual_credit_day": 1,
-        "expected_date": "2026-10-01",
-        "amount_inr": 120000,
-        "status": "credited"
-      },
-      "committed_before_due_inr": 0,
-      "committed_note": "",
-      "loans": []
     }
   }
 }

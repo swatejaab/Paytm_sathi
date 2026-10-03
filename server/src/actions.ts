@@ -3,7 +3,7 @@ import { traceStandalone } from './agent/trace';
 import { signApprovalToken } from './auth';
 import { addMessage, addTimeline, hasConsent, loadCaseForOwner, newId, supersedePendingActions } from './caseStore';
 import { nowIso, recordAudit, updateCase } from './db';
-import { formatInr } from './decision';
+import { formatInr, plural } from './decision';
 import { HttpError } from './errors';
 import { hashPayload } from './hashing';
 import { invokeTool } from './mcp/gateway';
@@ -73,14 +73,14 @@ export async function prepareAction(principal: Principal, caseId: string, option
     title: `Prepared: ${option.title}`,
     detail: option.handoff
       ? 'Waiting for your approval to share the Resolution Passport with a specialist.'
-      : `Waiting for your approval of ${payload.steps.length} partner step(s).`,
+      : `Waiting for your approval of ${plural(payload.steps.length, 'partner step')}.`,
     actor: 'saathi',
   });
   traceStandalone(
     record,
     'action_prepared',
     'action_preparer',
-    `Prepared ${payload.steps.length} step(s) for "${option.title}"; payload ${action.payload_hash.slice(0, 12)} awaits approval.`,
+    `Prepared ${plural(payload.steps.length, 'step')} for "${option.title}"; payload ${action.payload_hash.slice(0, 12)} awaits approval.`,
   );
   recordAudit({
     case_id: record.case_id,
@@ -180,7 +180,7 @@ export async function approveAction(
     record,
     'action_approved',
     'action_tracker',
-    `Gateway verified approval token and payload hash; ${action.partner_requests.length} write(s) submitted.`,
+    `Gateway verified approval token and payload hash; ${plural(action.partner_requests.length, 'write')} submitted.`,
     action.partner_requests.map((request) => request.tool),
   );
   const total = action.payload.steps.reduce((sum, step) => sum + step.amount_inr, 0);
@@ -193,7 +193,7 @@ export async function approveAction(
   addMessage(
     record,
     'assistant',
-    `Approved. I submitted ${action.partner_requests.length} step(s)${total ? ` covering ${formatInr(total)}` : ''} to the simulated partners. Track live status in the timeline.`,
+    `Approved. I submitted ${plural(action.partner_requests.length, 'step')}${total ? ` covering ${formatInr(total)}` : ''} to the simulated partners. Track live status in the timeline.`,
   );
   updateCase(record);
   void dispatchApprovedAction(record.case_id, action.action_id);

@@ -6,8 +6,21 @@ import type { CaseRecord } from '../src/types';
 export const app = createApp();
 export const api = () => request(app);
 
-export const HOSPITAL_MESSAGE = 'Papa hospital mein hain. Bill INR 80,000 hai. Insurance hai, ab kya karun?';
+// Neha's message from the pitch. With consent, Saathi fetches her policy, the hospital bill, and her bank data.
+export const HOSPITAL_MESSAGE = 'Papa ICU mein hai, ₹80,000 deposit maang rahe hain. Kya karun?';
+export const RIYA = ['demo-customer-03', '8642'] as const;
 export const UPI_MESSAGE = 'Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?';
+
+export async function chat(token: string, message: string, conversationId?: string): Promise<CaseRecord> {
+  const response = await api()
+    .post('/api/chat')
+    .set(bearer(token))
+    .send({ message, ...(conversationId ? { conversation_id: conversationId } : {}) });
+  assert.ok([200, 201].includes(response.status), JSON.stringify(response.body));
+  return response.body as CaseRecord;
+}
+
+export const lastReply = (record: CaseRecord) => [...record.messages].reverse().find((message) => message.role === 'assistant')!;
 
 export async function login(userId = 'demo-customer-01', passcode = '2468'): Promise<string> {
   const response = await api().post('/api/auth/login').send({ user_id: userId, passcode });

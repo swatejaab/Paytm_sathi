@@ -6,10 +6,42 @@ import { calculateEmi, checkAffordability } from '../decision';
 import { householdContext, termPremium } from '../insurance';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
-import { fixtures, PARTNERS } from '../fixtures';
+import { fixtures, healthRecordsFor, offersFor, PARTNERS, type HospitalAdmission } from '../fixtures';
 import { guidanceFor } from '../playbooks/registry';
+import { buildTwin, investmentsFor } from '../twin';
+import { buildPortfolio, PAN_PATTERN, panOnFile } from '../holdings';
 import type { CaseRecord, ConsentPurpose, EventType, Principal } from '../types';
 import { GatewayError } from './errors';
+
+export type PolicyLookup =
+  | { found: false }
+  | {
+      found: true;
+      document_id: string;
+      file_name: string;
+      insurer: string;
+      policy_name: string;
+      insured_members: string[];
+      cashless_network: string[];
+      sum_insured_inr: number;
+      room_rent_limit_per_day_inr: number;
+      deductible_per_claim_inr: number;
+      clauses: { clause_id: string; page: number; title: string; text: string }[];
+    };
+
+export type AdmissionLookup = { found: false } | ({ found: true } & Omit<HospitalAdmission, 'claim_documents'>);
+
+export interface FiData {
+  consent_handle: string;
+  accounts: { masked_account: string; type: string; balance_inr: number }[];
+  avg_monthly_inflow_inr: number;
+  avg_monthly_outflow_inr: number;
+  months_analysed: number;
+  next_salary_date: string | null;
+  scheduled_debits: { title: string; amount_inr: number; due_date: string }[];
+  mutual_funds: { name: string; value_inr: number; source: string }[];
+  source: string;
+}
 
 export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'aa' | 'crm' | 'bureau' | 'knowledge';
 
@@ -39,7 +71,7 @@ const READ_CONSENT: ConsentPurpose = 'prepare_resolution_options';
 
 function profileFor(customerId: string) {
   const profile = fixtures.profiles[customerId];
-  if (!profile) throw new GatewayError('not_found', 'No synthetic financial profile exists for this customer.');
+  if (!profile) throw new GatewayError('not_found', 'No financial profile exists for this customer.');
   return profile;
 }
 
@@ -97,12 +129,25 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Return the policy document and its clauses.',
-    fixture: 'sample_documents.json#policy',
+    description: "Return the customer's health policy on file with the insurer: members, sum insured, cashless network, and clauses.",
+    fixture: 'sample_documents.json#customers.*.policy',
     input: caseOnly,
-    handler: () => {
-      const { policy } = fixtures.documents;
-      return { document_id: policy.document_id, file_name: policy.file_name, insurer: policy.insurer, clauses: policy.clauses };
+    handler: ({ customer_id }): PolicyLookup => {
+      const { policy } = healthRecordsFor(customer_id);
+      if (!policy) return { found: false };
+      return {
+        found: true,
+        document_id: policy.document_id,
+        file_name: policy.file_name,
+        insurer: policy.insurer,
+        policy_name: policy.policy_name,
+        insured_members: policy.insured_members,
+        cashless_network: policy.cashless_network,
+        sum_insured_inr: policy.schedule.sum_insured_inr,
+        room_rent_limit_per_day_inr: policy.schedule.room_rent_limit_per_day_inr,
+        deductible_per_claim_inr: policy.schedule.deductible_per_claim_inr,
+        clauses: policy.clauses.map(({ clause_id, page, title, text }) => ({ clause_id, page, title, text })),
+      };
     },
   },
   {
@@ -112,7 +157,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     scope: 'case:read',
     consent: READ_CONSENT,
     description: 'Assess each bill line against the policy schedule (room limit, non-medical items, deductible) and estimate cover.',
-    fixture: 'sample_documents.json#policy',
+    fixture: 'sample_documents.json#customers.*.policy',
     input: z
       .object({
         case_id: caseId,
@@ -133,10 +178,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           .optional(),
       })
       .strict(),
-    handler: (_context, input: { bill_total_inr: number; lines?: CoverageBillLine[] }) => {
-      const { policy, bill } = fixtures.documents;
+    handler: ({ customer_id }, input: { bill_total_inr: number; lines?: CoverageBillLine[] }) => {
+      const { policy, admission } = healthRecordsFor(customer_id);
+      if (!policy) throw new GatewayError('not_found', 'No health policy is on file for this customer.');
       const clause = policy.clauses.find((candidate) => candidate.clause_id === policy.coverage_clause_id)!;
-      const lines = input.lines?.length ? input.lines : bill.lines;
+      const lines = input.lines?.length ? input.lines : admission?.bill.lines;
+      if (!lines?.length) throw new GatewayError('invalid_input', 'An itemised bill is needed to check coverage.');
       if (lines.reduce((sum, line) => sum + line.amount_inr, 0) !== input.bill_total_inr) {
         throw new GatewayError('invalid_input', 'Bill lines must add up to the bill total.');
       }
@@ -152,7 +199,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         assumptions: policy.clauses
           .filter((candidate) => candidate.clause_id === '3.2')
           .map(({ clause_id, page, title }) => ({ clause_id, page, title })),
-        note: 'Synthetic estimate for the demo only; not an insurer coverage decision.',
+        note: 'Estimate from the policy on file; the insurer makes the coverage decision.',
       };
     },
   },
@@ -163,9 +210,13 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     scope: 'case:read',
     consent: READ_CONSENT,
     description: 'Return required claim documents and what is still missing.',
-    fixture: 'sample_documents.json#claim_documents',
+    fixture: 'sample_documents.json#customers.*.admission.claim_documents',
     input: caseOnly,
-    handler: () => ({ ...fixtures.documents.claim_documents, missing: fixtures.documents.missing_documents }),
+    handler: ({ customer_id }) => {
+      const { admission } = healthRecordsFor(customer_id);
+      if (!admission) return { clause_id: null, page: null, required: [], available: [], missing: [] };
+      return { ...admission.claim_documents, missing: admission.missing_documents };
+    },
   },
   {
     name: 'hospital.get_bill',
@@ -173,10 +224,15 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Return the itemized hospital bill.',
-    fixture: 'sample_documents.json#bill',
+    description: "Return the customer's current admission at a network hospital and its itemised bill or estimate.",
+    fixture: 'sample_documents.json#customers.*.admission',
     input: caseOnly,
-    handler: () => fixtures.documents.bill,
+    handler: ({ customer_id }): AdmissionLookup => {
+      const { admission } = healthRecordsFor(customer_id);
+      if (!admission) return { found: false };
+      const { claim_documents: _claim, missing_documents: missing, ...rest } = admission;
+      return { found: true, ...rest, missing_documents: missing };
+    },
   },
   {
     name: 'hospital.get_documents',
@@ -185,12 +241,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     scope: 'case:read',
     consent: READ_CONSENT,
     description: 'Return documents the hospital has issued.',
-    fixture: 'sample_documents.json#claim_documents',
+    fixture: 'sample_documents.json#customers.*.admission.claim_documents',
     input: caseOnly,
-    handler: () => ({
-      available: fixtures.documents.claim_documents.available,
-      missing: fixtures.documents.missing_documents,
-    }),
+    handler: ({ customer_id }) => {
+      const { admission } = healthRecordsFor(customer_id);
+      return { available: admission?.claim_documents.available ?? [], missing: admission?.missing_documents ?? [] };
+    },
   },
   {
     name: 'payments.get_balance',
@@ -251,16 +307,16 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Return labeled synthetic offers that fit an amount.',
+    description: 'Return labeled sample offers that fit an amount.',
     fixture: 'lending_offers.json',
     input: z.object({ case_id: caseId, amount_inr: inr }).strict(),
-    handler: (_context, input: { amount_inr: number }) => ({
+    handler: ({ customer_id }, input: { amount_inr: number }) => ({
       partner: fixtures.lending.partner,
       rules: fixtures.lending.affordability_rules,
-      offers: fixtures.lending.offers.filter(
+      offers: offersFor(customer_id).filter(
         (offer) => input.amount_inr >= offer.min_amount_inr && input.amount_inr <= offer.max_amount_inr,
       ),
-      notice: 'Synthetic offers; no lender API is connected.',
+      notice: 'Sample offers for illustration; no lender is connected, so terms are indicative.',
     }),
   },
   {
@@ -286,7 +342,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: caseOnly,
     handler: ({ customer_id }) => {
       const account = fixtures.loans.accounts[customer_id];
-      if (!account) throw new GatewayError('not_found', 'No synthetic loan account exists for this customer.');
+      if (!account) throw new GatewayError('not_found', 'No loan account exists for this customer.');
       return account;
     },
   },
@@ -299,8 +355,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return the Key Fact Statement (rate, APR, fees, total payable, cooling-off) for an offer and amount.',
     fixture: 'lending_offers.json',
     input: z.object({ case_id: caseId, offer_id: z.string().max(40), amount_inr: inr.positive() }).strict(),
-    handler: (_context, input: { offer_id: string; amount_inr: number }) => {
-      const offer = fixtures.lending.offers.find((candidate) => candidate.offer_id === input.offer_id);
+    handler: ({ customer_id }, input: { offer_id: string; amount_inr: number }) => {
+      const offer = offersFor(customer_id).find((candidate) => candidate.offer_id === input.offer_id);
       if (!offer || input.amount_inr < offer.min_amount_inr || input.amount_inr > offer.max_amount_inr) {
         throw new GatewayError('not_found', 'No offer covers this amount.');
       }
@@ -322,8 +378,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         total_payable_inr: input.amount_inr + emi.total_interest_inr + fee,
         cooling_off_days: 3,
         disbursed_to: offer.disburse_to,
-        grievance_contact: 'Synthetic lender nodal grievance officer (demo)',
-        notice: 'Synthetic Key Fact Statement for the demo; a regulated lender issues the real KFS.',
+        grievance_contact: "The lender's nodal grievance officer (named in the lender's own KFS)",
+        notice: 'Indicative Key Fact Statement; the regulated lender issues the binding KFS before you sign.',
       };
     },
   },
@@ -333,9 +389,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Create an Account Aggregator consent artefact for deposit data, scoped to this case.',
+    description: 'Create an Account Aggregator consent artefact for deposit and mutual fund data, scoped to this case.',
     fixture: 'simulated Account Aggregator',
-    input: z.object({ case_id: caseId, purpose: z.string().min(3).max(80), fi_types: z.array(z.enum(['DEPOSIT'])).min(1) }).strict(),
+    input: z
+      .object({ case_id: caseId, purpose: z.string().min(3).max(80), fi_types: z.array(z.enum(['DEPOSIT', 'MUTUAL_FUNDS'])).min(1).max(2) })
+      .strict(),
     handler: (_context, input: { purpose: string; fi_types: string[] }) => ({
       consent_handle: newId('AA-CN', 6),
       status: 'ACTIVE',
@@ -351,19 +409,45 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Fetch deposit balances and average inflow under an active AA consent artefact.',
-    fixture: 'customer_profiles.json',
+    description: 'Fetch deposit balances, average inflow, and debits scheduled before the next salary under an active AA consent artefact.',
+    fixture: 'customer_profiles.json + twin.json + loans.json',
     input: z.object({ case_id: caseId, consent_handle: z.string().regex(/^AA-CN-[A-Z0-9]{6}$/) }).strict(),
-    handler: ({ customer_id }, input: { consent_handle: string }) => {
+    handler: ({ customer_id }, input: { consent_handle: string }): FiData => {
       const profile = profileFor(customer_id);
+      const twin = buildTwin(customer_id, { audit: false });
+      const salaryDate = twin?.before_salary.salary_date ?? null;
       return {
         consent_handle: input.consent_handle,
         accounts: [{ masked_account: `XXXX${profile.profile_id.slice(-2)}21`, type: 'SAVINGS', balance_inr: profile.account_balance_inr }],
         avg_monthly_inflow_inr: profile.monthly_income_inr,
         avg_monthly_outflow_inr: profile.monthly_essential_expenses_inr + profile.existing_emi_inr,
         months_analysed: 3,
+        next_salary_date: salaryDate,
+        scheduled_debits: (twin?.obligations ?? [])
+          .filter((item) => item.direction === 'out' && salaryDate !== null && item.due_date < salaryDate)
+          .map(({ title, amount_inr, due_date }) => ({ title, amount_inr, due_date })),
+        mutual_funds: investmentsFor(customer_id)
+          .filter((item) => item.kind === 'mutual_fund')
+          .map(({ name, value_inr, source }) => ({ name, value_inr, source })),
         source: 'Simulated FIP data via Account Aggregator',
       };
+    },
+  },
+  {
+    name: 'aa.fetch_holdings',
+    server: 'aa',
+    kind: 'read',
+    scope: 'case:read',
+    consent: null,
+    description:
+      'Fetch every holding linked to the PAN: bank and FD balances via Account Aggregator, demat stocks (CDSL/NSDL) and mutual funds (CAMS/KFintech) via the consolidated account statement. Account-level: needs explicit consent.',
+    fixture: 'holdings.json + twin.json + loans.json',
+    input: z.object({ pan: z.string().regex(PAN_PATTERN) }).strict(),
+    handler: ({ customer_id }, input: { pan: string }) => {
+      const pan = panOnFile(customer_id);
+      if (!pan) throw new GatewayError('not_found', 'No PAN-linked holdings exist for this customer.');
+      if (pan !== input.pan) throw new GatewayError('invalid_input', 'This PAN does not match the one verified on your account.');
+      return buildPortfolio(customer_id);
     },
   },
   {
@@ -377,7 +461,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z.object({ purpose: z.enum(['self_check']) }).strict(),
     handler: ({ customer_id }) => {
       const report = fixtures.credit.reports[customer_id];
-      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      if (!report) throw new GatewayError('not_found', 'No credit report exists for this customer.');
       return { bureau: fixtures.credit.bureau, soft_pull: true, report, ...scoreReport(report) };
     },
   },
@@ -392,7 +476,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z.object({ action: z.enum(Object.keys(SCORE_ACTIONS) as [ScoreAction, ...ScoreAction[]]) }).strict(),
     handler: ({ customer_id }, input: { action: ScoreAction }) => {
       const report = fixtures.credit.reports[customer_id];
-      if (!report) throw new GatewayError('not_found', 'No synthetic credit report exists for this customer.');
+      if (!report) throw new GatewayError('not_found', 'No credit report exists for this customer.');
       const before = scoreReport(report);
       const after = scoreReport(simulateAction(report, input.action));
       return {
@@ -415,9 +499,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     scope: 'case:read',
     consent: null,
     description: 'Retrieve cited policy clauses (local index; Cognee fallback).',
-    fixture: 'sample_documents.json#policy',
+    fixture: 'sample_documents.json#customers.*.policy',
     input: z.object({ case_id: caseId, query: z.string().min(2).max(500), top_k: z.number().int().min(1).max(5).optional() }).strict(),
-    handler: (_context, input: { query: string; top_k?: number }) => retrievePolicyClauses(input.query, input.top_k ?? 3),
+    handler: ({ customer_id }, input: { query: string; top_k?: number }) => retrievePolicyClauses(customer_id, input.query, input.top_k ?? 3),
   },
   {
     name: 'knowledge.get_clause',
@@ -426,10 +510,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     scope: 'case:read',
     consent: null,
     description: 'Return one policy clause by id.',
-    fixture: 'sample_documents.json#policy',
+    fixture: 'sample_documents.json#customers.*.policy',
     input: z.object({ case_id: caseId, clause_id: z.string().min(1).max(10) }).strict(),
-    handler: (_context, input: { clause_id: string }) => {
-      const clause = fixtures.documents.policy.clauses.find((candidate) => candidate.clause_id === input.clause_id);
+    handler: ({ customer_id }, input: { clause_id: string }) => {
+      const clause = healthRecordsFor(customer_id).policy?.clauses.find((candidate) => candidate.clause_id === input.clause_id);
       if (!clause) throw new GatewayError('not_found', 'Clause not found.');
       return clause;
     },
@@ -536,12 +620,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z
       .object({ case_id: caseId, amount_inr: inr.positive(), payee: z.enum(['hospital']), purpose: z.string().min(3).max(120) })
       .strict(),
-    handler: ({ customer_id }, input: { amount_inr: number }) => {
-      if (input.amount_inr > profileFor(customer_id).available_to_pay_inr) {
-        throw new GatewayError('invalid_input', 'The payment link exceeds what the customer said they can pay now.');
-      }
+    handler: () => {
       const reference = newId('PLINK', 6);
-      return { reference, partner: PARTNERS.payments, link: `https://paytm.me/demo/${reference.toLowerCase()}`, status: 'submitted', simulated: true };
+      return { reference, partner: PARTNERS.payments, link: `https://paytm.me/saathi/${reference.toLowerCase()}`, status: 'submitted', simulated: true };
     },
   },
   {
@@ -653,6 +734,28 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         throw new GatewayError('invalid_input', 'Dispute amount must match the customer transaction.');
       }
       return submitted('DSP', PARTNERS.payments);
+    },
+  },
+  {
+    name: 'payments.pause_upi',
+    server: 'payments',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Temporarily pause UPI payments on the customer account and flag the payee (simulated).',
+    fixture: 'simulated payments adapter',
+    input: z
+      .object({
+        case_id: caseId,
+        transaction_id: z.string().min(3).max(40),
+        block_payee: z.boolean(),
+      })
+      .strict(),
+    handler: ({ customer_id }, input: { transaction_id: string }) => {
+      if (!transactionsFor(customer_id).some((candidate) => candidate.transaction_id === input.transaction_id)) {
+        throw new GatewayError('invalid_input', 'The transaction must belong to the customer.');
+      }
+      return submitted('UPIPAUSE', PARTNERS.payments);
     },
   },
 ];

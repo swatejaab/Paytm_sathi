@@ -7,13 +7,13 @@ import { invokeTool } from '../src/mcp/gateway';
 import { evaluate } from '../src/playbooks/expressions';
 import { classifyWithPlaybooks, PLAYBOOKS } from '../src/playbooks/registry';
 import type { CaseRecord, Principal } from '../src/types';
-import { api, bearer, createCase, login, waitFor } from './helpers';
+import { api, bearer, createCase, login, RIYA, waitFor } from './helpers';
 
 const REFUND_MESSAGE = 'INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.';
-const riya: Principal = {
+const neha: Principal = {
   sub: 'demo-customer-01',
   role: 'customer',
-  display_name: 'Riya',
+  display_name: 'Neha',
   scopes: ['case:read', 'action:approve', 'consent:manage', 'document:upload', 'case:create'],
 };
 
@@ -85,7 +85,7 @@ describe('playbook registry', () => {
     const record = await createCase(token, 'Salary delayed, EMI due this week.');
     const stored = findCase(record.case_id)!;
     await assert.rejects(
-      () => invokeTool('hospital.get_bill', { case_id: record.case_id }, { principal: riya, caseRecord: stored }),
+      () => invokeTool('hospital.get_bill', { case_id: record.case_id }, { principal: neha, caseRecord: stored }),
       (error: unknown) => error instanceof GatewayError && error.code === 'playbook_scope',
     );
   });
@@ -106,9 +106,9 @@ describe('playbook registry', () => {
     const action = { action_id: 'ACT-TAMPER01', payload: { steps }, payload_hash: '', partner_requests: [] } as unknown as CaseRecord['actions'][number];
     const { hashPayload } = await import('../src/hashing');
     action.payload_hash = hashPayload(action.payload);
-    const token2 = signApprovalToken({ case_id: record.case_id, action_id: action.action_id, payload_hash: action.payload_hash, sub: riya.sub });
+    const token2 = signApprovalToken({ case_id: record.case_id, action_id: action.action_id, payload_hash: action.payload_hash, sub: neha.sub });
     await assert.rejects(
-      () => invokeTool('payments.raise_refund_trace', steps[0]!.input, { principal: riya, caseRecord: stored, approval: { token: token2, action } }),
+      () => invokeTool('payments.raise_refund_trace', steps[0]!.input, { principal: neha, caseRecord: stored, approval: { token: token2, action } }),
       (error: unknown) => error instanceof GatewayError && /exceeds the regulatory/.test(error.message),
     );
   });
@@ -116,7 +116,7 @@ describe('playbook registry', () => {
 
 describe('term life and remembered consent', () => {
   it('sizes the protection gap and recommends full cover for a family', async () => {
-    const token = await login();
+    const token = await login(...RIYA);
     const record = await createCase(token, 'I want to buy a term life insurance');
     assert.equal(record.playbook_id, 'term_life');
     const facts = Object.fromEntries(record.decision!.facts.map((fact) => [fact.name, fact.value]));
@@ -133,9 +133,10 @@ describe('term life and remembered consent', () => {
   it('applies a remembered records consent to new cases', async () => {
     const token = await login('demo-customer-02', '1357');
     await api().post('/api/consents').set(bearer(token)).send({ records: true });
-    const record = await createCase(token, 'Papa hospital mein hain. Bill INR 80,000 hai.', false);
+    const record = await createCase(token, 'I am admitted in hospital. What should I do?', false);
     assert.equal(record.status, 'options_ready');
-    assert.ok(record.timeline.some((entry) => entry.title === 'Consent applied (remembered choice)'));
+    assert.ok(!record.messages.some((message) => message.quick_replies?.some((reply) => reply.send === 'Yes, allow access')));
+    assert.ok(record.timeline.some((entry) => entry.title === 'Access allowed (remembered choice)'));
     await api().post('/api/consents').set(bearer(token)).send({ records: false });
   });
 });

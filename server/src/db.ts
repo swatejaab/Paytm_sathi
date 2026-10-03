@@ -43,6 +43,13 @@ function db(): DatabaseSync {
       event_id TEXT PRIMARY KEY,
       received_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS goals (
+      goal_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_goals_user ON goals (user_id, updated_at);
   `);
   return database;
 }
@@ -69,6 +76,11 @@ export function updateCase(record: CaseRecord): void {
     .run(JSON.stringify(record), record.updated_at, record.case_id);
   if (Number(result.changes) !== 1) throw new HttpError(404, 'Case not found');
   announceCaseUpdate(record.case_id);
+}
+
+export function deleteCase(caseId: string, customerId: string): boolean {
+  const result = db().prepare('DELETE FROM cases WHERE case_id = ? AND customer_id = ?').run(caseId, customerId);
+  return Number(result.changes) === 1;
 }
 
 export function listCases(customerId?: string): CaseRecord[] {
@@ -138,8 +150,10 @@ export interface StandingConsents {
 export interface UserPreferences {
   alerts_enabled?: boolean;
   dismissed_alerts?: string[];
+  goals_seeded?: boolean;
   // Choices the customer asked Saathi to remember; each is revocable and still recorded per case.
   consents?: Partial<StandingConsents>;
+  holdings_link?: { pan_masked: string; linked_at: string };
 }
 
 export function standingConsents(userId: string): StandingConsents {
@@ -156,4 +170,21 @@ export function savePreferences(userId: string, preferences: UserPreferences): v
   db()
     .prepare('INSERT INTO user_preferences (user_id, payload) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload')
     .run(userId, JSON.stringify(preferences));
+}
+
+export function listGoalRows<T>(userId: string): T[] {
+  const rows = db().prepare('SELECT payload FROM goals WHERE user_id = ? ORDER BY updated_at DESC').all(userId) as { payload: string }[];
+  return rows.map((row) => JSON.parse(row.payload) as T);
+}
+
+export function upsertGoalRow<T extends { goal_id: string; user_id: string; updated_at: string }>(goal: T): void {
+  db()
+    .prepare(
+      'INSERT INTO goals (goal_id, user_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(goal_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at',
+    )
+    .run(goal.goal_id, goal.user_id, JSON.stringify(goal), goal.updated_at);
+}
+
+export function deleteGoalRow(userId: string, goalId: string): boolean {
+  return Number(db().prepare('DELETE FROM goals WHERE goal_id = ? AND user_id = ?').run(goalId, userId).changes) === 1;
 }

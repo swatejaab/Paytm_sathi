@@ -36,7 +36,7 @@ export function createPartnerServer(server: Exclude<ServerId, 'identity'>, fallb
     { name: CONTRACT_NAMES[server], version: '1.0.0' },
     {
       instructions:
-        'Simulated Paytm Saathi partner server. Read tools return synthetic records; write tools are called by the ' +
+        'Simulated Paytm Saathi partner server. Read tools return sample records; write tools are called by the ' +
         'Saathi gateway only after a verified, payload-bound customer approval.',
     },
   );

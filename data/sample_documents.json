@@ -1,119 +1,257 @@
 {
-  "fixture_id": "SAATHI-HOSPITAL-DOCS-V1",
+  "fixture_id": "SAATHI-HEALTH-RECORDS-V2",
   "demo_only": true,
-  "description": "Synthetic documents for the Paytm Saathi hackathon demo. Not a real policy or claim decision.",
-  "bill": {
-    "document_id": "BILL-DEMO-001",
-    "document_type": "bill",
-    "file_name": "synthetic_hospital_bill.json",
-    "page": 1,
-    "currency": "INR",
-    "total_inr": 80000,
-    "lines": [
-      {
-        "line": 4,
-        "description": "Room and nursing (3 days)",
-        "amount_inr": 30000,
-        "days": 3
+  "description": "Synthetic insurer and hospital records served by the simulated insurer and hospital MCP servers. Not a real policy, bill, or claim decision.",
+  "customers": {
+    "demo-customer-01": {
+      "policy": {
+        "document_id": "POLICY-HF-5521",
+        "document_type": "policy",
+        "file_name": "Family health floater schedule (insurer record)",
+        "insurer": "Insurer partner (simulated)",
+        "policy_name": "Family health floater",
+        "insured_members": ["Neha Kulkarni (self)", "Suresh Kulkarni (father)", "Asha Kulkarni (mother)"],
+        "cashless_network": ["City Hospital, Thane"],
+        "coverage_clause_id": "3.1",
+        "coverage_confidence": 0.91,
+        "clauses": [
+          {
+            "clause_id": "3.1",
+            "page": 4,
+            "title": "Eligible inpatient expenses",
+            "text": "Eligible inpatient hospital expenses for any insured member are payable subject to the limits and exclusions in this policy, including the room limit (3.2), non-medical items (4.3) and the deductible (6.1).",
+            "estimated_coverage_inr": 55000
+          },
+          {
+            "clause_id": "3.2",
+            "page": 4,
+            "title": "Room category limit",
+            "text": "Room, ICU and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "4.3",
+            "page": 6,
+            "title": "Non-medical items",
+            "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "6.1",
+            "page": 8,
+            "title": "Deductible",
+            "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "5.4",
+            "page": 9,
+            "title": "Claim documents",
+            "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts.",
+            "estimated_coverage_inr": null
+          }
+        ],
+        "schedule": {
+          "sum_insured_inr": 500000,
+          "room_rent_limit_per_day_inr": 5000,
+          "deductible_per_claim_inr": 5000,
+          "room_clause_id": "3.2",
+          "non_medical_clause_id": "4.3",
+          "deductible_clause_id": "6.1",
+          "eligible_clause_id": "3.1"
+        }
       },
-      {
-        "line": 5,
-        "description": "Diagnostics",
-        "amount_inr": 10000
-      },
-      {
-        "line": 6,
-        "description": "Procedure",
-        "amount_inr": 25000
-      },
-      {
-        "line": 7,
-        "description": "Pharmacy and supplies",
-        "amount_inr": 15000,
-        "non_medical_inr": 5000,
-        "note": "Includes INR 5,000 of non-medical consumables (kits, gloves, toiletries)"
+      "admission": {
+        "admission_id": "ADM-CHT-2041",
+        "hospital": "City Hospital, Thane",
+        "patient": "Suresh Kulkarni",
+        "relation": "father",
+        "ward": "ICU",
+        "reason": "Emergency cardiac admission",
+        "admitted_at": "2026-10-02T23:05:00+05:30",
+        "cashless": true,
+        "bill": {
+          "document_id": "BILL-CHT-2041",
+          "document_type": "bill",
+          "file_name": "City Hospital, Thane admission estimate",
+          "page": 1,
+          "currency": "INR",
+          "total_inr": 80000,
+          "lines": [
+            { "line": 4, "description": "ICU room and nursing (3 days)", "amount_inr": 30000, "days": 3 },
+            { "line": 5, "description": "Doctor visits and consultations", "amount_inr": 6000 },
+            { "line": 6, "description": "Diagnostics and imaging", "amount_inr": 10000 },
+            { "line": 7, "description": "Angiography procedure", "amount_inr": 19000 },
+            { "line": 8, "description": "Medicines", "amount_inr": 10000, "non_medical_inr": 0 },
+            {
+              "line": 9,
+              "description": "Consumables and kits",
+              "amount_inr": 5000,
+              "non_medical_inr": 5000,
+              "note": "Non-medical consumables (kits, gloves, toiletries)"
+            }
+          ]
+        },
+        "claim_documents": {
+          "clause_id": "5.4",
+          "page": 9,
+          "required": ["Itemized final bill", "Discharge summary", "Prescriptions", "Investigation reports", "Payment receipts"],
+          "available": ["Itemized final bill", "Prescriptions", "Investigation reports", "Payment receipts"]
+        },
+        "missing_documents": ["Discharge summary"]
       }
-    ]
-  },
-  "policy": {
-    "document_id": "POLICY-DEMO-001",
-    "document_type": "policy",
-    "file_name": "synthetic_health_policy.json",
-    "insurer": "Synthetic insurer (demo)",
-    "coverage_clause_id": "3.1",
-    "coverage_confidence": 0.91,
-    "clauses": [
-      {
-        "clause_id": "3.1",
-        "page": 4,
-        "title": "Eligible inpatient expenses",
-        "text": "For the synthetic demonstration only, eligible inpatient hospital expenses are considered subject to the limits and exclusions in this sample policy.",
-        "estimated_coverage_inr": 55000
+    },
+    "demo-customer-02": {
+      "policy": {
+        "document_id": "POLICY-IH-7310",
+        "document_type": "policy",
+        "file_name": "Individual health policy schedule (insurer record)",
+        "insurer": "Insurer partner (simulated)",
+        "policy_name": "Individual health",
+        "insured_members": ["Arjun Mehta (self)"],
+        "cashless_network": ["Sunrise Hospital, Bengaluru"],
+        "coverage_clause_id": "3.1",
+        "coverage_confidence": 0.9,
+        "clauses": [
+          {
+            "clause_id": "3.1",
+            "page": 3,
+            "title": "Eligible inpatient expenses",
+            "text": "Eligible inpatient hospital expenses are payable subject to the room limit (3.2), non-medical items (4.3) and the deductible (6.1).",
+            "estimated_coverage_inr": 107000
+          },
+          {
+            "clause_id": "3.2",
+            "page": 3,
+            "title": "Room category limit",
+            "text": "Room and nursing charges are payable up to INR 10,000 per day (1% of the sum insured).",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "4.3",
+            "page": 5,
+            "title": "Non-medical items",
+            "text": "Non-medical consumables such as kits, gloves, and toiletries are not payable.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "6.1",
+            "page": 7,
+            "title": "Deductible",
+            "text": "A deductible of INR 10,000 applies to each admission and is borne by the insured.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "5.4",
+            "page": 8,
+            "title": "Claim documents",
+            "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts.",
+            "estimated_coverage_inr": null
+          }
+        ],
+        "schedule": {
+          "sum_insured_inr": 1000000,
+          "room_rent_limit_per_day_inr": 10000,
+          "deductible_per_claim_inr": 10000,
+          "room_clause_id": "3.2",
+          "non_medical_clause_id": "4.3",
+          "deductible_clause_id": "6.1",
+          "eligible_clause_id": "3.1"
+        }
       },
-      {
-        "clause_id": "3.2",
-        "page": 4,
-        "title": "Room category limit",
-        "text": "Room and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable.",
-        "estimated_coverage_inr": null
-      },
-      {
-        "clause_id": "4.3",
-        "page": 6,
-        "title": "Non-medical items",
-        "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable.",
-        "estimated_coverage_inr": null
-      },
-      {
-        "clause_id": "6.1",
-        "page": 8,
-        "title": "Deductible",
-        "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured.",
-        "estimated_coverage_inr": null
-      },
-      {
-        "clause_id": "5.4",
-        "page": 9,
-        "title": "Claim documents",
-        "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts.",
-        "estimated_coverage_inr": null
+      "admission": {
+        "admission_id": "ADM-SHB-7734",
+        "hospital": "Sunrise Hospital, Bengaluru",
+        "patient": "Arjun Mehta",
+        "relation": "self",
+        "ward": "Private room",
+        "reason": "Laparoscopic appendix surgery",
+        "admitted_at": "2026-10-02T15:30:00+05:30",
+        "cashless": true,
+        "bill": {
+          "document_id": "BILL-SHB-7734",
+          "document_type": "bill",
+          "file_name": "Sunrise Hospital, Bengaluru surgery estimate",
+          "page": 1,
+          "currency": "INR",
+          "total_inr": 120000,
+          "lines": [
+            { "line": 4, "description": "Private room and nursing (2 days)", "amount_inr": 18000, "days": 2 },
+            { "line": 5, "description": "Surgeon and operation theatre", "amount_inr": 55000 },
+            { "line": 6, "description": "Anaesthesia", "amount_inr": 12000 },
+            { "line": 7, "description": "Diagnostics", "amount_inr": 15000 },
+            { "line": 8, "description": "Medicines", "amount_inr": 17000, "non_medical_inr": 0 },
+            { "line": 9, "description": "Consumables and kits", "amount_inr": 3000, "non_medical_inr": 3000 }
+          ]
+        },
+        "claim_documents": {
+          "clause_id": "5.4",
+          "page": 8,
+          "required": ["Itemized final bill", "Discharge summary", "Prescriptions", "Investigation reports", "Payment receipts"],
+          "available": ["Itemized final bill", "Prescriptions", "Investigation reports", "Payment receipts"]
+        },
+        "missing_documents": ["Discharge summary"]
       }
-    ],
-    "estimated_coverage_inr": 55000,
-    "schedule": {
-      "sum_insured_inr": 500000,
-      "room_rent_limit_per_day_inr": 5000,
-      "deductible_per_claim_inr": 5000,
-      "room_clause_id": "3.2",
-      "non_medical_clause_id": "4.3",
-      "deductible_clause_id": "6.1",
-      "eligible_clause_id": "3.1"
+    },
+    "demo-customer-03": {
+      "policy": {
+        "document_id": "POLICY-HF-1182",
+        "document_type": "policy",
+        "file_name": "Family health floater schedule (insurer record)",
+        "insurer": "Insurer partner (simulated)",
+        "policy_name": "Family health floater",
+        "insured_members": ["Riya Sharma (self)", "Spouse", "Child", "Parent"],
+        "cashless_network": [],
+        "coverage_clause_id": "3.1",
+        "coverage_confidence": 0.91,
+        "clauses": [
+          {
+            "clause_id": "3.1",
+            "page": 4,
+            "title": "Eligible inpatient expenses",
+            "text": "Eligible inpatient hospital expenses are payable subject to the limits and exclusions in this policy, including the room limit (3.2), non-medical items (4.3) and the deductible (6.1).",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "3.2",
+            "page": 4,
+            "title": "Room category limit",
+            "text": "Room and nursing charges are payable up to INR 5,000 per day (1% of the sum insured). Charges above this limit are not payable.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "4.3",
+            "page": 6,
+            "title": "Non-medical items",
+            "text": "Non-medical consumables such as kits, gloves, and toiletries listed in Annexure II are not payable.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "6.1",
+            "page": 8,
+            "title": "Deductible",
+            "text": "A deductible of INR 5,000 applies to each admission and is borne by the insured.",
+            "estimated_coverage_inr": null
+          },
+          {
+            "clause_id": "5.4",
+            "page": 9,
+            "title": "Claim documents",
+            "text": "A completed claim may require the itemized final bill, discharge summary, prescriptions, investigation reports, and payment receipts.",
+            "estimated_coverage_inr": null
+          }
+        ],
+        "schedule": {
+          "sum_insured_inr": 500000,
+          "room_rent_limit_per_day_inr": 5000,
+          "deductible_per_claim_inr": 5000,
+          "room_clause_id": "3.2",
+          "non_medical_clause_id": "4.3",
+          "deductible_clause_id": "6.1",
+          "eligible_clause_id": "3.1"
+        }
+      },
+      "admission": null
     }
-  },
-  "claim_documents": {
-    "clause_id": "5.4",
-    "page": 9,
-    "required": [
-      "Itemized final bill",
-      "Discharge summary",
-      "Prescriptions",
-      "Investigation reports",
-      "Payment receipts"
-    ],
-    "available": [
-      "Itemized final bill",
-      "Prescriptions",
-      "Investigation reports",
-      "Payment receipts"
-    ]
-  },
-  "missing_documents": [
-    "Discharge summary"
-  ],
-  "expected_calculation": {
-    "bill_total_inr": 80000,
-    "coverage_estimate_inr": 55000,
-    "customer_contribution_inr": 10000,
-    "exact_gap_inr": 15000
   }
 }

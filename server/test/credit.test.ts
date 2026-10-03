@@ -5,9 +5,9 @@ import { fixtures } from '../src/fixtures';
 import { GatewayError } from '../src/mcp/errors';
 import { invokeAccountTool } from '../src/mcp/gateway';
 import type { Principal } from '../src/types';
-import { api, bearer, login } from './helpers';
+import { api, bearer, login, RIYA } from './helpers';
 
-const riyaReport = fixtures.credit.reports['demo-customer-01']!;
+const riyaReport = fixtures.credit.reports['demo-customer-03']!;
 
 describe('credit score (simulated bureau MCP)', () => {
   it('scores reports transparently on the 300-900 scale', () => {
@@ -30,7 +30,7 @@ describe('credit score (simulated bureau MCP)', () => {
 
   it('requires explicit consent and the account owner at the gateway', async () => {
     const support: Principal = { sub: 'support-agent-01', role: 'support', display_name: 'Support', scopes: ['case:read:any', 'support:act'] };
-    const riya: Principal = { sub: 'demo-customer-01', role: 'customer', display_name: 'Riya', scopes: ['case:read'] };
+    const riya: Principal = { sub: 'demo-customer-03', role: 'customer', display_name: 'Riya', scopes: ['case:read'] };
     await assert.rejects(
       () => invokeAccountTool('bureau.get_credit_report', { purpose: 'self_check' }, { principal: riya, consent: false }),
       (error: unknown) => error instanceof GatewayError && error.code === 'consent_required',
@@ -46,7 +46,7 @@ describe('credit score (simulated bureau MCP)', () => {
   });
 
   it('serves the score and simulations over the API through the MCP server', async () => {
-    const token = await login();
+    const token = await login(...RIYA);
     const score = await api().post('/api/credit/score').set(bearer(token)).send({ consent: true });
     assert.equal(score.status, 200);
     assert.equal(score.body.score, 733);

@@ -233,12 +233,58 @@ export interface AgentRun {
   steps: AgentStep[];
 }
 
-export interface AgentNodeInfo {
-  id: AgentNodeId;
+export type QuickAction =
+  | 'open_plan'
+  | 'upload_bill'
+  | 'upload_policy'
+  | 'create_goal'
+  | 'prepare_option'
+  | 'secure_account'
+  | 'handoff'
+  | 'new_chat'
+  | 'open_insights'
+  | 'open_goals'
+  | 'report_transaction';
+
+export interface QuickReply {
   label: string;
-  responsibility: string;
-  decides_money: string;
+  send?: string;
+  action?: QuickAction;
+  payload?: Record<string, unknown>;
 }
+
+export interface GapLine {
+  label: string;
+  amount_inr: number;
+  op: '' | '-' | '=';
+  source: string;
+}
+
+export interface GoalDraft {
+  name: string;
+  type: string;
+  target_inr: number;
+  target_date: string | null;
+  current_savings_inr: number;
+  monthly_contribution_inr: number | null;
+}
+
+export interface GoalImpact {
+  summary: string;
+  free_cash_monthly_inr: number;
+  goals_monthly_need_inr: number;
+  earmarked_inr: number;
+  focus_goal: string;
+  delay_months: number | null;
+}
+
+export type ChatCard =
+  | { type: 'gap'; lines: GapLine[]; formula: string }
+  | { type: 'plan' }
+  | { type: 'transactions' }
+  | { type: 'bill_confirmation' }
+  | { type: 'afford'; assessment: AffordabilityAssessment & { goal_impact?: GoalImpact | null } }
+  | { type: 'goal_draft'; goal: GoalDraft; required_monthly_inr: number | null; months_left: number | null };
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -247,11 +293,42 @@ export interface ChatMessage {
   original?: string;
   language?: string;
   source?: 'saathi' | 'openai';
+  quick_replies?: QuickReply[];
+  card?: ChatCard;
+}
+
+export type JourneyId = 'hospital' | 'bill' | 'upi_fraud' | 'failed_refund' | 'emi' | 'protection' | 'afford' | 'goal' | 'specialist' | 'general';
+
+export interface Slot<T> {
+  value: T;
+  source: string;
+  ref: string;
+  confidence: number;
+  updated_at: string;
+}
+
+export interface ConversationContext {
+  journey: JourneyId | null;
+  slots: Partial<Record<string, Slot<number | string | boolean>>>;
+  awaiting: string | null;
+  missing: string[];
+  gap: GapCalculation | null;
+  records?: FetchedRecords | null;
+  updated_at: string;
+}
+
+export interface FetchedRecords {
+  policy: { policy_name: string; insurer: string; sum_insured_inr: number; cashless_network: string[] } | null;
+  admission: { hospital: string; patient: string; relation: string; ward: string; cashless: boolean; total_inr: number; missing_documents: string[] } | null;
+  cash: { balance_inr: number; next_salary_date: string | null; safe_to_pay_inr: number } | null;
 }
 
 export interface CaseRecord {
   case_id: string;
   customer_id: string;
+  title?: string;
+  title_locked?: boolean;
+  context?: ConversationContext;
   event_type: EventType;
   urgency: 'high' | 'medium' | 'low';
   language?: 'en' | 'hinglish';
@@ -303,13 +380,119 @@ export interface CaseRecord {
 export interface CaseSummary {
   case_id: string;
   customer_id: string;
+  title: string;
+  journey: JourneyId | null;
   event_type: EventType;
   urgency: string;
   status: CaseStatus;
   customer_message: string;
+  last_message: string | null;
+  message_count: number;
+  has_plan: boolean;
   recommended_option: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export const GOAL_TYPES = [
+  'emergency_fund',
+  'home',
+  'vehicle',
+  'education',
+  'wedding',
+  'travel',
+  'retirement',
+  'debt_repayment',
+  'custom',
+] as const;
+export type GoalType = (typeof GOAL_TYPES)[number];
+export type GoalStatus = 'active' | 'paused' | 'completed';
+export type GoalPriority = 'high' | 'medium' | 'low';
+
+export interface GoalInput {
+  name: string;
+  type: GoalType;
+  target_inr: number;
+  target_date: string | null;
+  current_savings_inr: number;
+  monthly_contribution_inr: number | null;
+  priority: GoalPriority;
+}
+
+export interface Goal extends GoalInput {
+  goal_id: string;
+  status: GoalStatus;
+  created_at: string;
+  updated_at: string;
+  remaining_inr: number;
+  progress_pct: number;
+  months_left: number | null;
+  required_monthly_inr: number | null;
+  expected_completion: string | null;
+  on_track: boolean | null;
+}
+
+export interface ProactiveInsight {
+  id: string;
+  tone: 'good' | 'info' | 'warn' | 'alert';
+  title: string;
+  detail: string;
+  ask?: string;
+}
+
+export interface Insights {
+  as_of: string;
+  period: { month: string; label: string };
+  kpis: {
+    income_inr: number;
+    spending_inr: number;
+    savings_inr: number;
+    savings_rate_pct: number;
+    upcoming_obligations_inr: number;
+    upcoming_count: number;
+    outstanding_debt_inr: number;
+    monthly_emi_inr: number;
+    health: { score: number; band: string; parts: { label: string; score: number; max: number }[] };
+  };
+  months: { month: string; label: string; income_inr: number; spending_inr: number; emi_inr: number; invested_inr: number; net_inr: number }[];
+  cash_flow: { month: string; label: string; net_inr: number; cumulative_inr: number }[];
+  categories: { category: string; amount_inr: number }[];
+  debts: { name: string; outstanding_inr: number; emi_inr: number; kind: string }[];
+  goals: { goal_id: string; name: string; target_inr: number; saved_inr: number; progress_pct: number; status: GoalStatus }[];
+  upcoming: { title: string; kind: string; amount_inr: number; due_date: string; days_away: number }[];
+  insights: ProactiveInsight[];
+  sources: string[];
+}
+
+export interface FinancialContext {
+  monthlyIncome: number | null;
+  averageExpenses: number | null;
+  availableCash: number | null;
+  emergencyFund: number | null;
+  existingLoans: { name: string; outstanding_inr: number; emi_inr: number | null; next_due_date: string | null }[] | null;
+  monthlyEMIs: number | null;
+  insurancePolicies: { policy: string; kind: string; cover_inr: number; renewal_date: string; days_to_renewal: number }[] | null;
+  investments: { name: string; value_inr: number }[] | null;
+  upcomingBills: { title: string; amount_inr: number; due_date: string; days_away: number }[] | null;
+  financialGoals: Goal[];
+  sources: Record<string, string>;
+}
+
+export interface StandingConsents {
+  records: boolean;
+  ai: boolean;
+  voice: boolean;
+}
+
+export interface DocumentItem {
+  document_id: string;
+  document_name: string;
+  document_type: 'bill' | 'policy';
+  page_count: number;
+  uploaded_at: string;
+  case_id: string;
+  conversation_title: string | null;
+  confirmed: boolean;
 }
 
 export interface EvidenceResponse {
@@ -350,17 +533,6 @@ export interface AuditEvent {
   detail: Record<string, unknown>;
 }
 
-export interface ToolInfo {
-  name: string;
-  server: string;
-  kind: 'read' | 'write';
-  scope: string;
-  consent: string | null;
-  description: string;
-  fixture: string;
-  approval_required: boolean;
-}
-
 export interface ProactiveAlert {
   alert_id: string;
   event_type: EventType;
@@ -391,27 +563,8 @@ export interface FinancialTwin {
   }[];
   insurance: { policy: string; kind: string; cover_inr: number; premium_inr: number; renewal_date: string; insurer: string; days_to_renewal: number }[];
   renewals_due: string[];
-  goals: {
-    goal: string;
-    target_inr: number;
-    saved_inr: number;
-    target_date: string;
-    progress_pct: number;
-    monthly_needed_inr: number;
-    months_left: number;
-  }[];
+  goals: Goal[];
   notice: string;
-}
-
-export interface PlaybookInfo {
-  id: string;
-  version: number;
-  title: string;
-  event_type: EventType;
-  engine: string;
-  triggers: string[];
-  tools: { read: string[]; write: string[] };
-  exit: string;
 }
 
 export interface KeyFactStatement {
@@ -526,3 +679,57 @@ export interface ScoreSimulation {
   band_after: string;
   changed: { id: string; label: string; delta: number }[];
 }
+
+export type AssetClassId = 'savings' | 'fixed_deposits' | 'mutual_funds' | 'stocks' | 'retirement' | 'gold';
+
+export interface Portfolio {
+  pan_masked: string;
+  pan_name: string;
+  as_of: string;
+  total_assets_inr: number;
+  total_liabilities_inr: number;
+  net_worth_inr: number;
+  liquid_inr: number;
+  market_value_inr: number;
+  market_gain_inr: number;
+  market_gain_pct: number;
+  monthly_sip_inr: number;
+  classes: { id: AssetClassId; label: string; value_inr: number; invested_inr: number; count: number }[];
+  holdings: {
+    bank_accounts: { institution: string; account_type: string; masked: string; balance_inr: number }[];
+    fixed_deposits: { institution: string; name: string; principal_inr: number; value_inr: number; rate_pct: number; maturity_date: string }[];
+    mutual_funds: {
+      scheme: string;
+      amc: string;
+      category: string;
+      registrar: string;
+      units: number;
+      nav_inr: number;
+      invested_inr: number;
+      value_inr: number;
+      sip_inr: number;
+    }[];
+    stocks: {
+      symbol: string;
+      name: string;
+      exchange: string;
+      depository: string;
+      quantity: number;
+      avg_price_inr: number;
+      ltp_inr: number;
+      invested_inr: number;
+      value_inr: number;
+    }[];
+    retirement: { name: string; institution: string; invested_inr: number; value_inr: number }[];
+    gold: { name: string; units: number; invested_inr: number; value_inr: number }[];
+  };
+  liabilities: { label: string; value_inr: number; source: string }[];
+  history: { month: string; net_worth_inr: number }[];
+  sources: { id: string; name: string }[];
+  simulated: boolean;
+  notice: string;
+}
+
+export type AssetsResponse =
+  | { linked: false; pan_on_file: string | null }
+  | { linked: true; linked_at: string; pan_on_file: string; portfolio: Portfolio };

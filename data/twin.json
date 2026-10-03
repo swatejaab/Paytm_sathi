@@ -4,16 +4,170 @@
     "demo-customer-01": {
       "investments": [
         {
-          "name": "Index fund SIP",
+          "name": "Flexi-cap mutual funds",
           "kind": "mutual_fund",
-          "value_inr": 62000,
-          "source": "Synthetic MF statement"
+          "value_inr": 346000,
+          "source": "Mutual fund statement via INDmoney (sample)"
+        },
+        {
+          "name": "Nifty 50 index fund",
+          "kind": "mutual_fund",
+          "value_inr": 152000,
+          "source": "Mutual fund statement via INDmoney (sample)"
+        },
+        {
+          "name": "Direct equity (Infosys, HDFC Bank, ITC)",
+          "kind": "stocks",
+          "value_inr": 30000,
+          "source": "Demat statement via CDSL (sample)"
         },
         {
           "name": "Public Provident Fund",
           "kind": "ppf",
           "value_inr": 40000,
-          "source": "Synthetic PPF passbook"
+          "source": "PPF passbook (sample)"
+        }
+      ],
+      "credit_cards": [
+        {
+          "name": "Paytm credit card",
+          "outstanding_inr": 6420,
+          "limit_inr": 60000,
+          "due_date": "2026-10-08",
+          "source": "Card statement (sample)"
+        }
+      ],
+      "insurance": [
+        {
+          "policy": "Family health floater",
+          "kind": "health",
+          "cover_inr": 500000,
+          "premium_inr": 21600,
+          "renewal_date": "2027-02-14",
+          "insurer": "Insurer partner (simulated)"
+        }
+      ],
+      "goals": [
+        {
+          "goal": "Emergency fund (3 months of expenses)",
+          "target_inr": 141000,
+          "saved_inr": 20000,
+          "target_date": "2027-06-30"
+        },
+        {
+          "goal": "Home down payment",
+          "target_inr": 1200000,
+          "saved_inr": 152000,
+          "target_date": "2030-03-31"
+        }
+      ],
+      "obligations": [
+        {
+          "title": "Rent",
+          "kind": "rent",
+          "amount_inr": 22000,
+          "due_date": "2026-10-07"
+        },
+        {
+          "title": "Index fund SIP",
+          "kind": "sip",
+          "amount_inr": 8000,
+          "due_date": "2026-10-15"
+        },
+        {
+          "title": "Mobile and broadband (BBPS)",
+          "kind": "bill",
+          "amount_inr": 1199,
+          "due_date": "2026-10-18"
+        }
+      ],
+      "household": {
+        "age": 29,
+        "dependents": 2,
+        "note": "Neha lives in Powai and supports her parents in Thane"
+      }
+    },
+    "demo-customer-02": {
+      "investments": [
+        {
+          "name": "Equity mutual funds",
+          "kind": "mutual_fund",
+          "value_inr": 320000,
+          "source": "Mutual fund statement (sample)"
+        },
+        {
+          "name": "Fixed deposit",
+          "kind": "fd",
+          "value_inr": 100000,
+          "source": "Bank statement (sample)"
+        }
+      ],
+      "credit_cards": [
+        {
+          "name": "Paytm credit card",
+          "outstanding_inr": 8200,
+          "limit_inr": 150000,
+          "due_date": "2026-10-09",
+          "source": "Card statement (sample)"
+        }
+      ],
+      "insurance": [
+        {
+          "policy": "Individual health",
+          "kind": "health",
+          "cover_inr": 1000000,
+          "premium_inr": 14200,
+          "renewal_date": "2027-01-15",
+          "insurer": "Insurer partner (simulated)"
+        }
+      ],
+      "goals": [
+        {
+          "goal": "Home down payment",
+          "target_inr": 1500000,
+          "saved_inr": 420000,
+          "target_date": "2029-03-31"
+        },
+        {
+          "goal": "Europe trip",
+          "target_inr": 300000,
+          "saved_inr": 90000,
+          "target_date": "2027-05-01"
+        }
+      ],
+      "obligations": [
+        {
+          "title": "Rent",
+          "kind": "rent",
+          "amount_inr": 25000,
+          "due_date": "2026-10-05"
+        },
+        {
+          "title": "Equity SIP",
+          "kind": "sip",
+          "amount_inr": 10000,
+          "due_date": "2026-10-15"
+        }
+      ],
+      "household": {
+        "age": 29,
+        "dependents": 0,
+        "note": "Single, no financial dependents"
+      }
+    },
+    "demo-customer-03": {
+      "investments": [
+        {
+          "name": "Index fund SIP",
+          "kind": "mutual_fund",
+          "value_inr": 62000,
+          "source": "Mutual fund statement (sample)"
+        },
+        {
+          "name": "Public Provident Fund",
+          "kind": "ppf",
+          "value_inr": 40000,
+          "source": "PPF passbook (sample)"
         }
       ],
       "credit_cards": [
@@ -22,7 +176,7 @@
           "outstanding_inr": 13500,
           "limit_inr": 40000,
           "due_date": "2026-10-07",
-          "source": "Synthetic card statement"
+          "source": "Card statement (sample)"
         }
       ],
       "insurance": [
@@ -32,7 +186,7 @@
           "cover_inr": 500000,
           "premium_inr": 18400,
           "renewal_date": "2026-10-24",
-          "insurer": "Synthetic General Insurance (demo)"
+          "insurer": "Insurer partner (simulated)"
         },
         {
           "policy": "Term life",
@@ -40,7 +194,7 @@
           "cover_inr": 5000000,
           "premium_inr": 9600,
           "renewal_date": "2027-03-02",
-          "insurer": "Synthetic Life (demo)"
+          "insurer": "Life insurer partner (simulated)"
         }
       ],
       "goals": [
@@ -93,74 +247,6 @@
         "age": 34,
         "dependents": 3,
         "note": "Spouse, one child, and one parent depend on Riya's income"
-      }
-    },
-    "demo-customer-02": {
-      "investments": [
-        {
-          "name": "Equity mutual funds",
-          "kind": "mutual_fund",
-          "value_inr": 320000,
-          "source": "Synthetic MF statement"
-        },
-        {
-          "name": "Fixed deposit",
-          "kind": "fd",
-          "value_inr": 100000,
-          "source": "Synthetic bank statement"
-        }
-      ],
-      "credit_cards": [
-        {
-          "name": "Paytm credit card",
-          "outstanding_inr": 8200,
-          "limit_inr": 150000,
-          "due_date": "2026-10-09",
-          "source": "Synthetic card statement"
-        }
-      ],
-      "insurance": [
-        {
-          "policy": "Individual health",
-          "kind": "health",
-          "cover_inr": 1000000,
-          "premium_inr": 14200,
-          "renewal_date": "2027-01-15",
-          "insurer": "Synthetic General Insurance (demo)"
-        }
-      ],
-      "goals": [
-        {
-          "goal": "Home down payment",
-          "target_inr": 1500000,
-          "saved_inr": 420000,
-          "target_date": "2029-03-31"
-        },
-        {
-          "goal": "Europe trip",
-          "target_inr": 300000,
-          "saved_inr": 90000,
-          "target_date": "2027-05-01"
-        }
-      ],
-      "obligations": [
-        {
-          "title": "Rent",
-          "kind": "rent",
-          "amount_inr": 25000,
-          "due_date": "2026-10-05"
-        },
-        {
-          "title": "Equity SIP",
-          "kind": "sip",
-          "amount_inr": 10000,
-          "due_date": "2026-10-15"
-        }
-      ],
-      "household": {
-        "age": 29,
-        "dependents": 0,
-        "note": "Single, no financial dependents"
       }
     }
   }
