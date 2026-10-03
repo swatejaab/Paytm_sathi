@@ -20,6 +20,7 @@ import {
   answerCaseQuestion,
   inventedNumbers,
   IntegrationDisabledError,
+  ocrImageWithOpenAI,
   IntegrationInputError,
   IntegrationRequestError,
   speakWithSarvam,
@@ -45,6 +46,7 @@ const audioUpload = multer({
 }).single('file');
 
 const MAX_DOCUMENTS_PER_CASE = 4;
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_CASE_TEXT = 200_000;
 
 function uploadedEvidence(record: CaseRecord) {
@@ -116,11 +118,24 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
   const filename = safeFilename(req.file.originalname, 'uploaded-document');
   const contentType = normalizeContentType(req.file.mimetype);
   let extracted: { text: string; pageCount: number };
-  try {
-    extracted = await extractDocumentText(filename, contentType, req.file.buffer);
-  } catch (error) {
-    if (error instanceof DocumentError) throw new HttpError(422, error.message);
-    throw error;
+  let viaOcr = false;
+  if (IMAGE_TYPES.has(contentType)) {
+    const ocrConsent = ['true', '1', 'yes', 'on'].includes(String(req.body?.ocr_consent ?? '').toLowerCase());
+    if (!ocrConsent) throw new HttpError(403, 'Consent is required before sending a photo to OpenAI for text extraction.');
+    try {
+      const text = redactContactIdentifiers(await ocrImageWithOpenAI(req.file.buffer, contentType));
+      extracted = { text: `[Page 1]\n${text}`, pageCount: 1 };
+      viaOcr = true;
+    } catch (error) {
+      mapIntegrationError(error);
+    }
+  } else {
+    try {
+      extracted = await extractDocumentText(filename, contentType, req.file.buffer);
+    } catch (error) {
+      if (error instanceof DocumentError) throw new HttpError(422, error.message);
+      throw error;
+    }
   }
 
   const record = loadCaseForOwner(principal, caseId, 'document:upload');
@@ -147,14 +162,14 @@ evidenceRouter.post('/cases/:caseId/documents', requireAuth('document:upload'), 
   record.uploaded_documents.push(document);
   addTimeline(record, {
     title: `Document added: ${filename}`,
-    detail: `${documentType.data}, ${extracted.pageCount} page(s). Contact identifiers redacted; the original file was not stored.`,
+    detail: `${documentType.data}, ${extracted.pageCount} page(s)${viaOcr ? ', read from a photo with OpenAI OCR' : ''}. Contact identifiers redacted; the original file was not stored.`,
     actor: 'customer',
   });
   recordAudit({
     case_id: record.case_id,
     actor: principal.sub,
     event: 'document_uploaded',
-    detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length },
+    detail: { document_id: document.document_id, document_type: document.document_type, characters: extracted.text.length, ocr: viaOcr },
   });
 
   await redecideAfterDocuments(principal, record);

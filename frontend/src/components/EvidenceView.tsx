@@ -47,11 +47,14 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
   const consented = hasActiveConsent(caseRecord);
   const canUpload = !readOnly && !['in_progress', 'resolved'].includes(caseRecord.status);
 
+  const [ocrConsent, setOcrConsent] = useState(false);
+  const hasPhotos = [...policyFiles, ...billFiles].some((file) => file.type.startsWith('image/'));
+
   const upload = async () => {
     setUploadMessage(null);
     await run(async () => {
-      for (const file of policyFiles) await api.uploadDocument(caseRecord.case_id, 'policy', file);
-      for (const file of billFiles) await api.uploadDocument(caseRecord.case_id, 'bill', file);
+      for (const file of policyFiles) await api.uploadDocument(caseRecord.case_id, 'policy', file, ocrConsent);
+      for (const file of billFiles) await api.uploadDocument(caseRecord.case_id, 'bill', file, ocrConsent);
       setPolicyFiles([]);
       setBillFiles([]);
       setUploadMessage('Text extracted and contact identifiers redacted. Original files were not retained.');
@@ -151,20 +154,32 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
         <details className="card-inset">
           <summary>Add a bill or policy</summary>
           <p className="muted small">
-            Text-based PDF, TXT, or JSON. Maximum 5 MB each, four per case. Scanned-PDF OCR is not enabled. Use synthetic files only.
+            Text-based PDF, TXT, JSON, or a JPG/PNG photo of a page. Maximum 5 MB each, four per case. Use synthetic files only.
             Uploaded documents pause automated steps until a specialist verifies them.
           </p>
           <div className="upload-grid">
             <label className="field">
               <span>Health policy documents</span>
-              <input type="file" accept=".pdf,.txt,.json" multiple onChange={(event) => setPolicyFiles([...(event.target.files ?? [])])} />
+              <input type="file" accept=".pdf,.txt,.json,.jpg,.jpeg,.png,.webp" multiple onChange={(event) => setPolicyFiles([...(event.target.files ?? [])])} />
             </label>
             <label className="field">
               <span>Hospital bill documents</span>
-              <input type="file" accept=".pdf,.txt,.json" multiple onChange={(event) => setBillFiles([...(event.target.files ?? [])])} />
+              <input type="file" accept=".pdf,.txt,.json,.jpg,.jpeg,.png,.webp" multiple onChange={(event) => setBillFiles([...(event.target.files ?? [])])} />
             </label>
           </div>
-          <button className="btn" disabled={busy || (!policyFiles.length && !billFiles.length)} onClick={upload}>
+          {hasPhotos && (
+            <label className="checkbox">
+              <input type="checkbox" checked={ocrConsent} onChange={(event) => setOcrConsent(event.target.checked)} />
+              {integrations.openai_available
+                ? 'Allow OpenAI to read the text in my photos. Only the extracted text is kept, with contact details redacted.'
+                : 'Photo OCR needs OpenAI, which is not configured. Upload a text-based PDF instead.'}
+            </label>
+          )}
+          <button
+            className="btn"
+            disabled={busy || (!policyFiles.length && !billFiles.length) || (hasPhotos && (!ocrConsent || !integrations.openai_available))}
+            onClick={upload}
+          >
             Upload and extract text
           </button>
           {uploadMessage && <p className="muted small">{uploadMessage}</p>}

@@ -56,7 +56,7 @@ export async function extractDocumentText(
     }
     const pages = await extractPdfPages(content);
     if (!pages.join('').trim()) {
-      throw new DocumentError('This PDF has no selectable text. Scanned-document OCR is not enabled yet.');
+      throw new DocumentError('This PDF has no selectable text. Upload a JPG or PNG photo of each page instead to use photo OCR.');
     }
     extracted = pages.map((text, index) => `[Page ${index + 1}]\n${text}`).join('\n\n');
     pageCount = pages.length;

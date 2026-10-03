@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { announceCaseUpdate } from './caseEvents';
 import { settings } from './config';
 import { HttpError } from './errors';
 import type { CaseRecord } from './types';
@@ -63,6 +64,7 @@ export function updateCase(record: CaseRecord): void {
     .prepare('UPDATE cases SET payload = ?, updated_at = ? WHERE case_id = ?')
     .run(JSON.stringify(record), record.updated_at, record.case_id);
   if (Number(result.changes) !== 1) throw new HttpError(404, 'Case not found');
+  announceCaseUpdate(record.case_id);
 }
 
 export function listCases(customerId?: string): CaseRecord[] {

@@ -21,7 +21,7 @@ npm run dev
 - Web app: http://localhost:5173 (Vite proxies `/api` to the backend)
 - API: http://127.0.0.1:8000/api/health
 
-Single-port demo build: `npm run build`, then `npm start`. Express serves `frontend/dist` on http://127.0.0.1:8000.
+**For a live demo, use `npm run demo`** (builds, then serves everything on http://127.0.0.1:8000 with no file watcher, so nothing restarts mid-presentation). `npm run dev` is for development only.
 
 Container: `docker build -t paytm-saathi .`, then `docker run -p 8000:8000 -e JWT_SECRET_KEY=<32+ random chars> paytm-saathi`. Mount a volume on `/app/data` to keep cases across restarts.
 
@@ -98,13 +98,17 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 2. Seed the demo | `data/*.json` synthetic users, profiles, bill and policy, transactions, loans, offers, playbooks |
 | 3. Auth + case API | `auth.ts` (demo JWT, role scopes, approval tokens), `routes/cases.ts`, ownership checks in `caseStore.ts` |
 | 4. MCP tools | `mcp/tools.ts` (22 tools across identity, insurer, hospital, payments, lender, knowledge), `mcp/gateway.ts` |
-| 5. Evidence + RAG | `documents.ts` (PDF/TXT/JSON extraction, redaction, cited retrieval), `routes/evidence.ts`, OpenAI summaries |
+| 5. Evidence + RAG | `documents.ts` (PDF/TXT/JSON extraction, redaction, cited retrieval), photo OCR via OpenAI vision, `routes/evidence.ts`, OpenAI summaries |
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
-| 8. UX + partners | Case workspace, Agents tab, Sarvam voice, n8n webhook and signed callbacks in `partners.ts` |
+| 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |
 
-Not connected in this build: Cognee (local keyword index instead), Mochatrade (labeled fixture offers), scanned-PDF OCR.
+Not connected in this build: Cognee (local keyword index instead) and Mochatrade (labeled fixture offers). Scanned PDFs are not rendered; upload photos of the pages for OCR instead.
+
+### Voice, languages, and AI chat
+
+Pick a language in the chat header (English plus Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, or Auto for English/Hinglish). The mic button sends speech to Sarvam speech-to-text; Saathi's explanations are translated by Sarvam (English original kept, English fallback on failure), and the speaker button reads any message aloud. With a case open, follow-up questions go to OpenAI with redacted case facts only; a numeric guard replaces any answer containing numbers the decision service did not produce. Every external call needs its own consent checkbox.
 
 ## Local secrets
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api';
+import { api, ApiError, streamCase } from '../api';
 import { EVENT_LABELS, STATUS_FLOW, STATUS_LABELS } from '../format';
 import type { CaseRecord, IntegrationStatus } from '../types';
 import { AgentView } from './AgentView';
@@ -65,8 +65,20 @@ export function CasePanel({ caseRecord, onChange, integrations, readOnly }: Prop
 
   const caseId = caseRecord?.case_id;
   const status = caseRecord?.status;
+  const [live, setLive] = useState(false);
   useEffect(() => {
-    if (!caseId || status !== 'in_progress') return;
+    if (!caseId) return;
+    const controller = new AbortController();
+    streamCase(caseId, onChange, controller.signal)
+      .catch(() => undefined)
+      .finally(() => setLive(false));
+    setLive(true);
+    return () => controller.abort();
+  }, [caseId, onChange]);
+
+  // Fallback when the live stream is unavailable (for example behind a buffering proxy).
+  useEffect(() => {
+    if (live || !caseId || status !== 'in_progress') return;
     const timer = window.setInterval(async () => {
       try {
         onChange(await api.getCase(caseId));
@@ -75,7 +87,7 @@ export function CasePanel({ caseRecord, onChange, integrations, readOnly }: Prop
       }
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [caseId, status, onChange]);
+  }, [live, caseId, status, onChange]);
 
   const run = async (operation: () => Promise<CaseRecord>) => {
     setBusy(true);

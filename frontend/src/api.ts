@@ -107,9 +107,10 @@ export const api = {
   tools: () => request<{ tools: ToolInfo[] }>('/api/mcp/tools'),
   agentGraph: () => request<{ graph: string; engine: string; nodes: AgentNodeInfo[] }>('/api/agent/graph'),
   evidence: (caseId: string) => request<EvidenceResponse>(`/api/cases/${caseId}/evidence`),
-  uploadDocument: (caseId: string, documentType: 'bill' | 'policy', file: File) => {
+  uploadDocument: (caseId: string, documentType: 'bill' | 'policy', file: File, ocrConsent = false) => {
     const form = new FormData();
     form.append('document_type', documentType);
+    if (ocrConsent) form.append('ocr_consent', 'true');
     form.append('file', file);
     return request<{ document_name: string; page_count: number }>(`/api/cases/${caseId}/documents`, { method: 'POST', body: form });
   },
@@ -126,3 +127,31 @@ export const api = {
     post<CaseRecord>(`/api/cases/${caseId}/actions/${actionId}/approve`, { payload_hash, confirm: true }),
   cancelAction: (caseId: string, actionId: string) => post<CaseRecord>(`/api/cases/${caseId}/actions/${actionId}/cancel`),
 };
+
+// Live case feed over Server-Sent Events, read with fetch so the token stays in the Authorization header.
+export async function streamCase(caseId: string, onRecord: (record: CaseRecord) => void, signal: AbortSignal): Promise<void> {
+  const response = await fetch(`/api/cases/${caseId}/events`, {
+    headers: token ? { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' } : {},
+    signal,
+  });
+  if (!response.ok || !response.body) throw new ApiError(response.status, 'Live updates are unavailable.');
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const data = frame
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.slice(6))
+        .join('\n');
+      if (data) onRecord(JSON.parse(data) as CaseRecord);
+      boundary = buffer.indexOf('\n\n');
+    }
+  }
+}

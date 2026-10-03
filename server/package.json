@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --disable-warning=ExperimentalWarning --watch --import tsx src/index.ts",
+    "dev": "node --disable-warning=ExperimentalWarning --watch-path=./src --import tsx src/index.ts",
     "start": "node --disable-warning=ExperimentalWarning --import tsx src/index.ts",
     "test": "node --disable-warning=ExperimentalWarning --import tsx --import ./test/setup.ts --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"

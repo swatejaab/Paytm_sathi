@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { approveAction, cancelAction, prepareAction } from '../actions';
 import { getPrincipal, requireAuth } from '../auth';
+import { onCaseUpdate } from '../caseEvents';
 import { loadCaseForRead } from '../caseStore';
 import { listAudit, listCases } from '../db';
 import { parseBody } from '../errors';
@@ -94,4 +95,35 @@ caseRouter.post('/cases/:caseId/actions/:actionId/approve', requireAuth('action:
 
 caseRouter.post('/cases/:caseId/actions/:actionId/cancel', requireAuth('action:approve'), (req, res) => {
   res.json(cancelAction(getPrincipal(req), String(req.params.caseId), String(req.params.actionId)));
+});
+
+// Live case feed (Server-Sent Events). Each push re-checks access, so a revoked or foreign case never streams.
+caseRouter.get('/cases/:caseId/events', requireAuth('case:read', 'case:read:any'), (req, res) => {
+  const principal = getPrincipal(req);
+  const caseId = String(req.params.caseId);
+  loadCaseForRead(principal, caseId);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  let lastSent = '';
+  const push = () => {
+    try {
+      const record = loadCaseForRead(principal, caseId);
+      if (record.updated_at === lastSent) return;
+      lastSent = record.updated_at;
+      res.write(`event: case\ndata: ${JSON.stringify(record)}\n\n`);
+    } catch {
+      res.end();
+    }
+  };
+  push();
+  const unsubscribe = onCaseUpdate(caseId, push);
+  const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 25_000);
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
 });
