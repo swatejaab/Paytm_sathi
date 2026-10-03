@@ -71,6 +71,14 @@ server/src/
 data/              Synthetic fixtures: bill/policy, profiles, UPI transactions, loans, lender offers, playbooks, users
 ```
 
+### MCP: real partner servers, gateway as MCP client
+
+Each partner contract is a real MCP server built with the official SDK: `insurer.v1`, `provider.v1` (hospital/TPA), `payments.v1`, `lender.v1`, `aa.v1` (Account Aggregator), `crm.v1` (Paytm Support), and `knowledge.v1`. The Saathi gateway runs its checks (allowlist, schema, case scope, playbook scope, consent, approval token, payload hash) and then calls the partner through an MCP client; partners only receive the tool arguments and the customer id in `_meta`. By default each simulated partner runs in-process; set `MCP_URL_<SERVER>` (for example `MCP_URL_INSURER=http://127.0.0.1:8000/mcp/insurer`) to reach a Streamable HTTP server instead: swapping in a partner's real server is a URL change. `GET /api/mcp/servers` shows each server's transport.
+
+The same servers are exposed at `http://127.0.0.1:8000/mcp/<server>` (stateless Streamable HTTP, bearer token from `MCP_PARTNER_TOKEN`, or the local token printed at startup). To show them live: `npx @modelcontextprotocol/inspector`, choose Streamable HTTP, enter the URL, and add headers `Authorization: Bearer <token>` and `x-saathi-customer: demo-customer-01`.
+
+Deck tools now implemented: `payments.create_link` (the customer pays their INR 10,000 share to the hospital), `lending.get_kfs` (the lender's Key Fact Statement, shown before approval and bound into the payload hash), `aa.request_consent` / `aa.fetch_fi_data` (Account Aggregator consent artefact and inflows), `crm.handoff_to_agent` (every specialist handoff gets a ticket), `crm.create_ticket`, and `hospital.request_cashless`.
+
 ### Playbooks: a new money problem is a new YAML file
 
 Every journey is a playbook in `data/playbooks/*.yaml`: its triggers (English, Hinglish, Devanagari), urgency, auditor, rules engine, the MCP tools it may read and write, and its exit condition. The classifier routes by triggers, and **the gateway denies any tool the active playbook does not declare** (`playbook_scope`, logged in the trust ledger). Hospital, UPI fraud, and EMI use built-in, unit-tested rule modules referenced by name. **Failed UPI refund is fully declarative**: its facts (days since debit, T+1 deadline, days late, INR 100/day compensation per the RBI TAT circular), guards, options, and write payload are expressions in the YAML, evaluated by a small safe expression language (no eval). Adding it needed one new payments contract (`payments.raise_refund_trace`, which independently re-checks the compensation ceiling) and no orchestrator, decision-engine, consent, or audit changes. `GET /api/playbooks` lists the catalogue; the Agents tab shows the active playbook and its allowed tools.
@@ -110,6 +118,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
+| 9a00. Real MCP servers | `mcp/servers.ts` (SDK McpServer per contract), `mcp/clients.ts` (gateway MCP client, in-process or Streamable HTTP), `routes/mcp.ts` (`/mcp/<server>`) |
 | 9a0. Playbook registry | `data/playbooks/*.yaml`, `playbooks/registry.ts` (zod-validated, triggers, tool allowlist), `playbooks/declarative.ts` + `expressions.ts` |
 | 9a. Financial Twin + Home | `twin.ts` (`GET /api/twin`): sourced assets, liabilities, cash flow, obligations inbox, insurance, goals; `HomeView.tsx` |
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |

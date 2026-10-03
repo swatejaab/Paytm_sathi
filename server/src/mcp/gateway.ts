@@ -5,6 +5,7 @@ import { canonicalJson, hashPayload } from '../hashing';
 import type { CaseAction, CaseRecord, Principal } from '../types';
 import { GatewayError, type GatewayDenyCode } from './errors';
 import { playbookForCase, toolAllowedByPlaybook } from '../playbooks/registry';
+import { callPartnerTool } from './clients';
 import { toolRegistry } from './tools';
 
 export interface InvokeOptions {
@@ -13,7 +14,7 @@ export interface InvokeOptions {
   approval?: { token: string; action: CaseAction };
 }
 
-export function invokeTool<T = unknown>(name: string, rawInput: Record<string, unknown>, options: InvokeOptions): T {
+export async function invokeTool<T = unknown>(name: string, rawInput: Record<string, unknown>, options: InvokeOptions): Promise<T> {
   const { principal, caseRecord } = options;
   const tool = toolRegistry.get(name);
   const audit = (decision: 'allow' | 'deny', detail: Record<string, unknown>) =>
@@ -85,7 +86,11 @@ export function invokeTool<T = unknown>(name: string, rawInput: Record<string, u
   }
 
   try {
-    const result = tool.handler({ principal, caseRecord }, input) as T;
+    // Identity and consent tools run inside Saathi; every partner tool is a real MCP call to that partner's server.
+    const result =
+      tool.server === 'identity'
+        ? (tool.handler({ customer_id: caseRecord.customer_id, principal, caseRecord }, input) as T)
+        : await callPartnerTool<T>(tool.server, name, input, { customer_id: caseRecord.customer_id, case_id: caseRecord.case_id });
     audit('allow', tool.kind === 'write' ? { action_id: options.approval?.action.action_id } : {});
     return result;
   } catch (error) {

@@ -11,7 +11,7 @@ engine: builtin:specialist
 auditor: null
 tools:
   read: [knowledge.search_playbook]
-  write: []
+  write: [crm.handoff_to_agent]
 exit: specialist closes the case
 guidance:
   title: General financial support

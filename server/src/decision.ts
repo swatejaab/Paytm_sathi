@@ -146,7 +146,15 @@ export function humanSupportDraft(urgency: Urgency, reason?: string): OptionDraf
         ? 'A specialist callback takes up to one working day in this demo, which can delay urgent steps.'
         : 'A specialist responds within one working day in this demo.',
     ],
-    writes: [],
+    writes: [
+      {
+        tool: 'crm.handoff_to_agent',
+        partner: 'Paytm Support CRM (simulated)',
+        amount_inr: 0,
+        summary: 'Hand the case and Resolution Passport to a Saathi specialist',
+        input: { queue: 'saathi_specialists', priority: urgency },
+      },
+    ],
     handoff: true,
     self_serve: false,
   };
@@ -317,6 +325,18 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
       pending_documents: missing,
     },
   };
+  const payLink = (amount: number): PlannedWrite[] =>
+    amount > 0
+      ? [
+          {
+            tool: 'payments.create_link',
+            partner: 'Paytm Payments (simulated)',
+            amount_inr: amount,
+            summary: `Pay your ${formatInr(amount)} share to the hospital with a Paytm payment link`,
+            input: { case_id: input.caseId, amount_inr: amount, payee: 'hospital', purpose: `Patient share for ${bill.file_name}` },
+          },
+        ]
+      : [];
   const documentTradeOff = missing.length
     ? `The claim still needs: ${missing.join(', ')}. Saathi requests it from the hospital.`
     : 'The claim document set is complete.';
@@ -337,7 +357,7 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
       metrics: { borrow_inr: 0, extra_cost_inr: 0, monthly_emi_inr: 0, time_to_funds_days: 0, effort_steps: 2, risk: 'low' },
       guardrails: [gate],
       trade_offs: ['No borrowing and no interest.', documentTradeOff],
-      writes: [...documentWrites, claimWrite],
+      writes: [...documentWrites, claimWrite, ...payLink(bill.total_inr - coverage.estimated_coverage_inr)],
       handoff: false,
       self_serve: false,
     });
@@ -379,6 +399,7 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
       writes: [
         ...documentWrites,
         claimWrite,
+        ...payLink(contribution),
         {
           tool: 'lending.submit_application',
           partner: partners.lender,
@@ -440,7 +461,7 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
           : `No interest, but it leaves ${formatInr(Math.max(savingsAfter, 0))}, below your ${formatInr(profile.minimum_emergency_buffer_inr)} safety buffer.`,
         documentTradeOff,
       ],
-      writes: [...documentWrites, claimWrite],
+      writes: [...documentWrites, claimWrite, ...payLink(contribution)],
       handoff: false,
       self_serve: false,
     });

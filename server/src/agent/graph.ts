@@ -83,7 +83,7 @@ function contextOf(config: LangGraphRunnableConfig): RunContext {
   return context;
 }
 
-function callTool<T>(context: RunContext, tool: string, input: Record<string, unknown> = {}): T {
+function callTool<T>(context: RunContext, tool: string, input: Record<string, unknown> = {}): Promise<T> {
   context.tracer.tool(tool);
   return invokeTool<T>(tool, { case_id: context.record.case_id, ...input }, { principal: context.principal, caseRecord: context.record });
 }
@@ -155,7 +155,7 @@ const consentGate = node('consent_gate', async (state, { record, grantConsent })
   return { summary: 'No consent yet; nothing was read.', paused: 'awaiting_consent' };
 });
 
-const contextRetriever = node('context_retriever', (state, context) => {
+const contextRetriever = node('context_retriever', async (state, context) => {
   const { record } = context;
   if (state.trigger !== 'documents_updated') {
     addTimeline(record, {
@@ -171,36 +171,47 @@ const contextRetriever = node('context_retriever', (state, context) => {
     });
   }
   if (record.event_type === 'general_financial_support') return { summary: 'No account context needed for a specialist route.' };
-  const profile = callTool<FinancialProfile>(context, 'payments.get_balance');
+  const profile = await callTool<FinancialProfile>(context, 'payments.get_balance');
+  let aaNote = '';
+  if (playbookForCase(record).tools.read.includes('aa.fetch_fi_data')) {
+    const consent = await callTool<{ consent_handle: string }>(context, 'aa.request_consent', {
+      purpose: 'prepare_resolution_options',
+      fi_types: ['DEPOSIT'],
+    });
+    const fi = await callTool<{ avg_monthly_inflow_inr: number; months_analysed: number }>(context, 'aa.fetch_fi_data', {
+      consent_handle: consent.consent_handle,
+    });
+    aaNote = ` AA consent ${consent.consent_handle}: ${formatInr(fi.avg_monthly_inflow_inr)} average monthly inflow over ${fi.months_analysed} months.`;
+  }
   return {
     update: { gathered: { profile } },
-    summary: `Cash context loaded: ${formatInr(profile.available_to_pay_inr)} available now, ${formatInr(profile.emergency_savings_inr)} savings.`,
+    summary: `Cash context loaded: ${formatInr(profile.available_to_pay_inr)} available now, ${formatInr(profile.emergency_savings_inr)} savings.${aaNote}`,
   };
 });
 
-const policyRag = node('policy_rag', (_state, context) => {
+const policyRag = node('policy_rag', async (_state, context) => {
   const { record } = context;
   if (record.event_type !== 'hospitalization') {
-    const playbook = callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
+    const playbook = await callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
     return { update: { gathered: { playbook } }, summary: playbook ? `Playbook ${playbook.playbook_id}: ${playbook.title}.` : 'No playbook found.' };
   }
-  callTool(context, 'insurer.get_policy');
-  const clauses = callTool<EvidencePassage[]>(context, 'knowledge.search_policy', {
+  await callTool(context, 'insurer.get_policy');
+  const clauses = await callTool<EvidencePassage[]>(context, 'knowledge.search_policy', {
     query: 'hospital inpatient claim room bill documents',
     top_k: 3,
   });
-  const checklist = callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
+  const checklist = await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
   return {
     update: { gathered: { clauses, checklist } },
     summary: `Cited clauses ${clauses.map((clause) => clause.clause_id).join(', ')}; claim checklist clause ${checklist.clause_id}.`,
   };
 });
 
-const billAuditor = node('bill_auditor', (state, context) => {
+const billAuditor = node('bill_auditor', async (state, context) => {
   const { record } = context;
-  const bill = callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
+  const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
   const lineTotal = bill.lines.reduce((sum, line) => sum + line.amount_inr, 0);
-  const coverage = callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
+  const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
   const missing = state.gathered.checklist?.missing ?? [];
   const findings = [
     lineTotal === bill.total_inr ? `Lines reconcile to ${formatInr(bill.total_inr)}` : `Lines total ${formatInr(lineTotal)}, not ${formatInr(bill.total_inr)}`,
@@ -236,13 +247,13 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
   };
   if (!state.transaction_id) {
     const stated = picker.match_stated_amount ? parseStatedAmount(record.message_for_rules ?? record.customer_message) : null;
-    let candidates = callTool<Transaction[]>(context, 'payments.list_transactions', {
+    let candidates = await callTool<Transaction[]>(context, 'payments.list_transactions', {
       ...picker.filter,
       limit: 5,
       ...(stated ? { amount_inr: stated } : {}),
     });
     if (!candidates.length && stated) {
-      candidates = callTool<Transaction[]>(context, 'payments.list_transactions', { ...picker.filter, limit: 5 });
+      candidates = await callTool<Transaction[]>(context, 'payments.list_transactions', { ...picker.filter, limit: 5 });
     }
     record.pending_question = { type: 'confirm_transaction', prompt: picker.prompt, candidates, mode: picker.mode };
     addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${candidates.length} candidate debit(s).`, actor: 'saathi' });
@@ -253,8 +264,8 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
     return { summary: `${candidates.length} candidate debit(s); waiting for the customer to pick one.`, paused: 'awaiting_transaction' };
   }
 
-  const transaction = callTool<Transaction>(context, 'payments.get_transaction', { transaction_id: state.transaction_id });
-  const playbook = callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
+  const transaction = await callTool<Transaction>(context, 'payments.get_transaction', { transaction_id: state.transaction_id });
+  const playbook = await callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
   record.evidence = {
     demo_only: true,
     documents: [],
@@ -281,9 +292,9 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
   };
 });
 
-const emiAuditor = node('emi_auditor', (state, context) => {
+const emiAuditor = node('emi_auditor', async (state, context) => {
   const { record } = context;
-  const loans = callTool<LoanContext>(context, 'lending.get_loans');
+  const loans = await callTool<LoanContext>(context, 'lending.get_loans');
   const loan = loans.loans[0];
   const playbook = state.gathered.playbook ?? null;
   record.evidence = {
@@ -310,9 +321,9 @@ const emiAuditor = node('emi_auditor', (state, context) => {
   };
 });
 
-function emiDecision(state: State, context: RunContext): string {
+async function emiDecision(state: State, context: RunContext): Promise<string> {
   const { record } = context;
-  const loans = state.gathered.loans ?? callTool<LoanContext>(context, 'lending.get_loans');
+  const loans = state.gathered.loans ?? await callTool<LoanContext>(context, 'lending.get_loans');
   const loan = loans.loans[0];
   const playbook = state.gathered.playbook ?? null;
   if (!loan) {
@@ -320,14 +331,14 @@ function emiDecision(state: State, context: RunContext): string {
     record.decision.explanation = 'I could not find an active loan or EMI on your account, so a specialist will continue from your passport.';
     return 'No active EMI; specialist route';
   }
-  const profile = state.gathered.profile ?? callTool<FinancialProfile>(context, 'payments.get_balance');
+  const profile = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
   const { shortfall_inr: shortfall } = calculateEmiShortfall({
     emi_inr: loan.emi_inr,
     account_balance_inr: profile.account_balance_inr,
     committed_before_due_inr: loans.committed_before_due_inr,
   });
   const offerSet = shortfall > 0
-    ? callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: shortfall })
+    ? await callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: shortfall })
     : null;
   const { loans: _loans, ...loanContext } = loans;
   record.decision = computeEmiDecision({
@@ -360,7 +371,7 @@ function verificationNeeded(record: CaseRecord): { required: boolean; reason?: s
   };
 }
 
-function hospitalDecision(state: State, context: RunContext): string {
+async function hospitalDecision(state: State, context: RunContext): Promise<string> {
   const { record } = context;
   const confirmed = record.confirmed_bill;
   // A bill the customer uploaded and confirmed replaces the hospital record; coverage is re-checked against its total.
@@ -374,16 +385,17 @@ function hospitalDecision(state: State, context: RunContext): string {
         total_inr: confirmed.total_inr,
         lines: confirmed.lines,
       }
-    : (state.gathered.bill ?? callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
+    : (state.gathered.bill ?? await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
   const coverage =
     (confirmed ? undefined : state.gathered.coverage) ??
-    callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
-  const checklist = state.gathered.checklist ?? callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
-  const profile = state.gathered.profile ?? callTool<FinancialProfile>(context, 'payments.get_balance');
+    await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr });
+  const checklist = state.gathered.checklist ?? await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
+  const profile = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
   const roughGap = Math.max(bill.total_inr - coverage.estimated_coverage_inr - profile.available_to_pay_inr, 0);
-  const offerSets = [roughGap, bill.total_inr]
-    .filter((amount) => amount > 0)
-    .map((amount) => callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: amount }));
+  const offerSets: { offers: LenderOffer[]; rules: AffordabilityRules }[] = [];
+  for (const amount of [roughGap, bill.total_inr].filter((value) => value > 0)) {
+    offerSets.push(await callTool<{ offers: LenderOffer[]; rules: AffordabilityRules }>(context, 'lending.get_offers', { amount_inr: amount }));
+  }
   const offers = [...new Map(offerSets.flatMap((set) => set.offers).map((offer) => [offer.offer_id, offer])).values()];
 
   record.decision = computeHospitalDecision({
@@ -403,7 +415,7 @@ function hospitalDecision(state: State, context: RunContext): string {
   return `Formula ${record.decision.formula_version}; gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }
 
-const decision = node('decision', (state, context) => {
+const decision = node('decision', async (state, context) => {
   const { record } = context;
   supersedePendingActions(record, 'The options were recalculated, so any earlier approval request no longer applies.');
   let detail: string;
@@ -419,7 +431,7 @@ const decision = node('decision', (state, context) => {
     });
     detail = `Declarative playbook ${activePlaybook.id} (${record.decision.formula_version})`;
   } else if (activePlaybook.engine === 'builtin:hospital_gap') {
-    detail = hospitalDecision(state, context);
+    detail = await hospitalDecision(state, context);
   } else if (activePlaybook.engine === 'builtin:upi_dispute') {
     const transaction = state.gathered.transaction;
     if (!transaction) throw new Error('No confirmed transaction to decide on.');
@@ -432,7 +444,7 @@ const decision = node('decision', (state, context) => {
     });
     detail = `Formula ${record.decision.formula_version}`;
   } else if (activePlaybook.engine === 'builtin:emi_shortfall') {
-    detail = emiDecision(state, context);
+    detail = await emiDecision(state, context);
   } else {
     const playbook = state.gathered.playbook ?? null;
     record.evidence = {

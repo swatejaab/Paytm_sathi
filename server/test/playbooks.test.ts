@@ -83,7 +83,7 @@ describe('playbook registry', () => {
     const token = await login();
     const record = await createCase(token, 'Salary delayed, EMI due this week.');
     const stored = findCase(record.case_id)!;
-    assert.throws(
+    await assert.rejects(
       () => invokeTool('hospital.get_bill', { case_id: record.case_id }, { principal: riya, caseRecord: stored }),
       (error: unknown) => error instanceof GatewayError && error.code === 'playbook_scope',
     );
@@ -106,7 +106,7 @@ describe('playbook registry', () => {
     const { hashPayload } = await import('../src/hashing');
     action.payload_hash = hashPayload(action.payload);
     const token2 = signApprovalToken({ case_id: record.case_id, action_id: action.action_id, payload_hash: action.payload_hash, sub: riya.sub });
-    assert.throws(
+    await assert.rejects(
       () => invokeTool('payments.raise_refund_trace', steps[0]!.input, { principal: riya, caseRecord: stored, approval: { token: token2, action } }),
       (error: unknown) => error instanceof GatewayError && /exceeds the regulatory/.test(error.message),
     );

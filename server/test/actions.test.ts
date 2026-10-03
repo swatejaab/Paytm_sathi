@@ -25,7 +25,7 @@ describe('approval-bound actions', () => {
     const action = prepared.actions.at(-1)!;
     assert.deepEqual(
       action.payload.steps.map((step) => step.tool),
-      ['hospital.request_document', 'claim.submit', 'lending.submit_application'],
+      ['hospital.request_document', 'claim.submit', 'payments.create_link', 'lending.submit_application'],
     );
     assert.equal(action.payload.steps.find((step) => step.tool === 'lending.submit_application')?.amount_inr, 15000);
 
@@ -41,7 +41,7 @@ describe('approval-bound actions', () => {
       .send({ payload_hash: action.payload_hash, confirm: true });
     assert.equal(approved.status, 200, JSON.stringify(approved.body));
     assert.equal(approved.body.status, 'in_progress');
-    assert.equal(approved.body.actions.at(-1).partner_requests.length, 3);
+    assert.equal(approved.body.actions.at(-1).partner_requests.length, 4);
 
     const resolved = await waitFor(async () => {
       const current = findCase(record.case_id);
@@ -100,7 +100,7 @@ describe('approval-bound actions', () => {
     const action = caseRecord.actions.at(-1)!;
     const lendingStep = action.payload.steps.find((step) => step.tool === 'lending.submit_application')!;
 
-    assert.throws(
+    await assert.rejects(
       () => invokeTool('lending.submit_application', lendingStep.input, { principal: customer, caseRecord }),
       (error: unknown) => error instanceof GatewayError && error.code === 'approval_required',
     );
@@ -111,7 +111,7 @@ describe('approval-bound actions', () => {
       payload_hash: action.payload_hash,
       sub: customer.sub,
     });
-    assert.throws(
+    await assert.rejects(
       () =>
         invokeTool(
           'lending.submit_application',
@@ -121,11 +121,11 @@ describe('approval-bound actions', () => {
       (error: unknown) => error instanceof GatewayError && error.code === 'approval_mismatch',
     );
 
-    assert.throws(
+    await assert.rejects(
       () => invokeTool('payments.get_balance', { case_id: 'SA-00000000' }, { principal: customer, caseRecord }),
       (error: unknown) => error instanceof GatewayError && error.code === 'case_scope',
     );
-    assert.throws(
+    await assert.rejects(
       () => invokeTool('payments.get_balance', { case_id: caseRecord.case_id, extra: true }, { principal: customer, caseRecord }),
       (error: unknown) => error instanceof GatewayError && error.code === 'invalid_input',
     );

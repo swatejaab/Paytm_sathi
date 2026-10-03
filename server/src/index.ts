@@ -14,6 +14,12 @@ const server = app.listen(settings.port, settings.host, (error?: Error) => {
     `[saathi] OpenAI: ${openaiAvailable() ? 'ready' : 'disabled'} | Sarvam: ${sarvamAvailable() ? 'ready' : 'disabled'} | ` +
       `Partner channel: ${n8nConfigured() ? 'n8n' : 'local simulated partner'}`,
   );
+  console.log(
+    `[saathi] Partner MCP servers: http://${settings.host}:${settings.port}/mcp/{insurer,hospital,payments,lender,aa,crm,knowledge}` +
+      (settings.mcpPartnerTokenGenerated
+        ? ` (local demo token: ${settings.mcpPartnerToken}; set MCP_PARTNER_TOKEN to pin it)`
+        : ' (bearer token from MCP_PARTNER_TOKEN)'),
+  );
   if (settings.jwtSecretEphemeral) {
     console.warn('[saathi] JWT_SECRET_KEY is unset or a placeholder; using an ephemeral secret (sessions reset on restart).');
   }

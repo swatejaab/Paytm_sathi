@@ -7,6 +7,7 @@ import { FRONTEND_DIST_DIR, settings } from './config';
 import { HttpError } from './errors';
 import { GATEWAY_STATUS, GatewayError } from './mcp/errors';
 import { alertRouter } from './routes/alerts';
+import { mcpRouter } from './routes/mcp';
 import { authRouter } from './routes/auth';
 import { caseRouter } from './routes/cases';
 import { evidenceRouter } from './routes/evidence';
@@ -58,7 +59,7 @@ export function createApp() {
     cors({
       origin: settings.frontendOrigins,
       methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Authorization', 'Content-Type'],
+      allowedHeaders: ['Authorization', 'Content-Type', 'Mcp-Session-Id', 'Mcp-Protocol-Version', 'x-saathi-customer'],
     }),
   );
   app.use(
@@ -70,6 +71,7 @@ export function createApp() {
     }),
   );
 
+  app.use(mcpRouter);
   app.use('/api', systemRouter);
   app.use('/api', authRouter);
   app.use('/api', partnerRouter);

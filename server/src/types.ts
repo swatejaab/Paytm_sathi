@@ -274,6 +274,7 @@ export interface ActionPayload {
   steps: ActionPayloadStep[];
   handoff: boolean;
   passport: ResolutionPassport;
+  kfs?: Record<string, unknown>[];
 }
 
 export type ActionStatus = 'awaiting_approval' | 'approved' | 'in_progress' | 'completed' | 'cancelled' | 'failed';

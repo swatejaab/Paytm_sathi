@@ -10,8 +10,8 @@ triggers:
 engine: builtin:emi_shortfall
 auditor: emi_auditor
 tools:
-  read: [payments.get_balance, lending.get_loans, lending.get_offers, lending.check_affordability, knowledge.search_playbook]
-  write: [lending.request_due_date_change, lending.submit_application]
+  read: [payments.get_balance, lending.get_loans, lending.get_offers, lending.check_affordability, knowledge.search_playbook, lending.get_kfs, aa.request_consent, aa.fetch_fi_data]
+  write: [lending.request_due_date_change, lending.submit_application, crm.handoff_to_agent]
 exit: EMI paid or rescheduled
 guidance:
   title: EMI shortfall this month

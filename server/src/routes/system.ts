@@ -3,6 +3,7 @@ import { requireAuth } from '../auth';
 import { n8nConfigured, openaiAvailable, sarvamAvailable, settings } from '../config';
 import { graphMermaid } from '../agent/graph';
 import { AGENT_NODES, GRAPH_VERSION } from '../agent/nodes';
+import { partnerServerCatalog } from '../mcp/clients';
 import { listToolCatalog } from '../mcp/tools';
 import { playbookCatalog } from '../playbooks/registry';
 
@@ -33,4 +34,8 @@ systemRouter.get('/agent/graph', requireAuth('tools:list'), (_req, res) => {
 
 systemRouter.get('/playbooks', requireAuth('tools:list'), (_req, res) => {
   res.json({ playbooks: playbookCatalog() });
+});
+
+systemRouter.get('/mcp/servers', requireAuth('tools:list'), (_req, res) => {
+  res.json({ servers: partnerServerCatalog() });
 });

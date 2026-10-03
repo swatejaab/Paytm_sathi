@@ -84,14 +84,14 @@ caseRouter.post('/cases/:caseId/handoff', requireAuth('case:read'), (req, res) =
   res.json(requestHandoff(getPrincipal(req), String(req.params.caseId), body.reason));
 });
 
-caseRouter.post('/cases/:caseId/actions', requireAuth('action:approve'), (req, res) => {
+caseRouter.post('/cases/:caseId/actions', requireAuth('action:approve'), async (req, res) => {
   const body = parseBody(prepareSchema, req.body);
-  res.status(201).json(prepareAction(getPrincipal(req), String(req.params.caseId), body.option_id));
+  res.status(201).json(await prepareAction(getPrincipal(req), String(req.params.caseId), body.option_id));
 });
 
-caseRouter.post('/cases/:caseId/actions/:actionId/approve', requireAuth('action:approve'), (req, res) => {
+caseRouter.post('/cases/:caseId/actions/:actionId/approve', requireAuth('action:approve'), async (req, res) => {
   const body = parseBody(approveSchema, req.body);
-  res.json(approveAction(getPrincipal(req), String(req.params.caseId), String(req.params.actionId), body.payload_hash));
+  res.json(await approveAction(getPrincipal(req), String(req.params.caseId), String(req.params.actionId), body.payload_hash));
 });
 
 caseRouter.post('/cases/:caseId/actions/:actionId/cancel', requireAuth('action:approve'), (req, res) => {

@@ -11,8 +11,8 @@ triggers:
 engine: builtin:hospital_gap
 auditor: bill_auditor
 tools:
-  read: [payments.get_balance, insurer.get_policy, insurer.check_coverage, insurer.get_claim_checklist, hospital.get_bill, hospital.get_documents, knowledge.search_policy, lending.get_offers, lending.check_affordability]
-  write: [claim.submit, hospital.request_document, lending.submit_application]
+  read: [payments.get_balance, insurer.get_policy, insurer.check_coverage, insurer.get_claim_checklist, hospital.get_bill, hospital.get_documents, knowledge.search_policy, lending.get_offers, lending.check_affordability, lending.get_kfs, aa.request_consent, aa.fetch_fi_data]
+  write: [claim.submit, hospital.request_document, lending.submit_application, payments.create_link, hospital.request_cashless, crm.handoff_to_agent]
 exit: all approved partner steps completed
 guidance:
   title: Hospital bill with an insurance funding gap

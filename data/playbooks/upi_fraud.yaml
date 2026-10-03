@@ -16,7 +16,7 @@ pick_transaction:
   match_stated_amount: true
 tools:
   read: [payments.get_balance, payments.list_transactions, payments.get_transaction, knowledge.search_playbook]
-  write: [payments.open_dispute]
+  write: [payments.open_dispute, crm.handoff_to_agent]
 exit: dispute closed by the payment network
 guidance:
   title: Unrecognized UPI debit

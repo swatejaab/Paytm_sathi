@@ -19,7 +19,7 @@ function findAction(record: CaseRecord, actionId: string): CaseAction {
   return action;
 }
 
-export function prepareAction(principal: Principal, caseId: string, optionId: string): CaseRecord {
+export async function prepareAction(principal: Principal, caseId: string, optionId: string): Promise<CaseRecord> {
   const record = loadCaseForOwner(principal, caseId, 'action:approve');
   if (!PREPARABLE_STATUSES.has(record.status)) {
     throw new HttpError(409, `Actions can be prepared only when options are ready (current status: ${record.status}).`);
@@ -40,10 +40,19 @@ export function prepareAction(principal: Principal, caseId: string, optionId: st
     option_title: option.title,
     formula_version: record.decision!.formula_version,
     prepared_for: principal.sub,
-    steps: option.writes.map((write) => ({ ...write, input: { ...write.input } })),
+    steps: option.writes.map((write) => ({ ...write, input: { case_id: record.case_id, ...write.input } })),
     handoff: option.handoff,
     passport: buildPassport(record),
   };
+  // Credit steps carry the lender's Key Fact Statement, so the approval hash covers the exact terms shown.
+  for (const step of payload.steps.filter((candidate) => candidate.tool === 'lending.submit_application')) {
+    const kfs = await invokeTool<Record<string, unknown>>(
+      'lending.get_kfs',
+      { case_id: record.case_id, offer_id: step.input.offer_id, amount_inr: step.input.amount_inr },
+      { principal, caseRecord: record },
+    );
+    payload.kfs = [...(payload.kfs ?? []), kfs];
+  }
   const action: CaseAction = {
     action_id: newId('ACT'),
     option_id: option.option_id,
@@ -94,12 +103,12 @@ export function cancelAction(principal: Principal, caseId: string, actionId: str
   return record;
 }
 
-export function approveAction(
+export async function approveAction(
   principal: Principal,
   caseId: string,
   actionId: string,
   payloadHash: string,
-): CaseRecord {
+): Promise<CaseRecord> {
   const record = loadCaseForOwner(principal, caseId, 'action:approve');
   const action = findAction(record, actionId);
   if (action.status !== 'awaiting_approval') throw new HttpError(409, `This action is ${action.status}; it cannot be approved.`);
@@ -129,19 +138,6 @@ export function approveAction(
     actor: 'customer',
   });
 
-  if (action.payload.handoff) {
-    action.status = 'completed';
-    addTimeline(record, {
-      status: 'human_review',
-      title: 'Passport shared with a specialist',
-      detail: 'A specialist continues from the same facts; no partner action was taken.',
-      actor: 'saathi',
-    });
-    addMessage(record, 'assistant', 'I shared your Resolution Passport with a Saathi specialist. You will not need to repeat your story.');
-    updateCase(record);
-    return record;
-  }
-
   const token = signApprovalToken({
     case_id: record.case_id,
     action_id: action.action_id,
@@ -149,7 +145,7 @@ export function approveAction(
     sub: principal.sub,
   });
   for (const step of action.payload.steps) {
-    const result = invokeTool<{ reference: string; partner: string }>(step.tool, step.input, {
+    const result = await invokeTool<{ reference: string; partner: string }>(step.tool, step.input, {
       principal,
       caseRecord: record,
       approval: { token, action },
@@ -164,6 +160,21 @@ export function approveAction(
       updates: [{ at: nowIso(), status: 'submitted', message: step.summary }],
     });
   }
+
+  if (action.payload.handoff) {
+    action.status = 'completed';
+    const ticket = action.partner_requests.find((request) => request.tool === 'crm.handoff_to_agent');
+    addTimeline(record, {
+      status: 'human_review',
+      title: 'Passport shared with a specialist',
+      detail: `${ticket ? `Support handoff ${ticket.reference}. ` : ''}A specialist continues from the same facts; no partner action was taken.`,
+      actor: 'saathi',
+    });
+    addMessage(record, 'assistant', 'I shared your Resolution Passport with a Saathi specialist. You will not need to repeat your story.');
+    updateCase(record);
+    return record;
+  }
+
   action.status = 'in_progress';
   traceStandalone(
     record,

@@ -30,6 +30,8 @@ function readInt(name: string, fallback: number): number {
 const configuredJwtSecret = readString('JWT_SECRET_KEY');
 const jwtSecretEphemeral = configuredJwtSecret.length < 32 || configuredJwtSecret === PLACEHOLDER_SECRET;
 
+const generatedPartnerToken = crypto.randomBytes(18).toString('hex');
+
 export interface Settings {
   host: string;
   trustProxy: boolean;
@@ -59,6 +61,8 @@ export interface Settings {
   mockPartnerDelayMs: number;
   loginAttemptsPerMinute: number;
   demoDate: string;
+  mcpPartnerToken: string;
+  mcpPartnerTokenGenerated: boolean;
   maxDocumentBytes: number;
   maxAudioBytes: number;
 }
@@ -97,6 +101,8 @@ export const settings: Settings = {
   loginAttemptsPerMinute: readInt('LOGIN_ATTEMPTS_PER_MINUTE', 10),
   // "Today" for proactive alerts, pinned so the synthetic EMI due date stays two days away in every demo.
   demoDate: readString('DEMO_DATE', '2026-10-03'),
+  mcpPartnerToken: readString('MCP_PARTNER_TOKEN') || generatedPartnerToken,
+  mcpPartnerTokenGenerated: !readString('MCP_PARTNER_TOKEN'),
   maxDocumentBytes: 5 * 1024 * 1024,
   maxAudioBytes: 10 * 1024 * 1024,
 };

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
-import { checkAffordability } from '../decision';
+import { calculateEmi, checkAffordability } from '../decision';
 import { retrievePolicyClauses } from '../documents';
 import { settings } from '../config';
 import { fixtures, PARTNERS } from '../fixtures';
@@ -8,11 +8,13 @@ import { guidanceFor } from '../playbooks/registry';
 import type { CaseRecord, ConsentPurpose, EventType, Principal } from '../types';
 import { GatewayError } from './errors';
 
-export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'knowledge';
+export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'aa' | 'crm' | 'knowledge';
 
+// Partner MCP servers only ever learn which customer a call is for; the case record and principal stay in Saathi.
 export interface ToolContext {
-  principal: Principal;
-  caseRecord: CaseRecord;
+  customer_id: string;
+  principal?: Principal;
+  caseRecord?: CaseRecord;
 }
 
 export interface ToolDefinition {
@@ -59,7 +61,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return the authenticated principal and scopes.',
     fixture: 'users.json',
     input: caseOnly,
-    handler: ({ principal }) => ({ sub: principal.sub, role: principal.role, scopes: principal.scopes }),
+    handler: ({ principal }) => ({ sub: principal!.sub, role: principal!.role, scopes: principal!.scopes }),
   },
   {
     name: 'consent.get_status',
@@ -71,8 +73,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     fixture: 'case store',
     input: caseOnly,
     handler: ({ caseRecord }) => ({
-      consents: caseRecord.consents,
-      prepare_resolution_options: hasConsent(caseRecord, READ_CONSENT),
+      consents: caseRecord!.consents,
+      prepare_resolution_options: hasConsent(caseRecord!, READ_CONSENT),
     }),
   },
   {
@@ -84,7 +86,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return the case owner.',
     fixture: 'case store',
     input: caseOnly,
-    handler: ({ caseRecord }) => ({ case_id: caseRecord.case_id, customer_id: caseRecord.customer_id }),
+    handler: ({ caseRecord }) => ({ case_id: caseRecord!.case_id, customer_id: caseRecord!.customer_id }),
   },
   {
     name: 'insurer.get_policy',
@@ -171,7 +173,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return balance and cash-flow context for the case owner.',
     fixture: 'customer_profiles.json',
     input: caseOnly,
-    handler: ({ caseRecord }) => profileFor(caseRecord.customer_id),
+    handler: ({ customer_id }) => profileFor(customer_id),
   },
   {
     name: 'payments.list_transactions',
@@ -190,8 +192,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         limit: z.number().int().min(1).max(20).optional(),
       })
       .strict(),
-    handler: ({ caseRecord }, input: { amount_inr?: number; direction?: string; status?: string; limit?: number }) =>
-      transactionsFor(caseRecord.customer_id)
+    handler: ({ customer_id }, input: { amount_inr?: number; direction?: string; status?: string; limit?: number }) =>
+      transactionsFor(customer_id)
         .filter((transaction) => !input.direction || transaction.direction === input.direction)
         .filter((transaction) => !input.status || transaction.status === input.status)
         .filter((transaction) => !input.amount_inr || transaction.amount_inr === input.amount_inr)
@@ -207,8 +209,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return one transaction owned by the case customer.',
     fixture: 'payments.json',
     input: z.object({ case_id: caseId, transaction_id: z.string().min(3).max(40) }).strict(),
-    handler: ({ caseRecord }, input: { transaction_id: string }) => {
-      const transaction = transactionsFor(caseRecord.customer_id).find(
+    handler: ({ customer_id }, input: { transaction_id: string }) => {
+      const transaction = transactionsFor(customer_id).find(
         (candidate) => candidate.transaction_id === input.transaction_id,
       );
       if (!transaction) throw new GatewayError('not_found', 'Transaction not found for this customer.');
@@ -242,8 +244,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Check a monthly EMI against the affordability guardrail.',
     fixture: 'customer_profiles.json + lending_offers.json',
     input: z.object({ case_id: caseId, monthly_emi_inr: inr }).strict(),
-    handler: ({ caseRecord }, input: { monthly_emi_inr: number }) =>
-      checkAffordability(profileFor(caseRecord.customer_id), input.monthly_emi_inr, fixtures.lending.affordability_rules),
+    handler: ({ customer_id }, input: { monthly_emi_inr: number }) =>
+      checkAffordability(profileFor(customer_id), input.monthly_emi_inr, fixtures.lending.affordability_rules),
   },
   {
     name: 'lending.get_loans',
@@ -254,10 +256,86 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return active loans, upcoming EMIs, and the salary schedule for the case owner.',
     fixture: 'loans.json',
     input: caseOnly,
-    handler: ({ caseRecord }) => {
-      const account = fixtures.loans.accounts[caseRecord.customer_id];
+    handler: ({ customer_id }) => {
+      const account = fixtures.loans.accounts[customer_id];
       if (!account) throw new GatewayError('not_found', 'No synthetic loan account exists for this customer.');
       return account;
+    },
+  },
+  {
+    name: 'lending.get_kfs',
+    server: 'lender',
+    kind: 'read',
+    scope: 'case:read',
+    consent: READ_CONSENT,
+    description: 'Return the Key Fact Statement (rate, APR, fees, total payable, cooling-off) for an offer and amount.',
+    fixture: 'lending_offers.json',
+    input: z.object({ case_id: caseId, offer_id: z.string().max(40), amount_inr: inr.positive() }).strict(),
+    handler: (_context, input: { offer_id: string; amount_inr: number }) => {
+      const offer = fixtures.lending.offers.find((candidate) => candidate.offer_id === input.offer_id);
+      if (!offer || input.amount_inr < offer.min_amount_inr || input.amount_inr > offer.max_amount_inr) {
+        throw new GatewayError('not_found', 'No offer covers this amount.');
+      }
+      const emi = calculateEmi(input.amount_inr, offer.annual_rate_pct, offer.tenure_months);
+      const fee = Math.round((input.amount_inr * offer.processing_fee_pct) / 100);
+      const years = offer.tenure_months / 12;
+      return {
+        kfs_id: newId('KFS', 6),
+        lender: fixtures.lending.partner,
+        offer_id: offer.offer_id,
+        product: offer.product,
+        principal_inr: input.amount_inr,
+        interest_rate_pct: offer.annual_rate_pct,
+        approx_apr_pct: Math.round((((emi.total_interest_inr + fee) / input.amount_inr) / years) * 1000) / 10,
+        tenure_months: offer.tenure_months,
+        monthly_emi_inr: emi.emi_inr,
+        total_interest_inr: emi.total_interest_inr,
+        processing_fee_inr: fee,
+        total_payable_inr: input.amount_inr + emi.total_interest_inr + fee,
+        cooling_off_days: 3,
+        disbursed_to: offer.disburse_to,
+        grievance_contact: 'Synthetic lender nodal grievance officer (demo)',
+        notice: 'Synthetic Key Fact Statement for the demo; a regulated lender issues the real KFS.',
+      };
+    },
+  },
+  {
+    name: 'aa.request_consent',
+    server: 'aa',
+    kind: 'read',
+    scope: 'case:read',
+    consent: READ_CONSENT,
+    description: 'Create an Account Aggregator consent artefact for deposit data, scoped to this case.',
+    fixture: 'simulated Account Aggregator',
+    input: z.object({ case_id: caseId, purpose: z.string().min(3).max(80), fi_types: z.array(z.enum(['DEPOSIT'])).min(1) }).strict(),
+    handler: (_context, input: { purpose: string; fi_types: string[] }) => ({
+      consent_handle: newId('AA-CN', 6),
+      status: 'ACTIVE',
+      purpose: input.purpose,
+      fi_types: input.fi_types,
+      data_life: '72h, deleted when the case closes',
+      notice: 'Simulated Account Aggregator consent artefact.',
+    }),
+  },
+  {
+    name: 'aa.fetch_fi_data',
+    server: 'aa',
+    kind: 'read',
+    scope: 'case:read',
+    consent: READ_CONSENT,
+    description: 'Fetch deposit balances and average inflow under an active AA consent artefact.',
+    fixture: 'customer_profiles.json',
+    input: z.object({ case_id: caseId, consent_handle: z.string().regex(/^AA-CN-[A-Z0-9]{6}$/) }).strict(),
+    handler: ({ customer_id }, input: { consent_handle: string }) => {
+      const profile = profileFor(customer_id);
+      return {
+        consent_handle: input.consent_handle,
+        accounts: [{ masked_account: `XXXX${profile.profile_id.slice(-2)}21`, type: 'SAVINGS', balance_inr: profile.account_balance_inr }],
+        avg_monthly_inflow_inr: profile.monthly_income_inr,
+        avg_monthly_outflow_inr: profile.monthly_essential_expenses_inr + profile.existing_emi_inr,
+        months_analysed: 3,
+        source: 'Simulated FIP data via Account Aggregator',
+      };
     },
   },
   {
@@ -369,13 +447,65 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         fee_inr: inr,
       })
       .strict(),
-    handler: ({ caseRecord }, input: { loan_id: string; current_due_date: string; requested_due_date: string; fee_inr: number }) => {
-      const loan = fixtures.loans.accounts[caseRecord.customer_id]?.loans.find((candidate) => candidate.loan_id === input.loan_id);
+    handler: ({ customer_id }, input: { loan_id: string; current_due_date: string; requested_due_date: string; fee_inr: number }) => {
+      const loan = fixtures.loans.accounts[customer_id]?.loans.find((candidate) => candidate.loan_id === input.loan_id);
       if (!loan || loan.next_due_date !== input.current_due_date || loan.due_date_shift.fee_inr !== input.fee_inr) {
         throw new GatewayError('invalid_input', 'The due-date request must match the customer loan and its published fee.');
       }
       return submitted('DDC', PARTNERS.lender);
     },
+  },
+  {
+    name: 'payments.create_link',
+    server: 'payments',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: "Create a Paytm payment link so the customer pays their own share straight to the payee (simulated).",
+    fixture: 'simulated payments adapter',
+    input: z
+      .object({ case_id: caseId, amount_inr: inr.positive(), payee: z.enum(['hospital']), purpose: z.string().min(3).max(120) })
+      .strict(),
+    handler: ({ customer_id }, input: { amount_inr: number }) => {
+      if (input.amount_inr > profileFor(customer_id).available_to_pay_inr) {
+        throw new GatewayError('invalid_input', 'The payment link exceeds what the customer said they can pay now.');
+      }
+      const reference = newId('PLINK', 6);
+      return { reference, partner: PARTNERS.payments, link: `https://paytm.me/demo/${reference.toLowerCase()}`, status: 'submitted', simulated: true };
+    },
+  },
+  {
+    name: 'hospital.request_cashless',
+    server: 'hospital',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Ask the (simulated) hospital TPA desk to start a cashless pre-authorisation.',
+    fixture: 'simulated hospital adapter',
+    input: z.object({ case_id: caseId, policy_document_id: z.string().max(40), estimated_amount_inr: inr.positive() }).strict(),
+    handler: () => submitted('CASHLESS', PARTNERS.hospital),
+  },
+  {
+    name: 'crm.create_ticket',
+    server: 'crm',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Open a Paytm Support ticket carrying the Resolution Passport reference.',
+    fixture: 'simulated support CRM',
+    input: z.object({ case_id: caseId, category: z.string().min(3).max(60), summary: z.string().min(3).max(300) }).strict(),
+    handler: () => submitted('TKT', 'Paytm Support CRM (simulated)'),
+  },
+  {
+    name: 'crm.handoff_to_agent',
+    server: 'crm',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Hand the case and its Resolution Passport to a human specialist queue.',
+    fixture: 'simulated support CRM',
+    input: z.object({ case_id: caseId, queue: z.enum(['saathi_specialists']), priority: z.enum(['high', 'medium', 'low']) }).strict(),
+    handler: () => submitted('HND', 'Paytm Support CRM (simulated)'),
   },
   {
     name: 'payments.raise_refund_trace',
@@ -388,8 +518,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     input: z
       .object({ case_id: caseId, transaction_id: z.string().min(3).max(40), amount_inr: inr.positive(), compensation_inr: inr })
       .strict(),
-    handler: ({ caseRecord }, input: { transaction_id: string; amount_inr: number; compensation_inr: number }) => {
-      const transaction = transactionsFor(caseRecord.customer_id).find((candidate) => candidate.transaction_id === input.transaction_id);
+    handler: ({ customer_id }, input: { transaction_id: string; amount_inr: number; compensation_inr: number }) => {
+      const transaction = transactionsFor(customer_id).find((candidate) => candidate.transaction_id === input.transaction_id);
       if (!transaction || transaction.status !== 'failed_debited' || transaction.amount_inr !== input.amount_inr) {
         throw new GatewayError('invalid_input', 'A refund trace needs a failed debit of exactly this amount.');
       }
@@ -419,8 +549,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         reason: z.enum(['unauthorized_upi_debit']),
       })
       .strict(),
-    handler: ({ caseRecord }, input: { transaction_id: string; amount_inr: number }) => {
-      const transaction = transactionsFor(caseRecord.customer_id).find(
+    handler: ({ customer_id }, input: { transaction_id: string; amount_inr: number }) => {
+      const transaction = transactionsFor(customer_id).find(
         (candidate) => candidate.transaction_id === input.transaction_id,
       );
       if (!transaction || transaction.amount_inr !== input.amount_inr) {
@@ -437,6 +567,7 @@ export function listToolCatalog() {
   return TOOL_DEFINITIONS.map(({ name, server, kind, scope, consent, description, fixture }) => ({
     name,
     server,
+    transport: server === 'identity' ? 'in_saathi' : 'mcp',
     kind,
     scope,
     consent,

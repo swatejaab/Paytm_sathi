@@ -90,7 +90,7 @@ describe('deterministic decision service', () => {
     const decision = computeHospitalDecision(hospitalInput('demo-customer-01', { verification: { required: true, reason: 'verify uploads' } }));
     assert.equal(decision.requires_verification, true);
     assert.equal(decision.recommended_option_id, 'human_support');
-    assert.ok(decision.options.filter((option) => option.writes.length).every((option) => !option.feasible));
+    assert.ok(decision.options.filter((option) => option.writes.length && !option.handoff).every((option) => !option.feasible));
   });
 
   test('every displayed fact carries a source', () => {

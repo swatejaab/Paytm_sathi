@@ -199,6 +199,43 @@ function ApprovalPanel({ caseRecord, action, busy, run }: { caseRecord: CaseReco
           </tbody>
         </table>
       )}
+      {action.payload.kfs?.map((kfs) => (
+        <div key={kfs.kfs_id} className="kfs">
+          <div className="row space-between wrap">
+            <strong>Key Fact Statement: {kfs.product}</strong>
+            <small className="muted">
+              {kfs.kfs_id} / {kfs.lender}
+            </small>
+          </div>
+          <dl className="kfs-grid">
+            <dt>Loan amount</dt>
+            <dd>{inr(kfs.principal_inr)}</dd>
+            <dt>Interest rate</dt>
+            <dd>{kfs.interest_rate_pct}% a year</dd>
+            <dt>Approx. APR (incl. fees)</dt>
+            <dd>{kfs.approx_apr_pct}%</dd>
+            <dt>EMI</dt>
+            <dd>
+              {inr(kfs.monthly_emi_inr)} x {kfs.tenure_months} months
+            </dd>
+            <dt>Interest + processing fee</dt>
+            <dd>
+              {inr(kfs.total_interest_inr)} + {inr(kfs.processing_fee_inr)}
+            </dd>
+            <dt>Total you repay</dt>
+            <dd>
+              <strong>{inr(kfs.total_payable_inr)}</strong>
+            </dd>
+            <dt>Cooling-off period</dt>
+            <dd>{kfs.cooling_off_days} days to exit without penalty</dd>
+            <dt>Paid to</dt>
+            <dd>{kfs.disbursed_to}</dd>
+          </dl>
+          <small className="muted">
+            {kfs.notice} Grievances: {kfs.grievance_contact}. These terms are part of the approval hash below.
+          </small>
+        </div>
+      ))}
       <p className="muted small">
         Includes Resolution Passport {action.payload.passport.passport_id}. Payload hash <code>{action.payload_hash.slice(0, 16)}...</code>
       </p>

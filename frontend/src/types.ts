@@ -181,6 +181,7 @@ export interface CaseAction {
     handoff: boolean;
     passport: { passport_id: string };
     formula_version: string;
+    kfs?: KeyFactStatement[];
   };
   payload_hash: string;
   channel: 'n8n' | 'local_mock' | null;
@@ -410,4 +411,22 @@ export interface PlaybookInfo {
   triggers: string[];
   tools: { read: string[]; write: string[] };
   exit: string;
+}
+
+export interface KeyFactStatement {
+  kfs_id: string;
+  lender: string;
+  product: string;
+  principal_inr: number;
+  interest_rate_pct: number;
+  approx_apr_pct: number;
+  tenure_months: number;
+  monthly_emi_inr: number;
+  total_interest_inr: number;
+  processing_fee_inr: number;
+  total_payable_inr: number;
+  cooling_off_days: number;
+  disbursed_to: string;
+  grievance_contact: string;
+  notice: string;
 }

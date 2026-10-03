@@ -443,3 +443,9 @@ html, body { overflow-x: hidden; }
 /* Playbook card */
 .playbook-card { display: grid; gap: 8px; }
 .tool-chip-write { background: var(--amber-soft); color: #7a4c00; font-weight: 700; }
+
+/* Key Fact Statement */
+.kfs { border: 1px solid #f0d9a8; background: #fffaf0; border-radius: 12px; padding: 12px 14px; margin: 10px 0; display: grid; gap: 6px; }
+.kfs-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
+.kfs-grid dt { color: var(--muted); }
+.kfs-grid dd { margin: 0; }
