@@ -24,7 +24,12 @@ const round1 = (value: number): number => Math.round(value * 10) / 10;
 const clamp = (value: number): number => Math.min(100, Math.max(0, value));
 
 export function formatInr(amount: number): string {
-  return `INR ${Math.round(amount).toLocaleString('en-IN')}`;
+  return `${amount < 0 ? '-' : ''}INR ${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
+}
+
+// "2026-10-10" -> "10 Oct" for customer-facing sentences.
+export function formatDay(date: string): string {
+  return new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 export function calculateEmi(principal: number, annualRatePct: number, months: number) {

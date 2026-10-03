@@ -1,6 +1,6 @@
 import { settings } from './config';
 import { listCases, getPreferences, recordAudit, savePreferences } from './db';
-import { calculateEmiShortfall, formatInr } from './decision';
+import { calculateEmiShortfall, formatDay, formatInr } from './decision';
 import { fixtures } from './fixtures';
 import type { EventType } from './types';
 
@@ -35,7 +35,7 @@ function detectAlerts(customerId: string): ProactiveAlert[] {
           event_type: 'emi_shortfall',
           severity: daysToDue <= 3 ? 'high' : 'medium',
           title: `Your ${formatInr(loan.emi_inr)} EMI is due in ${daysToDue} day${daysToDue === 1 ? '' : 's'}, ${formatInr(shortfall)} short`,
-          detail: `${loan.product} ${loan.loan_id} is due ${loan.next_due_date}. Salary is ${loans.salary.status}${loans.salary.status === 'delayed' ? ` to ${loans.salary.expected_date}` : ''}.`,
+          detail: `${loan.product} ${loan.loan_id} is due ${formatDay(loan.next_due_date)}. Salary is ${loans.salary.status}${loans.salary.status === 'delayed' ? ` to ${formatDay(loans.salary.expected_date)}` : ''}.`,
           suggested_message: `Salary delayed hai aur ${formatInr(loan.emi_inr)} ki EMI ${loan.next_due_date} ko due hai, ${formatInr(shortfall)} kam hain. Kya options hain?`,
         });
       }

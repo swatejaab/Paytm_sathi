@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { alertsFor, dismissAlert, setAlertsEnabled } from '../alerts';
 import { getPrincipal, requireAuth } from '../auth';
 import { HttpError, parseBody } from '../errors';
+import { assessAffordability, parseIndianAmount, purchaseCategory } from '../afford';
+import { recordAudit } from '../db';
+import { buildForecast } from '../forecast';
 import { buildTwin } from '../twin';
 
 export const alertRouter = Router();
@@ -28,4 +31,41 @@ alertRouter.get('/twin', requireAuth('case:create'), (req, res) => {
   const twin = buildTwin(getPrincipal(req).sub);
   if (!twin) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
   res.json(twin);
+});
+
+const forecastQuery = z
+  .object({ salary_delay_days: z.coerce.number().int().min(0).max(20).optional(), skip: z.string().max(600).optional() })
+  .strict();
+
+alertRouter.get('/forecast', requireAuth('case:create'), (req, res) => {
+  const query = parseBody(forecastQuery, req.query);
+  const principal = getPrincipal(req);
+  const forecast = buildForecast(principal.sub, {
+    salary_delay_days: query.salary_delay_days,
+    skip: query.skip ? query.skip.split(',').filter(Boolean) : [],
+  });
+  if (!forecast) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
+  recordAudit({ actor: principal.sub, event: 'forecast_viewed', detail: { what_if: forecast.what_if } });
+  res.json(forecast);
+});
+
+const affordSchema = z
+  .object({
+    question: z.string().trim().min(3).max(300).optional(),
+    amount_inr: z.number().int().positive().max(100_000_000).optional(),
+    item: z.string().trim().max(80).optional(),
+  })
+  .strict();
+
+alertRouter.post('/afford', requireAuth('case:create'), (req, res) => {
+  const body = parseBody(affordSchema, req.body);
+  const principal = getPrincipal(req);
+  const amount = body.amount_inr ?? (body.question ? parseIndianAmount(body.question) : null);
+  if (!amount) throw new HttpError(422, 'Tell me the price, for example "Can I afford a 1.2 lakh phone?"');
+  const text = `${body.item ?? ''} ${body.question ?? ''}`;
+  const item = body.item ?? body.question?.replace(/^(can|could|should)\s+i\s+(afford|buy)\s+(an?\s+)?/i, '').replace(/\?+$/, '').slice(0, 80);
+  const result = assessAffordability(principal.sub, { amount_inr: amount, item, category: purchaseCategory(text) });
+  if (!result) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
+  recordAudit({ actor: principal.sub, event: 'affordability_checked', detail: { amount_inr: amount, verdict: result.verdict } });
+  res.json(result);
 });

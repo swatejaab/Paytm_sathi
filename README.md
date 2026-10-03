@@ -45,6 +45,7 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 6. Open **Passport** (Tell It Once packet) and **Trust ledger** (every gateway allow and deny).
 7. Click **Unrecognized UPI**, pick the ₹8,500 QuickKart debit, see the fraud signals, and approve the dispute.
 8. Click **EMI shortfall**. Saathi finds the INR 12,000 EMI, the delayed salary, and the INR 4,600 shortfall, then recommends moving the due date past payday over borrowing. It replies in Hinglish because the customer wrote in Hinglish.
+8a. On **Home**, show the **Cash-flow Copilot**: the balance dips below zero on 5 Oct and bottoms at -INR 18,100 on 7 Oct before payday; the cheapest fix (borrow only the INR 18,100 for INR 422) and the no-new-loan plan (move the EMI + card minimum, INR 699). Toggle "salary late by 5 days". Then **Can I afford it?** with "₹1.2 lakh iPhone": Riya gets card EMI with a warning to fix the crunch first; Arjun is told to wait 2 months.
 8b. Click **Failed UPI refund**, pick the INR 2,450 debit, and show the declarative playbook: 2 days past T+1, so INR 200 compensation, and a refund trace to approve. Open **Agents** to show the playbook card and its tool allowlist.
 9. In **Passport**, click **Download PDF** (one-page packet to hand to the hospital or insurer) or **Copy summary**.
 10. Upload your own bill as TXT/PDF (or a photo, with OCR consent). Saathi reads the line items, asks you to confirm the total, and recalculates the exact gap from your bill.
@@ -121,6 +122,8 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
 | 9a00. Real MCP servers | `mcp/servers.ts` (SDK McpServer per contract), `mcp/clients.ts` (gateway MCP client, in-process or Streamable HTTP), `routes/mcp.ts` (`/mcp/<server>`) |
 | 9a0. Playbook registry | `data/playbooks/*.yaml`, `playbooks/registry.ts` (zod-validated, triggers, tool allowlist), `playbooks/declarative.ts` + `expressions.ts` |
+| 9a1. Cash-flow Copilot | `forecast.ts` (`GET /api/forecast`): day-by-day balance, crunch day, safe-to-spend, priced fixes, cheapest plan with and without a new loan, salary-delay and skip what-ifs; `ForecastCard.tsx` chart |
+| 9a2. Can I afford it? | `afford.ts` (`POST /api/afford`): parses "1.2 lakh" / "15L", compares cash, card EMI, personal or vehicle loan (with down payments), and waiting against the buffer, forecast, and affordability rules |
 | 9a. Financial Twin + Home | `twin.ts` (`GET /api/twin`): sourced assets, liabilities, cash flow, obligations inbox, insurance, goals; `HomeView.tsx` |
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |

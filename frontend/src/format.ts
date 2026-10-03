@@ -1,6 +1,7 @@
 import type { CaseStatus, EventType, Fact } from './types';
 
-export const inr = (amount: number): string => `₹${Math.round(amount).toLocaleString('en-IN')}`;
+export const inr = (amount: number): string =>
+  `${amount < 0 ? '−' : ''}₹${Math.abs(Math.round(amount)).toLocaleString('en-IN')}`;
 
 export function dateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });

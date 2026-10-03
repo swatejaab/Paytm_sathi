@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, settings } from './config';
 import { recordAudit } from './db';
-import { formatInr } from './decision';
+import { formatDay, formatInr } from './decision';
 import { fixtures } from './fixtures';
 
 interface TwinExtras {
@@ -43,7 +43,7 @@ const addMonths = (date: string, months: number): string => {
 };
 
 // The Saathi Financial Twin: one sourced picture of the customer's money, assembled from the same records the MCP tools serve.
-export function buildTwin(customerId: string) {
+export function buildTwin(customerId: string, options: { audit?: boolean } = {}) {
   const profile = fixtures.profiles[customerId];
   if (!profile) return null;
   const loans = fixtures.loans.accounts[customerId];
@@ -122,13 +122,13 @@ export function buildTwin(customerId: string) {
     crunchInr > 0
       ? {
           status: 'attention' as const,
-          headline: `${formatInr(dueBeforeSalaryInr)} is due before your salary on ${salaryDate}, but your balance is ${formatInr(profile.account_balance_inr)}.`,
+          headline: `${formatInr(dueBeforeSalaryInr)} is due before your salary on ${formatDay(salaryDate)}, but your balance is ${formatInr(profile.account_balance_inr)}.`,
         }
       : emergencyMonths < 3
         ? { status: 'watch' as const, headline: `Your money is on track this week; your emergency fund covers ${emergencyMonths} months of expenses.` }
         : { status: 'healthy' as const, headline: 'Your money looks healthy this week.' };
 
-  recordAudit({ actor: customerId, event: 'twin_viewed' });
+  if (options.audit !== false) recordAudit({ actor: customerId, event: 'twin_viewed' });
   return {
     customer_id: customerId,
     as_of: today,

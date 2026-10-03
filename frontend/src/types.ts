@@ -453,3 +453,55 @@ export interface CoverageAssessment {
   not_covered_inr: number;
   assumptions: string[];
 }
+
+export interface CashForecast {
+  as_of: string;
+  horizon_days: number;
+  what_if: { salary_delay_days: number; skip: string[] };
+  opening_balance_inr: number;
+  payday: string;
+  salary_inr: number;
+  days: { date: string; balance_inr: number; events: { id: string; title: string; amount_inr: number; direction: 'in' | 'out' }[] }[];
+  lowest: { date: string; balance_inr: number };
+  first_negative_date: string | null;
+  crunch_inr: number;
+  safe_to_spend_inr: number;
+  end_balance_inr: number;
+  items: { id: string; title: string; kind: string; amount_inr: number; due_date: string; direction: 'in' | 'out'; flexible: boolean }[];
+  fixes: { id: string; title: string; detail: string; cost_inr: number; relief_inr: number; playbook_message: string | null }[];
+  best_plan: { fix_ids: string[]; cost_inr: number; summary: string } | null;
+  plan_without_new_loan: { fix_ids: string[]; cost_inr: number; summary: string } | null;
+  headline: string;
+  method: string;
+}
+
+export interface AffordabilityAssessment {
+  item: string;
+  amount_inr: number;
+  category: 'vehicle' | 'purchase';
+  verdict: 'yes' | 'yes_with_plan' | 'not_now';
+  headline: string;
+  recommended_id: string | null;
+  scenarios: {
+    id: string;
+    title: string;
+    upfront_inr: number;
+    monthly_emi_inr: number;
+    months: number;
+    extra_cost_inr: number;
+    emi_to_income: number | null;
+    savings_after_inr: number | null;
+    status: 'comfortable' | 'manageable' | 'high_stress' | 'not_possible' | 'wait';
+    effect: string;
+  }[];
+  context: {
+    free_balance_inr: number;
+    spare_savings_inr: number;
+    emergency_buffer_inr: number;
+    free_cash_monthly_inr: number;
+    existing_emi_inr: number;
+    monthly_income_inr: number;
+  };
+  warning: string | null;
+  method: string;
+}

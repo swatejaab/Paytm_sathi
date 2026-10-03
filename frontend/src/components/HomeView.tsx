@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { inr } from '../format';
 import type { FinancialTwin } from '../types';
+import { AffordCard } from './AffordCard';
 import { AlertsPanel } from './AlertsPanel';
+import { ForecastCard } from './ForecastCard';
 
 interface Props {
   displayName: string;
@@ -111,8 +113,12 @@ export function HomeView({ displayName, onAsk }: Props) {
           </button>
         </div>
         <div className="mode-chips">
+          <button className="mode-chip" onClick={() => document.getElementById('afford')?.scrollIntoView({ behavior: 'smooth' })}>
+            <strong>ASK</strong>
+            <span>Can I afford it?</span>
+          </button>
           {MODES.map((item) => (
-            <button key={item.mode} className="mode-chip" onClick={() => onAsk(item.message)}>
+            <button key={`${item.mode}-${item.hint}`} className="mode-chip" onClick={() => onAsk(item.message)}>
               <strong>{item.mode}</strong>
               <span>{item.hint}</span>
             </button>
@@ -128,7 +134,8 @@ export function HomeView({ displayName, onAsk }: Props) {
               <div>
                 <p className="eyebrow">Before payday</p>
                 <strong>
-                  You may be {inr(twin.before_salary.shortfall_inr)} short before your salary on {twin.before_salary.salary_date}
+                  You may be {inr(twin.before_salary.shortfall_inr)} short before your salary on{' '}
+                  {new Date(`${twin.before_salary.salary_date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                 </strong>
                 <p className="muted small">
                   {inr(twin.before_salary.due_inr)} of bills fall due first; your balance is {inr(twin.before_salary.balance_inr)}.
@@ -179,6 +186,9 @@ export function HomeView({ displayName, onAsk }: Props) {
           </ul>
         </section>
       </div>
+
+      <ForecastCard onAsk={onAsk} />
+      <AffordCard />
 
       <section className="card home-section">
         <h3>Your money</h3>

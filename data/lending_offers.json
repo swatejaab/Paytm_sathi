@@ -41,6 +41,30 @@
       "max_amount_inr": 25000,
       "disbursal_days": 0,
       "disburse_to": "customer"
+    },
+    {
+      "offer_id": "OFFER-CARD-EMI-12M",
+      "kind": "card_emi",
+      "product": "Credit-card EMI",
+      "annual_rate_pct": 15,
+      "tenure_months": 12,
+      "processing_fee_pct": 1,
+      "min_amount_inr": 5000,
+      "max_amount_inr": 200000,
+      "disbursal_days": 0,
+      "disburse_to": "customer"
+    },
+    {
+      "offer_id": "OFFER-AUTO-60M",
+      "kind": "vehicle",
+      "product": "Vehicle loan",
+      "annual_rate_pct": 9.5,
+      "tenure_months": 60,
+      "processing_fee_pct": 0.5,
+      "min_amount_inr": 100000,
+      "max_amount_inr": 2500000,
+      "disbursal_days": 2,
+      "disburse_to": "customer"
     }
   ]
 }

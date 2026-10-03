@@ -71,7 +71,7 @@ export interface FinancialProfile {
 
 export interface LenderOffer {
   offer_id: string;
-  kind: 'exact_gap' | 'personal' | 'bridge';
+  kind: 'exact_gap' | 'personal' | 'bridge' | 'card_emi' | 'vehicle';
   product: string;
   annual_rate_pct: number;
   tenure_months: number;

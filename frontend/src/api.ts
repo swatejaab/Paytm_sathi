@@ -1,5 +1,7 @@
 import type {
   AgentNodeInfo,
+  AffordabilityAssessment,
+  CashForecast,
   PlaybookInfo,
   FinancialTwin,
   ProactiveAlert,
@@ -133,6 +135,11 @@ export const api = {
   confirmBill: (caseId: string, document_id: string, confirmed: boolean, total_inr?: number) =>
     post<CaseRecord>(`/api/cases/${caseId}/bill-confirmation`, { document_id, confirmed, ...(total_inr ? { total_inr } : {}) }),
   twin: () => request<FinancialTwin>('/api/twin'),
+  forecast: (salaryDelayDays = 0, skip: string[] = []) =>
+    request<CashForecast>(
+      `/api/forecast?salary_delay_days=${salaryDelayDays}${skip.length ? `&skip=${encodeURIComponent(skip.join(','))}` : ''}`,
+    ),
+  afford: (question: string) => post<AffordabilityAssessment>('/api/afford', { question }),
   alerts: () => request<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts'),
   setAlerts: (enabled: boolean) => post<{ enabled: boolean; alerts: ProactiveAlert[] }>('/api/alerts/settings', { enabled }),
   dismissAlert: (alertId: string) =>
