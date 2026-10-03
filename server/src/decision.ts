@@ -1007,12 +1007,75 @@ export function legacyClassifyEvent(message: string): { event_type: EventType; u
 
 const AMOUNT_UNITS: Record<string, number> = { crore: 1e7, cr: 1e7, lakh: 1e5, lakhs: 1e5, lac: 1e5, l: 1e5, k: 1e3, thousand: 1e3, hazar: 1e3, hazaar: 1e3 };
 
+interface AmountMention {
+  value: number;
+  index: number;
+  marked: boolean; // written with a currency sign or a unit such as lakh or k
+  before: string;
+}
+
+// Every money amount in a message, skipping counts such as "3 days", "45 years old", "10%" or phone numbers.
+function amountMentions(message: string): AmountMention[] {
+  const mentions: AmountMention[] = [];
+  const pattern =
+    /(₹|\binr\b|\brs\.?)?\s*(\d[\d,]*(?:\.\d+)?)\s*(crore|cr|lakhs?|lac|l|k|thousand|hazaa?r)?(?![\w])(\s*(?:₹|inr|rs\b|rupees|rupaye|रुपये|रुपए|रु))?/gi;
+  for (const match of message.matchAll(pattern)) {
+    const digits = match[2]!.replace(/,/g, '');
+    const after = message.slice(match.index! + match[0].length, match.index! + match[0].length + 14).toLowerCase();
+    if (/^\s*(?:days?|din|nights?|months?|mahine|years?|yrs?|saal|%|percent|hours?|hrs?|times?|am\b|pm\b|members?|people|log\b)/.test(after)) continue;
+    if (digits.replace('.', '').length >= 10) continue;
+    const unit = match[3]?.toLowerCase();
+    const value = Math.round(Number(digits) * (unit ? AMOUNT_UNITS[unit]! : 1));
+    if (!Number.isFinite(value) || value <= 0) continue;
+    mentions.push({
+      value,
+      index: match.index!,
+      marked: Boolean(match[1] || unit || match[4]),
+      before: message.slice(Math.max(0, match.index! - 40), match.index!).toLowerCase(),
+    });
+  }
+  return mentions;
+}
+
 export function parseStatedAmount(message: string): number | null {
-  const unit = /(\d+(?:\.\d+)?)\s*(crore|cr|lakhs?|lac|l|k|thousand|hazaa?r)\b/i.exec(message);
-  if (unit) return Math.round(Number(unit[1]) * AMOUNT_UNITS[unit[2]!.toLowerCase()]!);
-  const match =
-    /(?:₹|\binr\b|\brs\.?)\s*([0-9][0-9,]*)/i.exec(message) ?? /\b([0-9][0-9,]{2,})\s*(?:₹|inr|rs\b|rupees|rupaye|रुपये|रुपए|रु)/i.exec(message);
-  if (!match) return null;
-  const value = Number(match[1]!.replace(/,/g, ''));
-  return Number.isFinite(value) && value > 0 ? value : null;
+  const mentions = amountMentions(message);
+  const marked = mentions.find((mention) => mention.marked);
+  if (marked) return marked.value;
+  return mentions.find((mention) => mention.value >= 100)?.value ?? null;
+}
+
+export interface BillQuery {
+  bill_inr: number | null;
+  can_pay_inr: number | null;
+  room_days: number | null;
+  assumed_thousands: boolean;
+  raw_bill: string | null;
+}
+
+const CAN_PAY =
+  /(?:(?:can|could|able to|will)\s+(?:only\s+)?(?:pay|afford|arrange|manage|give)(?:\s+to\s+pay)?|i\s+(?:only\s+)?have(?:\s+only|\s+just)?|have\s+(?:only|just)|in hand|upfront|savings?\s+(?:of|is)|(?:already|advance)\s+paid|paid\s+(?:already|in advance)|advance(?:\s+of)?|deposit(?:\s+of)?|mere paas|de sakta|de sakti)(?:\s+(?:only|just|about|around|approx\.?|upto|up to))*\s*$/
+
+// Reads a hospital question into the bill amount, what the person can pay now, and the stay length.
+export function parseBillQuery(message: string): BillQuery {
+  const mentions = amountMentions(message);
+  const canPay = mentions.find((mention) => CAN_PAY.test(mention.before));
+  const billCandidates = mentions.filter((mention) => mention !== canPay);
+  const days = /(\d{1,2})\s*(?:days?|din|nights?)\b/i.exec(message);
+  let bill = billCandidates.filter((mention) => mention.marked || mention.value >= 1000).sort((a, b) => b.value - a.value)[0] ?? null;
+  let assumed = false;
+  // "an emergency of 70" in a bill context almost always means thousands; the reply says so.
+  if (!bill) {
+    const small = billCandidates.find((mention) => !mention.marked && mention.value >= 5 && mention.value < 1000);
+    if (small) {
+      bill = { ...small, value: small.value * 1000 };
+      assumed = true;
+    }
+  }
+  return {
+    bill_inr: bill?.value ?? null,
+    can_pay_inr: canPay && canPay.value >= 0 ? canPay.value : null,
+    room_days: days ? Number(days[1]) : null,
+    assumed_thousands: assumed,
+    raw_bill: assumed && bill ? String(bill.value / 1000) : null,
+  };
 }

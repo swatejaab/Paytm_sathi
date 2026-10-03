@@ -37,6 +37,8 @@ import { addTexts, cognify } from '../cognee';
 import { cogneeAvailable } from '../config';
 import { addLocalizedMessage } from '../agent/localize';
 import { redecideAfterDocuments } from '../workflow';
+import { parseBillQuery } from '../decision';
+const READ_CONSENT = 'prepare_resolution_options' as const;
 
 export const evidenceRouter = Router();
 
@@ -353,6 +355,26 @@ evidenceRouter.post('/cases/:caseId/chat', requireAuth('ai:analyze'), async (req
     : record.language === 'hinglish'
       ? 'Hinglish (Hindi in Latin script)'
       : 'English';
+  // A new bill amount, pay-now amount or stay length recalculates the plan instead of answering from the old one.
+  const update = parseBillQuery(body.message);
+  if (
+    record.event_type === 'hospitalization' &&
+    record.decision &&
+    hasConsent(record, READ_CONSENT) &&
+    !['in_progress', 'resolved', 'human_review'].includes(record.status) &&
+    (update.bill_inr !== null || update.can_pay_inr !== null || update.room_days !== null)
+  ) {
+    addMessage(record, 'user', body.message);
+    updateCase(record);
+    await redecideAfterDocuments(principal, record);
+    const fresh = record; // runAgent updates the record in place; reloading would discard the new decision
+    const notes = (fresh.decision?.warnings ?? []).filter((warning) => /^(Using|I read|That is more)/.test(warning));
+    await addLocalizedMessage(fresh, ['I recalculated your plan with these numbers.', explainDecision(fresh), ...notes].filter(Boolean).join(' '));
+    recordAudit({ case_id: caseId, actor: principal.sub, event: 'plan_recalculated', detail: { bill_inr: update.bill_inr, can_pay_inr: update.can_pay_inr, room_days: update.room_days } });
+    updateCase(fresh);
+    res.json(fresh);
+    return;
+  }
   const facts = chatFacts(record);
 
   let answer: string;

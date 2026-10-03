@@ -7,7 +7,9 @@ import {
   computeHumanOnlyDecision,
   computeUpiDecision,
   formatInr,
+  parseBillQuery,
   parseStatedAmount,
+  type BillQuery,
 } from '../decision';
 import { sampleHospitalDocuments } from '../documents';
 import {
@@ -120,11 +122,33 @@ function billLines(lines: { line: number; description: string; amount_inr: numbe
 }
 
 // The bill the customer described: their stated total and room days, if they gave them.
+// The bill, what the person can pay now, and the stay length, read from every message in the case so a
+// follow-up such as "I can pay 25000" updates the plan. Later messages override earlier ones.
+function billQuery(record: CaseRecord): BillQuery {
+  const texts = [
+    record.message_for_rules ?? record.customer_message,
+    ...record.messages.filter((message) => message.role === 'user').slice(1).map((message) => message.content),
+  ];
+  const merged: BillQuery = { bill_inr: null, can_pay_inr: null, room_days: null, assumed_thousands: false, raw_bill: null };
+  for (const text of texts) {
+    const query = parseBillQuery(text);
+    if (query.bill_inr !== null && !(query.assumed_thousands && merged.bill_inr !== null)) {
+      merged.bill_inr = query.bill_inr;
+      merged.assumed_thousands = query.assumed_thousands;
+      merged.raw_bill = query.raw_bill;
+    }
+    if (query.can_pay_inr !== null) merged.can_pay_inr = query.can_pay_inr;
+    if (query.room_days !== null) merged.room_days = query.room_days;
+  }
+  return merged;
+}
+
 function billRequest(record: CaseRecord): Record<string, number> {
-  const text = record.message_for_rules ?? record.customer_message;
-  const stated = parseStatedAmount(text);
-  const days = /(\d{1,2})\s*(?:days?|din|nights?)\b/i.exec(text);
-  return { ...(stated && stated >= 1000 ? { stated_total_inr: stated } : {}), ...(days ? { room_days: Number(days[1]) } : {}) };
+  const query = billQuery(record);
+  return {
+    ...(query.bill_inr && query.bill_inr >= 1000 ? { stated_total_inr: query.bill_inr } : {}),
+    ...(query.room_days ? { room_days: query.room_days } : {}),
+  };
 }
 
 function playbookPassage(playbook: Playbook): EvidencePassage {
@@ -416,7 +440,10 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
     (confirmed ? undefined : state.gathered.coverage) ??
     await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
   const checklist = state.gathered.checklist ?? await callTool<{ clause_id: string; page: number; missing: string[] }>(context, 'insurer.get_claim_checklist');
-  const profile = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
+  const query = billQuery(record);
+  const recorded = state.gathered.profile ?? await callTool<FinancialProfile>(context, 'payments.get_balance');
+  // What the person says they can pay now replaces the amount on record; everything else stays from their accounts.
+  const profile: FinancialProfile = query.can_pay_inr !== null ? { ...recorded, available_to_pay_inr: query.can_pay_inr } : recorded;
   const roughGap = Math.max(bill.total_inr - coverage.estimated_coverage_inr - profile.available_to_pay_inr, 0);
   const offerSets: { offers: LenderOffer[]; rules: AffordabilityRules }[] = [];
   for (const amount of [roughGap, bill.total_inr].filter((value) => value > 0)) {
@@ -435,16 +462,22 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
     offers,
     rules: offerSets[0]?.rules ?? fixtures.lending.affordability_rules,
     partners: { insurer: PARTNERS.insurer, lender: PARTNERS.lender, hospital: PARTNERS.hospital },
-    statedAmountInr: parseStatedAmount(record.message_for_rules ?? record.customer_message),
+    statedAmountInr: query.bill_inr,
     verification: verificationNeeded(record),
   });
   record.decision.coverage_breakdown = coverage.assessment;
-  if ((bill as { estimated?: boolean }).estimated) {
-    record.decision.warnings = [
-      ...record.decision.warnings,
-      'Line items are estimated from the amount you gave. Upload the itemised bill for exact cover.',
-    ];
+  const notes: string[] = [];
+  if (!confirmed && query.assumed_thousands) notes.push(`I read "${query.raw_bill}" as ${formatInr(bill.total_inr)}. Tell me the exact amount if that is wrong.`);
+  if (!confirmed && query.bill_inr === null) notes.push(`You did not mention an amount, so this uses the hospital's current bill of ${formatInr(bill.total_inr)}.`);
+  if (query.can_pay_inr !== null) {
+    notes.push(`Using the ${formatInr(query.can_pay_inr)} you said you can pay now.`);
+    const liquid = recorded.account_balance_inr + recorded.emergency_savings_inr;
+    if (query.can_pay_inr > liquid) notes.push(`That is more than your balance and savings together (${formatInr(liquid)}); check the money is available before you pay.`);
+  } else {
+    notes.push(`Using ${formatInr(recorded.available_to_pay_inr)} from your balance as what you can pay now. Tell me if you can pay more or less.`);
   }
+  if ((bill as { estimated?: boolean }).estimated) notes.push('Line items are estimated from the amount you gave. Upload the itemised bill for exact cover.');
+  record.decision.warnings = [...record.decision.warnings, ...notes];
   return `Formula ${record.decision.formula_version}; cover ${formatInr(coverage.estimated_coverage_inr)} (${coverage.assessment.rules_version}); gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }
 
