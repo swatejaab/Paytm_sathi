@@ -8,7 +8,7 @@ export type CaseStatus =
   | 'in_progress'
   | 'resolved'
   | 'human_review';
-export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'general_financial_support';
+export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'general_financial_support';
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 export interface SessionUser {
@@ -254,6 +254,7 @@ export interface CaseRecord {
   urgency: 'high' | 'medium' | 'low';
   language?: 'en' | 'hinglish';
   preferred_language?: string;
+  playbook_id?: string;
   agent_runs?: AgentRun[];
   status: CaseStatus;
   customer_message: string;
@@ -272,7 +273,7 @@ export interface CaseRecord {
   } | null;
   uploaded_documents: UploadedDocument[];
   pending_question:
-    | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[] }
+    | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[]; mode?: 'dispute' | 'select' }
     | {
         type: 'confirm_bill';
         prompt: string;
@@ -398,4 +399,15 @@ export interface FinancialTwin {
     months_left: number;
   }[];
   notice: string;
+}
+
+export interface PlaybookInfo {
+  id: string;
+  version: number;
+  title: string;
+  event_type: EventType;
+  engine: string;
+  triggers: string[];
+  tools: { read: string[]; write: string[] };
+  exit: string;
 }

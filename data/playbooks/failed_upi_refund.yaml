@@ -1,0 +1,70 @@
+# Failed UPI payment: money debited, beneficiary not credited, refund not received.
+# Fully declarative: facts, rules, options, and actions are all defined here. No orchestrator,
+# decision-engine, consent, or audit code changes were needed to add this journey.
+id: failed_upi_refund
+version: 1
+title: Failed UPI payment, refund not received
+event_type: failed_refund
+urgency: medium
+priority: 15
+triggers:
+  any: [refund, failed, reversal, paisa kat gaya, paise kat gaye, money debited, amount debited, not credited, रिफंड, पैसे कट गए]
+engine: declarative
+auditor: transaction_auditor
+pick_transaction:
+  prompt: Which failed payment is missing its refund?
+  mode: select
+  filter: { direction: debit, status: failed_debited }
+  match_stated_amount: true
+tools:
+  read: [payments.get_balance, payments.list_transactions, payments.get_transaction, knowledge.search_playbook]
+  write: [payments.raise_refund_trace]
+exit: reversal credited and compensation paid
+
+rules:
+  version: failed-refund-v1
+  # RBI harmonised turnaround time (20 Sep 2019): a failed UPI debit must auto-reverse by T+1;
+  # after that, Rs 100 per day of delay is payable to the customer.
+  facts:
+    - { name: amount_inr, label: Debited amount, unit: INR, expr: transaction.amount_inr, source: transaction }
+    - { name: days_since_debit, label: Days since the debit, expr: "days_between(transaction.occurred_at, today)", source: calculation }
+    - { name: reversal_tat_days, label: Auto-reversal deadline (days), expr: "1", source: regulation, ref: "RBI TAT circular, 20 Sep 2019: UPI failed debits reverse by T+1" }
+    - { name: days_late, label: Days past the reversal deadline, expr: "max(days_since_debit - reversal_tat_days, 0)", source: calculation }
+    - { name: compensation_inr, label: Compensation due at INR 100 a day, unit: INR, expr: "days_late * 100", source: calculation }
+
+options:
+  - id: raise_refund_trace
+    title: Raise a refund trace and claim compensation
+    summary: "Ask the payments partner to trace the INR {amount_inr} reversal and pay INR {compensation_inr} late-reversal compensation."
+    steps: [Approve the refund trace with your Resolution Passport, Track the trace reference until the reversal lands]
+    guards:
+      - { expr: "days_late > 0", rule: Reversal deadline has passed, pass: "{days_late} day(s) past T+1, so a trace and compensation apply.", fail: Still inside the T+1 auto-reversal window. }
+    metrics: { extra_cost_inr: 0, time_to_funds_days: 1, effort_steps: 1, risk: low }
+    trade_offs: [Recovers the money plus the compensation owed., The bank or PSP decides the outcome (simulated here).]
+    writes:
+      - tool: payments.raise_refund_trace
+        amount: amount_inr
+        summary: "Trace the INR {amount_inr} refund on {transaction.transaction_id}"
+        input: { transaction_id: "{transaction.transaction_id}", amount_inr: "=amount_inr", compensation_inr: "=compensation_inr" }
+
+  - id: wait_auto_reversal
+    title: Wait for the automatic reversal
+    summary: Most failed UPI debits reverse on their own within one working day.
+    steps: [Check your balance tomorrow]
+    guards:
+      - { expr: "days_late == 0", blocking: false, rule: Inside the auto-reversal window, pass: The bank can still reverse it automatically., fail: "The T+1 deadline passed {days_late} day(s) ago; waiting only delays recovery." }
+    metrics: { extra_cost_inr: 0, time_to_funds_days: 3, effort_steps: 0, risk: { expr: "days_late > 0", "true": high, "false": low } }
+    trade_offs: [No effort now., Compensation keeps accruing but is not claimed.]
+    self_serve: true
+
+  # A specialist callback does not recover money faster, so treat the wait as time-critical.
+  - { specialist: true, urgency: high }
+
+guidance:
+  title: Failed UPI payment, refund not received
+  source: Saathi demo playbook v1
+  steps:
+    - Confirm the debit failed (beneficiary not credited) and note the transaction reference.
+    - Failed UPI debits should reverse automatically by T+1.
+    - After T+1, raise a refund trace with the payment app or bank; compensation of INR 100 a day applies.
+    - Escalate to the bank's grievance officer, then the RBI Ombudsman, if it is not resolved.

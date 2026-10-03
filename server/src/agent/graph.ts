@@ -2,7 +2,6 @@ import { Annotation, END, START, StateGraph, type LangGraphRunnableConfig } from
 import { addTimeline, EVENT_LABELS, hasConsent, supersedePendingActions } from '../caseStore';
 import {
   calculateEmiShortfall,
-  classifyEvent,
   computeEmiDecision,
   computeHospitalDecision,
   computeHumanOnlyDecision,
@@ -27,6 +26,8 @@ import type { AgentNodeId, AgentTrigger, CaseRecord, EvidencePassage, Playbook, 
 import { consentNeededMessage, detectLanguage, explainDecision, pickTransactionMessage } from './explainer';
 import { sarvamAvailable } from '../config';
 import { translateWithSarvam } from '../integrations';
+import { runDeclarativeDecision } from '../playbooks/declarative';
+import { classifyWithPlaybooks, playbookForCase } from '../playbooks/registry';
 import { addLocalizedMessage } from './localize';
 import { RunTracer } from './trace';
 
@@ -130,7 +131,8 @@ const classifier = node('classifier', async (_state, context) => {
   const { record } = context;
   const text = await rulesText(record);
   if (text !== record.customer_message) record.message_for_rules = text;
-  const classification = classifyEvent(text);
+  const classification = classifyWithPlaybooks(text);
+  record.playbook_id = classification.playbook.id;
   record.event_type = classification.event_type;
   record.urgency = classification.urgency;
   record.language = record.preferred_language ? 'en' : detectLanguage(record.customer_message);
@@ -141,7 +143,9 @@ const classifier = node('classifier', async (_state, context) => {
     actor: 'saathi',
   });
   recordAudit({ case_id: record.case_id, actor: context.principal.sub, event: 'case_created', detail: { event_type: record.event_type } });
-  return { summary: `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency, language ${record.language}.` };
+  return {
+    summary: `${EVENT_LABELS[record.event_type]}, ${record.urgency} urgency, language ${record.language}; playbook ${classification.playbook.id} v${classification.playbook.version} (${classification.playbook.engine}).`,
+  };
 });
 
 const consentGate = node('consent_gate', async (state, { record, grantConsent }) => {
@@ -224,17 +228,23 @@ const billAuditor = node('bill_auditor', (state, context) => {
 
 const transactionAuditor = node('transaction_auditor', async (state, context) => {
   const { record } = context;
+  const picker = playbookForCase(record).pick_transaction ?? {
+    prompt: 'Which payment is this about?',
+    mode: 'dispute' as const,
+    filter: { direction: 'debit' as const },
+    match_stated_amount: true,
+  };
   if (!state.transaction_id) {
-    const stated = parseStatedAmount(record.message_for_rules ?? record.customer_message);
+    const stated = picker.match_stated_amount ? parseStatedAmount(record.message_for_rules ?? record.customer_message) : null;
     let candidates = callTool<Transaction[]>(context, 'payments.list_transactions', {
-      direction: 'debit',
+      ...picker.filter,
       limit: 5,
       ...(stated ? { amount_inr: stated } : {}),
     });
     if (!candidates.length && stated) {
-      candidates = callTool<Transaction[]>(context, 'payments.list_transactions', { direction: 'debit', limit: 5 });
+      candidates = callTool<Transaction[]>(context, 'payments.list_transactions', { ...picker.filter, limit: 5 });
     }
-    record.pending_question = { type: 'confirm_transaction', prompt: 'Which payment do you not recognize?', candidates };
+    record.pending_question = { type: 'confirm_transaction', prompt: picker.prompt, candidates, mode: picker.mode };
     addTimeline(record, { title: 'Waiting for you to pick the transaction', detail: `${candidates.length} candidate debit(s).`, actor: 'saathi' });
     await addLocalizedMessage(
       record,
@@ -244,7 +254,7 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
   }
 
   const transaction = callTool<Transaction>(context, 'payments.get_transaction', { transaction_id: state.transaction_id });
-  const playbook = callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: 'upi_dispute' });
+  const playbook = callTool<Playbook | null>(context, 'knowledge.search_playbook', { event_type: record.event_type });
   record.evidence = {
     demo_only: true,
     documents: [],
@@ -397,9 +407,20 @@ const decision = node('decision', (state, context) => {
   const { record } = context;
   supersedePendingActions(record, 'The options were recalculated, so any earlier approval request no longer applies.');
   let detail: string;
-  if (record.event_type === 'hospitalization') {
+  const activePlaybook = playbookForCase(record);
+  if (activePlaybook.engine === 'declarative') {
+    const transaction = state.gathered.transaction;
+    if (activePlaybook.pick_transaction && !transaction) throw new Error('No confirmed transaction to decide on.');
+    record.decision = runDeclarativeDecision(activePlaybook, {
+      caseId: record.case_id,
+      urgency: record.urgency,
+      context: { transaction: transaction ?? {}, profile: state.gathered.profile ?? {} },
+      partner: PARTNERS.payments,
+    });
+    detail = `Declarative playbook ${activePlaybook.id} (${record.decision.formula_version})`;
+  } else if (activePlaybook.engine === 'builtin:hospital_gap') {
     detail = hospitalDecision(state, context);
-  } else if (record.event_type === 'upi_dispute') {
+  } else if (activePlaybook.engine === 'builtin:upi_dispute') {
     const transaction = state.gathered.transaction;
     if (!transaction) throw new Error('No confirmed transaction to decide on.');
     record.decision = computeUpiDecision({
@@ -410,7 +431,7 @@ const decision = node('decision', (state, context) => {
       paymentsPartner: PARTNERS.payments,
     });
     detail = `Formula ${record.decision.formula_version}`;
-  } else if (record.event_type === 'emi_shortfall') {
+  } else if (activePlaybook.engine === 'builtin:emi_shortfall') {
     detail = emiDecision(state, context);
   } else {
     const playbook = state.gathered.playbook ?? null;
@@ -479,7 +500,7 @@ const graph = new StateGraph(AgentState)
     (state, config) => {
       if (failed(state)) return 'human_review';
       const { record } = contextOf(config);
-      if (record.event_type === 'upi_dispute') return 'transaction_auditor';
+      if (playbookForCase(record).auditor === 'transaction_auditor') return 'transaction_auditor';
       if (record.event_type === 'hospitalization' && state.trigger === 'documents_updated') return 'decision';
       return 'policy_rag';
     },
@@ -489,8 +510,8 @@ const graph = new StateGraph(AgentState)
     'policy_rag',
     (state, config) => {
       if (failed(state)) return 'human_review';
-      const eventType = contextOf(config).record.event_type;
-      return eventType === 'hospitalization' ? 'bill_auditor' : eventType === 'emi_shortfall' ? 'emi_auditor' : 'decision';
+      const auditor = playbookForCase(contextOf(config).record).auditor;
+      return auditor === 'bill_auditor' || auditor === 'emi_auditor' ? auditor : 'decision';
     },
     ['human_review', 'bill_auditor', 'emi_auditor', 'decision'],
   )

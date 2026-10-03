@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { timeOnly } from '../format';
-import type { AgentNodeInfo, AgentRun, CaseRecord } from '../types';
+import type { AgentNodeInfo, AgentRun, CaseRecord, PlaybookInfo } from '../types';
 
 const TRIGGER_LABELS: Record<string, string> = {
   intake: 'Customer told their story',
@@ -69,6 +69,7 @@ function RunCard({ run, nodes, open, onToggle }: { run: AgentRun; nodes: Map<str
 export function AgentView({ caseRecord }: { caseRecord: CaseRecord }) {
   const [nodes, setNodes] = useState<Map<string, AgentNodeInfo>>(new Map());
   const [engine, setEngine] = useState('');
+  const [playbooks, setPlaybooks] = useState<PlaybookInfo[]>([]);
   const runs = [...(caseRecord.agent_runs ?? [])].reverse();
   const [openRun, setOpenRun] = useState<string | null>(null);
   const expanded = openRun ?? runs.find((run) => run.steps.length > 1)?.run_id ?? runs[0]?.run_id ?? null;
@@ -83,10 +84,15 @@ export function AgentView({ caseRecord }: { caseRecord: CaseRecord }) {
         setEngine(`${result.engine} / ${result.graph}`);
       })
       .catch(() => undefined);
+    api
+      .playbooks()
+      .then((result) => !cancelled && setPlaybooks(result.playbooks))
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, []);
+  const active = playbooks.find((playbook) => playbook.id === caseRecord.playbook_id) ?? playbooks.find((playbook) => playbook.event_type === caseRecord.event_type);
 
   if (!runs.length) {
     return <p className="muted empty-inline">No agent runs yet. They appear here as soon as Saathi works on your case.</p>;
@@ -98,6 +104,36 @@ export function AgentView({ caseRecord }: { caseRecord: CaseRecord }) {
         A bounded agent graph{engine ? ` (${engine})` : ''} handles each step. Agents gather and explain evidence through the MCP
         gateway; deterministic rules do the maths, and only you can approve an action.
       </p>
+      {active && (
+        <div className="card-inset playbook-card">
+          <div className="row space-between wrap">
+            <strong>
+              Playbook: {active.id} v{active.version}
+            </strong>
+            <span className={`badge ${active.engine === 'declarative' ? 'badge-green' : 'badge-blue'}`}>
+              {active.engine === 'declarative' ? 'Declarative YAML' : `Rules: ${active.engine.replace('builtin:', '')}`}
+            </span>
+          </div>
+          <small className="muted">
+            {active.title}. The gateway grants this case only these tools; anything else is denied and logged.
+          </small>
+          <div className="row gap-sm wrap">
+            {active.tools.read.map((tool) => (
+              <code key={tool} className="tool-chip">
+                {tool}
+              </code>
+            ))}
+            {active.tools.write.map((tool) => (
+              <code key={tool} className="tool-chip tool-chip-write" title="Write tool: needs your approval">
+                {tool}
+              </code>
+            ))}
+          </div>
+          <small className="muted">
+            {playbooks.length} playbooks on the same engine: {playbooks.map((playbook) => playbook.id).join(', ')}
+          </small>
+        </div>
+      )}
       <ol className="agent-runs">
         {runs.map((run) => (
           <RunCard

@@ -1,5 +1,6 @@
 import type {
   AgentNodeInfo,
+  PlaybookInfo,
   FinancialTwin,
   ProactiveAlert,
   AuditEvent,
@@ -107,6 +108,7 @@ export const api = {
   passport: (caseId: string) => request<Passport>(`/api/cases/${caseId}/passport`),
   audit: (caseId: string) => request<{ events: AuditEvent[] }>(`/api/cases/${caseId}/audit`),
   tools: () => request<{ tools: ToolInfo[] }>('/api/mcp/tools'),
+  playbooks: () => request<{ playbooks: PlaybookInfo[] }>('/api/playbooks'),
   agentGraph: () => request<{ graph: string; engine: string; nodes: AgentNodeInfo[] }>('/api/agent/graph'),
   evidence: (caseId: string) => request<EvidenceResponse>(`/api/cases/${caseId}/evidence`),
   uploadDocument: (caseId: string, documentType: 'bill' | 'policy', file: File, ocrConsent = false) => {

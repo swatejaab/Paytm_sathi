@@ -97,6 +97,11 @@ function mockMessages(action: CaseAction, request: PartnerRequest): { acknowledg
         acknowledged: `Lender received the request to move the EMI to ${String(input.requested_due_date ?? 'the new date')}`,
         completed: `Lender moved the EMI on ${String(input.loan_id ?? 'the loan')} to ${String(input.requested_due_date ?? 'the new date')} (simulated)`,
       };
+    case 'payments.raise_refund_trace':
+      return {
+        acknowledged: `Refund trace ${request.reference} opened with the remitter bank`,
+        completed: `${formatInr(request.amount_inr)} reversed plus ${formatInr(Number(input.compensation_inr ?? 0))} compensation credited (simulated)`,
+      };
     case 'payments.open_dispute':
       return {
         acknowledged: `Dispute ${request.reference} registered with the payment network`,

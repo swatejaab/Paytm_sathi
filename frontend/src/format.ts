@@ -14,6 +14,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   hospitalization: 'Hospitalization',
   upi_dispute: 'Unrecognized UPI payment',
   emi_shortfall: 'EMI shortfall',
+  failed_refund: 'Failed UPI refund',
   general_financial_support: 'General support',
 };
 

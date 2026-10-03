@@ -45,6 +45,7 @@ Other commands: `npm test` runs the backend suite (node:test + supertest), and `
 6. Open **Passport** (Tell It Once packet) and **Trust ledger** (every gateway allow and deny).
 7. Click **Unrecognized UPI**, pick the ₹8,500 QuickKart debit, see the fraud signals, and approve the dispute.
 8. Click **EMI shortfall**. Saathi finds the INR 12,000 EMI, the delayed salary, and the INR 4,600 shortfall, then recommends moving the due date past payday over borrowing. It replies in Hinglish because the customer wrote in Hinglish.
+8b. Click **Failed UPI refund**, pick the INR 2,450 debit, and show the declarative playbook: 2 days past T+1, so INR 200 compensation, and a refund trace to approve. Open **Agents** to show the playbook card and its tool allowlist.
 9. In **Passport**, click **Download PDF** (one-page packet to hand to the hospital or insurer) or **Copy summary**.
 10. Upload your own bill as TXT/PDF (or a photo, with OCR consent). Saathi reads the line items, asks you to confirm the total, and recalculates the exact gap from your bill.
 11. Sign in as support, open a case in **Human review**, click **Pick up this case**, verify uploaded documents, recommend an option, and message the customer. The customer still approves.
@@ -69,6 +70,10 @@ server/src/
   integrations.ts  OpenAI (redacted, consent-gated) and Sarvam STT adapters
 data/              Synthetic fixtures: bill/policy, profiles, UPI transactions, loans, lender offers, playbooks, users
 ```
+
+### Playbooks: a new money problem is a new YAML file
+
+Every journey is a playbook in `data/playbooks/*.yaml`: its triggers (English, Hinglish, Devanagari), urgency, auditor, rules engine, the MCP tools it may read and write, and its exit condition. The classifier routes by triggers, and **the gateway denies any tool the active playbook does not declare** (`playbook_scope`, logged in the trust ledger). Hospital, UPI fraud, and EMI use built-in, unit-tested rule modules referenced by name. **Failed UPI refund is fully declarative**: its facts (days since debit, T+1 deadline, days late, INR 100/day compensation per the RBI TAT circular), guards, options, and write payload are expressions in the YAML, evaluated by a small safe expression language (no eval). Adding it needed one new payments contract (`payments.raise_refund_trace`, which independently re-checks the compensation ceiling) and no orchestrator, decision-engine, consent, or audit changes. `GET /api/playbooks` lists the catalogue; the Agents tab shows the active playbook and its allowed tools.
 
 ### Agent graph
 
@@ -105,6 +110,7 @@ How `PAYTM_SAATHI_BUILD_PLAN.html` maps to this code:
 | 6. Decisions | `decision.ts`: exact gap, EMI shortfall, affordability, guardrails, confidence gate, scoring |
 | 7. Agent workflow | `agent/graph.ts` (LangGraph.js), consent pause, approval-bound writes in `actions.ts`, audit trail, timeline |
 | 8. UX + partners | Case workspace, Agents tab, live updates (Server-Sent Events), mic input, 11-language replies and read-aloud (Sarvam), OpenAI follow-up chat, n8n webhook and signed callbacks in `partners.ts` |
+| 9a0. Playbook registry | `data/playbooks/*.yaml`, `playbooks/registry.ts` (zod-validated, triggers, tool allowlist), `playbooks/declarative.ts` + `expressions.ts` |
 | 9a. Financial Twin + Home | `twin.ts` (`GET /api/twin`): sourced assets, liabilities, cash flow, obligations inbox, insurance, goals; `HomeView.tsx` |
 | 9b. Complete product | Proactive alerts (`alerts.ts`), specialist desk (`support.ts`, read-only gateway access when assigned), customer-confirmed bill parsing (`billParser.ts`), passport PDF, phone layout |
 | 9. Demo hardening | Three journeys (hospital, UPI, EMI), 47 automated tests, rate limiting, security headers, Docker, CI |

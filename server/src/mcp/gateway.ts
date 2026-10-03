@@ -4,6 +4,7 @@ import { recordAudit } from '../db';
 import { canonicalJson, hashPayload } from '../hashing';
 import type { CaseAction, CaseRecord, Principal } from '../types';
 import { GatewayError, type GatewayDenyCode } from './errors';
+import { playbookForCase, toolAllowedByPlaybook } from '../playbooks/registry';
 import { toolRegistry } from './tools';
 
 export interface InvokeOptions {
@@ -48,6 +49,10 @@ export function invokeTool<T = unknown>(name: string, rawInput: Record<string, u
     caseRecord.specialist?.assigned_to === principal.sub;
   if (!isOwner && !isAssignedSpecialist) {
     throw denial('case_scope', 'Only the case owner (or the assigned specialist, read-only) can run case tools.');
+  }
+  const playbook = playbookForCase(caseRecord);
+  if (!toolAllowedByPlaybook(playbook, name, tool.kind)) {
+    throw denial('playbook_scope', `Playbook ${playbook.id} does not declare ${name}.`);
   }
   if (tool.kind === 'read' && !isAssignedSpecialist && !principal.scopes.includes(tool.scope)) {
     throw denial('scope', `Missing scope ${tool.scope}.`);

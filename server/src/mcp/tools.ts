@@ -2,8 +2,10 @@ import { z } from 'zod';
 import { hasConsent, newId } from '../caseStore';
 import { checkAffordability } from '../decision';
 import { retrievePolicyClauses } from '../documents';
+import { settings } from '../config';
 import { fixtures, PARTNERS } from '../fixtures';
-import type { CaseRecord, ConsentPurpose, Principal } from '../types';
+import { guidanceFor } from '../playbooks/registry';
+import type { CaseRecord, ConsentPurpose, EventType, Principal } from '../types';
 import { GatewayError } from './errors';
 
 export type McpServer = 'identity' | 'insurer' | 'hospital' | 'payments' | 'lender' | 'knowledge';
@@ -184,12 +186,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         case_id: caseId,
         amount_inr: inr.optional(),
         direction: z.enum(['debit', 'credit']).optional(),
+        status: z.enum(['success', 'failed_debited']).optional(),
         limit: z.number().int().min(1).max(20).optional(),
       })
       .strict(),
-    handler: ({ caseRecord }, input: { amount_inr?: number; direction?: string; limit?: number }) =>
+    handler: ({ caseRecord }, input: { amount_inr?: number; direction?: string; status?: string; limit?: number }) =>
       transactionsFor(caseRecord.customer_id)
         .filter((transaction) => !input.direction || transaction.direction === input.direction)
+        .filter((transaction) => !input.status || transaction.status === input.status)
         .filter((transaction) => !input.amount_inr || transaction.amount_inr === input.amount_inr)
         .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
         .slice(0, input.limit ?? 10),
@@ -291,10 +295,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Return the resolution playbook for an event type.',
     fixture: 'playbooks.json',
     input: z
-      .object({ case_id: caseId, event_type: z.enum(['hospitalization', 'upi_dispute', 'emi_shortfall', 'general_financial_support']) })
+      .object({
+        case_id: caseId,
+        event_type: z.enum(['hospitalization', 'upi_dispute', 'emi_shortfall', 'failed_refund', 'general_financial_support']),
+      })
       .strict(),
-    handler: (_context, input: { event_type: string }) =>
-      fixtures.playbooks.find((playbook) => playbook.event_type === input.event_type) ?? null,
+    handler: (_context, input: { event_type: EventType }) => guidanceFor(input.event_type),
   },
   {
     name: 'claim.submit',
@@ -369,6 +375,32 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         throw new GatewayError('invalid_input', 'The due-date request must match the customer loan and its published fee.');
       }
       return submitted('DDC', PARTNERS.lender);
+    },
+  },
+  {
+    name: 'payments.raise_refund_trace',
+    server: 'payments',
+    kind: 'write',
+    scope: 'action:execute',
+    consent: READ_CONSENT,
+    description: 'Ask the (simulated) payments partner to trace a failed debit and pay late-reversal compensation.',
+    fixture: 'simulated payments adapter',
+    input: z
+      .object({ case_id: caseId, transaction_id: z.string().min(3).max(40), amount_inr: inr.positive(), compensation_inr: inr })
+      .strict(),
+    handler: ({ caseRecord }, input: { transaction_id: string; amount_inr: number; compensation_inr: number }) => {
+      const transaction = transactionsFor(caseRecord.customer_id).find((candidate) => candidate.transaction_id === input.transaction_id);
+      if (!transaction || transaction.status !== 'failed_debited' || transaction.amount_inr !== input.amount_inr) {
+        throw new GatewayError('invalid_input', 'A refund trace needs a failed debit of exactly this amount.');
+      }
+      // Re-derive the compensation ceiling independently of the playbook: INR 100 a day after T+1.
+      const daysSince = Math.round(
+        (Date.parse(`${settings.demoDate}T00:00:00Z`) - Date.parse(`${transaction.occurred_at.slice(0, 10)}T00:00:00Z`)) / 86_400_000,
+      );
+      if (input.compensation_inr > Math.max(daysSince - 1, 0) * 100) {
+        throw new GatewayError('invalid_input', 'Requested compensation exceeds the regulatory INR 100 a day after T+1.');
+      }
+      return submitted('RTR', PARTNERS.payments);
     },
   },
   {

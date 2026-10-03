@@ -1,0 +1,21 @@
+# Fallback when no other playbook matches: a specialist continues from the passport.
+id: general_support
+version: 1
+title: General financial support
+event_type: general_financial_support
+urgency: low
+priority: 1000
+triggers:
+  any: []
+engine: builtin:specialist
+auditor: null
+tools:
+  read: [knowledge.search_playbook]
+  write: []
+exit: specialist closes the case
+guidance:
+  title: General financial support
+  source: Saathi demo playbook v1
+  steps:
+    - Capture the customer's situation in their own words.
+    - Share the Resolution Passport with a Saathi specialist.

@@ -330,7 +330,18 @@ function TransactionPicker({ caseRecord, busy, readOnly, run }: Props) {
                 )}
               </div>
             </div>
-            {!readOnly && (
+            {!readOnly && question.mode === 'select' && (
+              <div className="txn-actions">
+                <button
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => run(() => api.confirmTransaction(caseRecord.case_id, transaction.transaction_id, false))}
+                >
+                  This is the payment
+                </button>
+              </div>
+            )}
+            {!readOnly && question.mode !== 'select' && (
               <div className="txn-actions">
                 <button
                   className="btn btn-danger"

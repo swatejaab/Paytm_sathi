@@ -1,0 +1,23 @@
+# EMI shortfall before payday.
+id: emi_shortfall
+version: 1
+title: EMI shortfall this month
+event_type: emi_shortfall
+urgency: medium
+priority: 40
+triggers:
+  any: [emi, salary delayed, loan payment, installment, instalment, ईएमआई, किस्त, सैलरी]
+engine: builtin:emi_shortfall
+auditor: emi_auditor
+tools:
+  read: [payments.get_balance, lending.get_loans, lending.get_offers, lending.check_affordability, knowledge.search_playbook]
+  write: [lending.request_due_date_change, lending.submit_application]
+exit: EMI paid or rescheduled
+guidance:
+  title: EMI shortfall this month
+  source: Saathi demo playbook v1
+  steps:
+    - Confirm the EMI amount, due date, and the expected shortfall.
+    - Check whether essential spending can be deferred without penalties.
+    - Ask the lender about restructuring or a revised due date before taking new credit.
+    - Route to a specialist when income loss or distress is reported.

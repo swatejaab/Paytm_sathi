@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from './config';
-import type { Playbook, Role, Transaction } from './types';
+import type { Role, Transaction } from './types';
 
 export interface BillLine {
   line: number;
@@ -112,7 +112,6 @@ export const fixtures = {
     'lending_offers.json',
   ),
   payments: readJson<{ partner: string; accounts: Record<string, { transactions: Transaction[] }> }>('payments.json'),
-  playbooks: readJson<{ playbooks: Playbook[] }>('playbooks.json').playbooks,
   loans: readJson<{ partner: string; accounts: Record<string, LoanContext> }>('loans.json'),
 };
 

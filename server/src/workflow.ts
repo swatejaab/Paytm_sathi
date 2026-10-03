@@ -101,7 +101,7 @@ export async function confirmTransaction(
   addMessage(record, 'user', `${transactionId}: ${recognized ? 'I recognize this payment.' : 'I do not recognize this payment.'}`);
   record.pending_question = null;
 
-  if (recognized) {
+  if (recognized && question.mode !== 'select') {
     addTimeline(record, { status: 'resolved', title: 'No dispute needed', detail: 'You recognized the payment.', actor: 'customer' });
     addMessage(record, 'assistant', 'Thanks for confirming. No dispute is needed, and nothing was filed.');
   } else {

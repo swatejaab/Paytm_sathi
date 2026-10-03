@@ -12,6 +12,7 @@ interface Props {
 const MODES: { mode: string; hint: string; message: string }[] = [
   { mode: 'RECOVER', hint: 'Hospital bill', message: 'Papa hospital mein hain. Bill INR 80,000 hai. Insurance hai, ab kya karun?' },
   { mode: 'PROTECT', hint: 'Payment I did not make', message: 'Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?' },
+  { mode: 'RECOVER', hint: 'Failed payment refund', message: 'INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.' },
   { mode: 'PLAN', hint: 'EMI before payday', message: 'Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?' },
 ];
 
@@ -134,7 +135,7 @@ export function HomeView({ displayName, onAsk }: Props) {
                 </p>
               </div>
               <div className="alert-card-actions">
-                <button className="btn btn-primary" onClick={() => onAsk(MODES[2]!.message)}>
+                <button className="btn btn-primary" onClick={() => onAsk(MODES.find((item) => item.mode === 'PLAN')!.message)}>
                   See my options
                 </button>
               </div>

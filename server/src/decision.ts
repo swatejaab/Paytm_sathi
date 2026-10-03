@@ -1,4 +1,5 @@
 import type { AffordabilityRules, BillLine, FinancialProfile, LenderOffer, LoanAccount, LoanContext } from './fixtures';
+import { classifyWithPlaybooks } from './playbooks/registry';
 import type {
   Decision,
   EventType,
@@ -77,7 +78,7 @@ export function checkAffordability(profile: FinancialProfile, newEmiInr: number,
   };
 }
 
-type OptionDraft = Omit<ResolutionOption, 'scores' | 'feasible' | 'recommended'>;
+export type OptionDraft = Omit<ResolutionOption, 'scores' | 'feasible' | 'recommended'>;
 
 export function rankOptions(drafts: OptionDraft[]): ResolutionOption[] {
   const maxExtraCost = Math.max(0, ...drafts.map((draft) => draft.metrics.extra_cost_inr));
@@ -101,7 +102,7 @@ export function rankOptions(drafts: OptionDraft[]): ResolutionOption[] {
   return ranked;
 }
 
-function explain(options: ResolutionOption[]): string {
+export function explainOptions(options: ResolutionOption[]): string {
   const best = options.find((option) => option.recommended);
   if (!best) return 'No option passes the safety guardrails. A Saathi specialist should review this case.';
   const runnerUp =
@@ -547,7 +548,7 @@ export function computeHospitalDecision(input: HospitalDecisionInput): Decision 
     facts,
     options,
     recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
-    explanation: explain(options),
+    explanation: explainOptions(options),
     warnings,
     requires_verification: !gate.passed,
     commission_considered: false,
@@ -665,7 +666,7 @@ export function computeUpiDecision(input: UpiDecisionInput): Decision {
     facts,
     options,
     recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
-    explanation: explain(options),
+    explanation: explainOptions(options),
     warnings: signals.length ? [`Fraud signals: ${signals.join(', ')}.`] : [],
     requires_verification: !gate.passed,
     commission_considered: false,
@@ -928,7 +929,7 @@ export function computeEmiDecision(input: EmiDecisionInput): Decision {
     facts,
     options,
     recommended_option_id: options.find((option) => option.recommended)?.option_id ?? null,
-    explanation: `EMI ${formatInr(loan.emi_inr)} - ${formatInr(shortfall.available_before_due_inr)} available before ${loan.next_due_date} = ${formatInr(gap)} shortfall. ${explain(options)}`,
+    explanation: `EMI ${formatInr(loan.emi_inr)} - ${formatInr(shortfall.available_before_due_inr)} available before ${loan.next_due_date} = ${formatInr(gap)} shortfall. ${explainOptions(options)}`,
     warnings: context.salary.status === 'delayed' ? [`Salary is delayed to ${context.salary.expected_date}.`] : [],
     requires_verification: !gate.passed,
     commission_considered: false,
@@ -962,7 +963,13 @@ const UPI_TERMS = ['upi', 'unrecognized', 'unrecognised', 'not mine', 'fraud', '
 const EMI_TERMS = ['emi', 'salary delayed', 'loan payment', 'installment', 'instalment', 'ईएमआई', 'किस्त', 'सैलरी'];
 const FAMILY_TERMS = ['papa', 'father', 'mother', 'mummy', 'पापा', 'पिताजी', 'माँ', 'मम्मी'];
 
+// Triggers now live in the playbook YAML files; the term lists below are kept for reference only.
 export function classifyEvent(message: string): { event_type: EventType; urgency: Urgency } {
+  const { event_type, urgency } = classifyWithPlaybooks(message);
+  return { event_type, urgency };
+}
+
+export function legacyClassifyEvent(message: string): { event_type: EventType; urgency: Urgency } {
   const normalized = message.toLowerCase();
   const has = (terms: string[]) => terms.some((term) => normalized.includes(term));
   if (has(HOSPITAL_TERMS)) return { event_type: 'hospitalization', urgency: 'high' };

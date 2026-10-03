@@ -42,6 +42,18 @@ function detectAlerts(customerId: string): ProactiveAlert[] {
     }
   }
   for (const transaction of fixtures.payments.accounts[customerId]?.transactions ?? []) {
+    const daysSince = daysBetween(transaction.occurred_at, settings.demoDate);
+    if (transaction.status === 'failed_debited' && daysSince > 1) {
+      alerts.push({
+        alert_id: `refund:${transaction.transaction_id}`,
+        event_type: 'failed_refund',
+        severity: 'medium',
+        title: `Failed ${formatInr(transaction.amount_inr)} payment to ${transaction.counterparty} not refunded yet`,
+        detail: `Debited ${daysSince} days ago but not credited; refunds are due by T+1, so ${formatInr((daysSince - 1) * 100)} compensation may be owed.`,
+        suggested_message: `${formatInr(transaction.amount_inr)} ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.`,
+      });
+      continue;
+    }
     if (transaction.direction !== 'debit' || transaction.recognized_device || !transaction.first_time_counterparty) continue;
     alerts.push({
       alert_id: `txn:${transaction.transaction_id}`,
@@ -58,7 +70,9 @@ function detectAlerts(customerId: string): ProactiveAlert[] {
 // Hide alerts the customer already acted on, so the card disappears once a case covers it.
 function alreadyHandled(customerId: string, alert: ProactiveAlert): boolean {
   return listCases(customerId).some((record) =>
-    alert.alert_id.startsWith('txn:')
+    alert.alert_id.startsWith('refund:')
+      ? record.evidence?.transaction?.transaction_id === alert.alert_id.slice(7) || (record.event_type === 'failed_refund' && record.status !== 'intake')
+      : alert.alert_id.startsWith('txn:')
       ? record.evidence?.transaction?.transaction_id === alert.alert_id.slice(4) ||
         (record.event_type === 'upi_dispute' && record.created_at.slice(0, 10) >= settings.demoDate && record.status !== 'intake')
       : record.event_type === alert.event_type && record.status !== 'intake',

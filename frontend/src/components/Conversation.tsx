@@ -16,6 +16,11 @@ const DEMOS = [
     message: 'Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?',
   },
   {
+    label: 'Failed UPI refund',
+    icon: '↩️',
+    message: 'INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.',
+  },
+  {
     label: 'EMI shortfall',
     icon: '📅',
     message: 'Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?',

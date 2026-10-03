@@ -17,7 +17,7 @@ export type CaseStatus =
   | 'resolved'
   | 'human_review';
 
-export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'general_financial_support';
+export type EventType = 'hospitalization' | 'upi_dispute' | 'emi_shortfall' | 'failed_refund' | 'general_financial_support';
 export type Urgency = 'high' | 'medium' | 'low';
 export type RiskLevel = 'low' | 'medium' | 'high';
 export type ConsentPurpose = 'prepare_resolution_options';
@@ -35,6 +35,7 @@ export interface SourceRef {
     | 'playbook'
     | 'document_checklist'
     | 'loan_account'
+    | 'regulation'
     | 'salary_schedule';
   ref: string;
   document?: string | null;
@@ -210,7 +211,7 @@ export interface ParsedBillLine {
 }
 
 export type PendingQuestion =
-  | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[] }
+  | { type: 'confirm_transaction'; prompt: string; candidates: Transaction[]; mode?: 'dispute' | 'select' }
   | {
       type: 'confirm_bill';
       prompt: string;
@@ -360,6 +361,7 @@ export interface CaseRecord {
   urgency: Urgency;
   language?: Language;
   preferred_language?: string;
+  playbook_id?: string;
   // English rendering of a non-Latin message, used only for classification and amount rules.
   message_for_rules?: string;
   specialist?: SpecialistDesk;

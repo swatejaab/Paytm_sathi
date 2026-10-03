@@ -8,6 +8,7 @@ export type GatewayDenyCode =
   | 'approval_invalid'
   | 'approval_mismatch'
   | 'already_executed'
+  | 'playbook_scope'
   | 'not_found';
 
 export const GATEWAY_STATUS: Record<GatewayDenyCode, number> = {
@@ -20,6 +21,7 @@ export const GATEWAY_STATUS: Record<GatewayDenyCode, number> = {
   approval_invalid: 403,
   approval_mismatch: 409,
   already_executed: 409,
+  playbook_scope: 403,
   not_found: 404,
 };
 
