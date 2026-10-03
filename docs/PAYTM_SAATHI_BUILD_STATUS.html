@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paytm Saathi | Build Status and Demo Guide</title>
+<style>
+  :root {
+    --ink: #132d2b; --muted: #526663; --paper: #f4f7f2; --white: #fff; --line: #d6e0d8;
+    --green: #c9f36b; --green-dark: #234d3d; --coral: #f26e57; --blue: #336ed5; --gold: #f0bd45;
+    --soft-blue: #e8f0fd; --soft-green: #eef8dc; --soft-coral: #fdeeea; --soft-gold: #fdf5e1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.6 "Aptos", "Segoe UI", system-ui, sans-serif; }
+  .shell { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 60px; }
+  header.cover { background: var(--ink); color: #fff; border-radius: 18px; padding: 32px 34px; margin-bottom: 26px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .04em; font-size: 13px; }
+  .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; background: var(--green); color: var(--ink); border-radius: 6px; font: 800 15px Georgia, serif; }
+  header.cover h1 { font-size: 34px; line-height: 1.15; margin: 14px 0 8px; }
+  header.cover p { margin: 4px 0; color: #cfe0db; max-width: 780px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,.12); color: #fff; }
+  h2 { font-size: 23px; margin: 36px 0 10px; padding-top: 6px; border-top: 2px solid var(--ink); }
+  h2 .num { color: var(--blue); font-size: 14px; margin-right: 8px; letter-spacing: .06em; }
+  h3 { font-size: 17px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  .lead { font-size: 16px; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 18px 0 4px; }
+  .stat { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .stat strong { display: block; font-size: 26px; line-height: 1.1; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; background: var(--white); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 10px 0 16px; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid #e7ede8; }
+  th { background: #edf2ee; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  code, .mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 12.5px; background: #eef2ef; padding: 1px 5px; border-radius: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .card h4 { margin: 0 0 6px; font-size: 15px; }
+  .card ul { margin: 6px 0 0; padding-left: 18px; }
+  .card li { margin: 3px 0; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 2px 8px; border-radius: 6px; margin-right: 6px; text-transform: uppercase; }
+  .done { background: var(--soft-green); color: #3c6a12; }
+  .partial { background: var(--soft-gold); color: #85600b; }
+  .todo { background: var(--soft-coral); color: #a23a26; }
+  .info { background: var(--soft-blue); color: #1f4f9f; }
+  .prompt { background: var(--ink); color: #f1f7f3; border-radius: 10px; padding: 10px 14px; font-family: "Cascadia Code", Consolas, monospace; font-size: 13.5px; margin: 6px 0; white-space: pre-wrap; }
+  .expect { border-left: 4px solid var(--green-dark); background: var(--soft-green); padding: 8px 12px; border-radius: 0 10px 10px 0; font-size: 14px; margin: 6px 0 14px; }
+  .warn { border-left: 4px solid var(--coral); background: var(--soft-coral); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 10px 0; }
+  .note { border-left: 4px solid var(--blue); background: var(--soft-blue); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 10px 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; }
+  .flow span { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: 700; }
+  .flow b { color: var(--muted); }
+  .layers .layer { display: grid; grid-template-columns: 190px 1fr; gap: 14px; background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 8px 0; }
+  .layer strong { font-size: 13px; letter-spacing: .05em; text-transform: uppercase; }
+  ol.steps { padding-left: 22px; }
+  ol.steps li { margin: 8px 0; }
+  .toc { columns: 2; background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px 14px 34px; margin: 12px 0; }
+  .toc li { margin: 3px 0; }
+  a { color: var(--blue); }
+  footer { margin-top: 40px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; }
+  @media (max-width: 760px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .grid2, .grid3 { grid-template-columns: 1fr; }
+    .layers .layer { grid-template-columns: 1fr; }
+    .toc { columns: 1; }
+    header.cover h1 { font-size: 26px; }
+  }
+  @media print {
+    body { background: #fff; font-size: 12.5px; }
+    .shell { width: 100%; padding: 0; }
+    header.cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h2 { break-after: avoid; }
+    table, .card, .prompt, .expect, .layer { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .prompt, .tag, .stat, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="cover">
+  <div class="brand"><span class="brand-mark">S</span> PAYTM SAATHI / BUILD STATUS AND DEMO GUIDE</div>
+  <h1>What we have built, what is on each screen, and what to ask</h1>
+  <p>Track 2: AI-Powered Financial Journeys. An event-first financial resolution layer: the customer says what happened, Saathi gathers source-linked evidence, calculates the exact funding gap, compares safe options, and coordinates the approved step through partners until it is resolved.</p>
+  <p><em>Tell once. See the evidence. Choose the next step.</em></p>
+  <div class="meta">
+    <span class="chip">Status as of 3 Oct 2026</span>
+    <span class="chip">Commit c25e85d on main (pushed)</span>
+    <span class="chip">Team Swamit Labs</span>
+    <span class="chip">Synthetic demo data only</span>
+  </div>
+</header>
+
+<ol class="toc">
+  <li><a href="#glance">At a glance</a></li>
+  <li><a href="#arch">Architecture as built</a></li>
+  <li><a href="#done">What we built, step by step</a></li>
+  <li><a href="#vs">Plan, deck, and idea coverage</a></li>
+  <li><a href="#ui">The UI, screen by screen</a></li>
+  <li><a href="#ask">What to ask on the UI</a></li>
+  <li><a href="#demo">Demo script (about 8 minutes)</a></li>
+  <li><a href="#trust">Trust rules enforced in code</a></li>
+  <li><a href="#run">Run it, accounts, and settings</a></li>
+  <li><a href="#limits">Limits and what is next</a></li>
+</ol>
+
+<h2 id="glance"><span class="num">01</span>At a glance</h2>
+<p class="lead">A working, end-to-end prototype: React web app, Node.js + TypeScript API, a LangGraph.js agent graph, YAML playbooks, and real MCP partner servers behind a trust gateway.</p>
+<div class="stats">
+  <div class="stat"><strong>5</strong><span>playbooks (journeys), one engine</span></div>
+  <div class="stat"><strong>7</strong><span>partner MCP servers</span></div>
+  <div class="stat"><strong>30</strong><span>MCP tools, 10 approval-gated writes</span></div>
+  <div class="stat"><strong>12</strong><span>agent nodes on LangGraph.js</span></div>
+  <div class="stat"><strong>11</strong><span>languages: voice, replies, read-aloud</span></div>
+  <div class="stat"><strong>60</strong><span>automated tests, all passing</span></div>
+</div>
+<div class="grid3">
+  <div class="card"><h4>Journeys that work end to end</h4><ul><li>Hospital bill with an insurance gap (hero)</li><li>Unrecognised UPI debit (fraud dispute)</li><li>Failed UPI payment, refund not received</li><li>EMI shortfall before payday</li><li>Anything else: specialist handoff</li></ul></div>
+  <div class="card"><h4>Live AI services (keys in .env)</h4><ul><li>OpenAI: follow-up Q&amp;A on a case, evidence summary, photo OCR</li><li>Sarvam: speech-to-text, translation, text-to-speech</li><li>All gated by per-request consent</li></ul></div>
+  <div class="card"><h4>The rule that never bends</h4><ul><li>AI understands, explains, and prepares</li><li>Deterministic code does every rupee of maths</li><li>The customer approves the exact payload</li><li>Partners make claim, credit, and dispute decisions</li></ul></div>
+</div>
+
+<h2 id="arch"><span class="num">02</span>Architecture as built</h2>
+<p>This follows the deck's layers. Where we deliberately differ from the plan document (FastAPI, Postgres, Redis), the build uses Node.js, SQLite, and in-process events so the demo runs on one laptop with one command.</p>
+<div class="layers">
+  <div class="layer"><strong>Experience</strong><div>React + TypeScript (Vite). Home (Financial Twin), Saathi chat with mic and language picker, case workspace with Plan, Evidence, Agents, Timeline, Passport, and Trust ledger tabs, specialist desk. Live updates over Server-Sent Events. Phone layout.</div></div>
+  <div class="layer"><strong>API edge</strong><div>Express 5. Demo JWT login with role scopes, case ownership on every read, login rate limiting, CSP and security headers, signed partner callbacks, idempotency keys.</div></div>
+  <div class="layer"><strong>AI orchestration</strong><div>LangGraph.js state graph: classifier, consent gate, context retriever, policy RAG analyst, bill / transaction / EMI auditor, decision service, resolution explainer, human-review branch, plus action preparer and tracker. Every run is traced (nodes, tools, timings).</div></div>
+  <div class="layer"><strong>Playbooks</strong><div><code>data/playbooks/*.yaml</code>: triggers (English, Hinglish, Devanagari), urgency, rules engine, allowed tools, exit. Failed UPI refund is fully declarative (rules written as safe expressions in YAML).</div></div>
+  <div class="layer"><strong>Decision services</strong><div>Coverage rules engine (line-by-line), exact-gap and EMI-shortfall calculators, EMI and APR maths, affordability guardrail, emergency-buffer guardrail, confidence gate, option scoring on cost, risk, time, and effort. Commission is never an input.</div></div>
+  <div class="layer"><strong>MCP gateway</strong><div>Allowlist, strict schemas, case scope, playbook scope, consent, approval token bound to case + action + person + payload hash, write de-duplication, audit of every allow and deny. Then a real MCP client call.</div></div>
+  <div class="layer"><strong>Partner MCP servers</strong><div><code>insurer.v1</code>, <code>provider.v1</code> (hospital), <code>payments.v1</code>, <code>lender.v1</code>, <code>aa.v1</code> (Account Aggregator), <code>crm.v1</code> (Paytm Support), <code>knowledge.v1</code>. In-process by default; <code>MCP_URL_&lt;SERVER&gt;</code> switches any of them to a remote Streamable HTTP server. Also exposed at <code>/mcp/&lt;server&gt;</code>.</div></div>
+  <div class="layer"><strong>Data</strong><div>SQLite (cases, audit events, preferences, partner events). Synthetic fixtures in <code>data/</code>. Original uploads are never stored; only redacted text.</div></div>
+</div>
+<div class="flow"><span>Customer story</span><b>&rarr;</b><span>Classify (playbook)</span><b>&rarr;</b><span>Consent gate</span><b>&rarr;</b><span>Gather via MCP</span><b>&rarr;</b><span>Audit evidence</span><b>&rarr;</b><span>Deterministic decision</span><b>&rarr;</b><span>Explain (any language)</span><b>&rarr;</b><span>Customer approves payload</span><b>&rarr;</b><span>Partner writes via MCP</span><b>&rarr;</b><span>Live timeline</span><b>&rarr;</b><span>Resolved</span></div>
+
+<h2 id="done"><span class="num">03</span>What we built, step by step</h2>
+<table>
+  <tr><th style="width:26%">Step</th><th>What it added</th><th style="width:11%">Commit</th></tr>
+  <tr><td>Base (team)</td><td>React + Express rewrite: demo JWT login, case API, MCP-style gateway, evidence and uploads, deterministic hospital and UPI decisions, approval-bound actions, simulated partner, Passport, Trust ledger, support queue.</td><td>7c7dbf0</td></tr>
+  <tr><td>Agent graph</td><td>Workflow moved onto a LangGraph.js state graph with traced runs and an Agents tab; Hinglish replies built only from decision numbers.</td><td>f274972</td></tr>
+  <tr><td>EMI journey</td><td>EMI auditor node, loan and salary data, shortfall maths; recommends moving the due date past payday over borrowing.</td><td>a8388c5</td></tr>
+  <tr><td>Hardening</td><td>Login rate limit, CSP and frame-blocking headers, graceful shutdown, Dockerfile, GitHub Actions CI.</td><td>37f0905</td></tr>
+  <tr><td>Voice + languages + AI chat</td><td>Mic (Sarvam STT), 11-language picker, translated replies, read-aloud, OpenAI follow-up Q&amp;A with a numeric guard.</td><td>550f5f6</td></tr>
+  <tr><td>Live updates, OCR, demo command</td><td>Server-Sent Events, photo OCR via OpenAI vision (consented), <code>npm run demo</code>, watch fix.</td><td>746b905</td></tr>
+  <tr><td>Complete product loop</td><td>Proactive alerts, specialist desk, customer-confirmed bill parsing, Passport PDF, phone layout, <code>npm run reset</code>.</td><td>f6a124c</td></tr>
+  <tr><td>Live provider fixes</td><td>Translation per sentence with amount checks, current Sarvam voice model, native-script answers, Devanagari classification.</td><td>a194383</td></tr>
+  <tr><td>Financial Twin + Home</td><td>Sourced net position, cash flow, bills inbox with projected balance, money tiles, goals; Home tab with mode chips.</td><td>5de245f</td></tr>
+  <tr><td>Playbook registry</td><td>All journeys as YAML; gateway denies undeclared tools; Failed UPI refund added as config (RBI T+1 and INR 100/day compensation).</td><td>fc10dbf</td></tr>
+  <tr><td>Real MCP servers</td><td>Seven SDK-built partner servers, gateway as MCP client, HTTP endpoints for MCP Inspector; payment link, Key Fact Statement, Account Aggregator, CRM handoff tools.</td><td>ec3ba30</td></tr>
+  <tr><td>Coverage rules engine</td><td>Cover calculated per bill line (room cap, non-medical exclusion, deductible, sum insured) with clause and reason for each rupee.</td><td>c25e85d</td></tr>
+</table>
+
+<h2 id="vs"><span class="num">04</span>Plan, deck, and idea coverage</h2>
+<h3>The idea document's 10 core hackathon capabilities</h3>
+<table>
+  <tr><th>Capability</th><th style="width:14%">Status</th><th>Where to see it</th></tr>
+  <tr><td>Conversational home: voice, chat, Hinglish</td><td><span class="tag done">Done</span></td><td>Home tab + Saathi tab (mic, 11 languages)</td></tr>
+  <tr><td>Mini Financial Twin</td><td><span class="tag done">Done</span></td><td>Home tab</td></tr>
+  <tr><td>Hospital bill upload</td><td><span class="tag done">Done</span></td><td>Evidence tab: TXT, PDF, or photo (OCR); confirm total in Plan</td></tr>
+  <tr><td>Insurance policy upload</td><td><span class="tag partial">Partial</span></td><td>Accepted and cited; a specialist verifies it before automated steps</td></tr>
+  <tr><td>Policy RAG with citations</td><td><span class="tag done">Done</span></td><td>Evidence tab (keyword index, not vectors)</td></tr>
+  <tr><td>Exact-gap calculator</td><td><span class="tag done">Done</span></td><td>Plan tab gap tiles + coverage breakdown</td></tr>
+  <tr><td>Resolution graph</td><td><span class="tag done">Done</span></td><td>Plan tab option comparison with "Why this score?"</td></tr>
+  <tr><td>Affordability engine</td><td><span class="tag done">Done</span></td><td>Guardrails on every credit option</td></tr>
+  <tr><td>Consent + one-click approved action</td><td><span class="tag done">Done</span></td><td>Consent checkbox, Review &amp; approve with payload hash</td></tr>
+  <tr><td>Live resolution timeline</td><td><span class="tag done">Done</span></td><td>Timeline tab (Server-Sent Events)</td></tr>
+</table>
+<h3>Architecture deck claims</h3>
+<table>
+  <tr><th>Deck claim</th><th style="width:14%">Status</th><th>Notes</th></tr>
+  <tr><td>7 agents on LangGraph</td><td><span class="tag done">Done</span></td><td>LangGraph.js; node names differ slightly from the slide</td></tr>
+  <tr><td>A new problem is a new YAML playbook</td><td><span class="tag done">Done</span></td><td>Failed UPI refund proves it</td></tr>
+  <tr><td>MCP-native partners, standard contracts, swap by URL</td><td><span class="tag done">Done</span></td><td>Proven live with remote insurer and lender servers</td></tr>
+  <tr><td>Coverage rules: payable / capped / excluded per line</td><td><span class="tag done">Done</span></td><td>coverage-v1</td></tr>
+  <tr><td>Key Fact Statement before credit</td><td><span class="tag done">Done</span></td><td>Bound into the approval hash</td></tr>
+  <tr><td>Account Aggregator consent and data</td><td><span class="tag done">Done</span></td><td>Simulated AA; consent handle shown in Agents tab</td></tr>
+  <tr><td>Consent with ID and 72h expiry; hash-chained audit ledger</td><td><span class="tag todo">Not yet</span></td><td>Purpose-bound, revocable consent exists; no expiry or hash chain yet</td></tr>
+  <tr><td>Circuit breaker and response sanitiser in gateway</td><td><span class="tag todo">Not yet</span></td><td>Partner failures already route to a specialist</td></tr>
+  <tr><td>Postgres, pgvector, Redis, object storage</td><td><span class="tag info">Swapped</span></td><td>SQLite and in-process events for the demo; say so when presenting</td></tr>
+  <tr><td>Golden demo scenarios, latency budget display</td><td><span class="tag partial">Partial</span></td><td>60 tests; per-node timings in Agents tab</td></tr>
+</table>
+
+<h2 id="ui"><span class="num">05</span>The UI, screen by screen</h2>
+<p>Open <code>http://localhost:5173</code> (development) or <code>http://127.0.0.1:8000</code> (after <code>npm run demo</code>).</p>
+
+<div class="grid2">
+  <div class="card"><h4>1. Login</h4><ul><li>Three synthetic accounts: Riya (hero), Arjun (healthy savings), Support agent</li><li>Banner: synthetic data, simulated partner outcomes</li><li>Top bar shows API, OpenAI, Sarvam, and partner-channel status</li></ul></div>
+  <div class="card"><h4>2. Home tab: the Financial Twin</h4><ul><li>Greeting and status headline, for example "INR 41,500 is due before your salary on 10 Oct, but your balance is INR 23,400"</li><li>Net financial position (assets minus liabilities)</li><li><b>Ask Saathi</b> box and mode chips: RECOVER, PROTECT, PLAN</li><li><b>Needs attention</b>: shortfall before payday, renewals, Saathi noticed alerts</li><li><b>Financial inbox</b>: next 30 days of bills and salary, projected balance after each</li><li>Money tiles, goals with progress, monthly cash flow</li></ul></div>
+  <div class="card"><h4>3. Saathi tab: the conversation</h4><ul><li>Language picker (Auto, English, Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia)</li><li>Demo buttons: Hospital, Unrecognized UPI, Failed UPI refund, EMI shortfall</li><li>Alerts opt-in and Saathi noticed cards</li><li>Consent box: "Allow Saathi to read my case records"</li><li>Mic button (Sarvam), with its own voice consent</li><li>Speaker button on every Saathi reply; "Original (English)" under translations</li><li>With a case open: <b>Ask Saathi</b> follow-up questions (OpenAI, own consent)</li></ul></div>
+  <div class="card"><h4>4. Case panel: header and status</h4><ul><li>Case ID, status, urgency, event type</li><li>Stepper: Intake, Understand, Evidence ready, Options ready, Awaiting approval, In progress, Resolved (or Human review)</li><li>"Talk to a human" button; consent banner if not yet granted</li></ul></div>
+  <div class="card"><h4>5. Plan tab</h4><ul><li>Gap tiles: bill minus cover minus what you pay = exact gap</li><li><b>How the cover was calculated</b>: each bill line, status, clause, reason, deductible</li><li>Options ranked with score bars, guardrails, trade-offs; "Why this score?"</li><li><b>Review &amp; approve</b>: exact steps, partners, amounts, Key Fact Statement for credit, payload hash</li><li>Transaction picker (UPI / refund) and bill-total confirmation (uploads)</li></ul></div>
+  <div class="card"><h4>6. Evidence tab</h4><ul><li>Facts table: value, source, confidence, assumptions</li><li>Cited policy clauses or playbook steps</li><li>Missing documents warning</li><li>Upload a bill or policy (TXT, PDF, JPG/PNG with OCR consent)</li><li>OpenAI evidence summary (consented)</li></ul></div>
+  <div class="card"><h4>7. Agents tab</h4><ul><li>Active playbook card: version, engine, allowed read tools, write tools highlighted</li><li>Each graph run: trigger, nodes in order, MCP tools each node called, timing, outcome</li><li>Shows Account Aggregator consent handle and money authority per node</li></ul></div>
+  <div class="card"><h4>8. Timeline, Passport, Trust ledger</h4><ul><li><b>Timeline</b>: every step, live partner callbacks</li><li><b>Passport</b>: Tell-it-once packet; Download PDF, Copy summary, JSON</li><li><b>Trust ledger</b>: every gateway allow and deny, approvals, partner events; tool catalogue</li></ul></div>
+  <div class="card"><h4>9. Specialist desk (support login)</h4><ul><li>Queue, human-review cases first</li><li>Pick up the case, message the customer or save an internal note</li><li>Verify customer documents and recalculate</li><li>Recommend an option (the customer still approves), close the case</li></ul></div>
+  <div class="card"><h4>10. Behind the scenes, worth showing</h4><ul><li><code>GET /api/playbooks</code>, <code>/api/mcp/servers</code>, <code>/api/agent/graph</code></li><li>MCP Inspector on <code>/mcp/insurer</code> and other servers</li><li>Live timeline updates without refresh</li></ul></div>
+</div>
+
+<h2 id="ask"><span class="num">06</span>What to ask on the UI</h2>
+<p>Type these in the Saathi tab (or use the demo buttons and Home chips). Tick <b>Allow Saathi to read my case records</b> first, or the case pauses at the consent gate (that pause is itself a good thing to show). Expected results are for Riya on fresh data.</p>
+
+<h3>Hospital bill (hero journey)</h3>
+<div class="prompt">Papa hospital mein hain. Bill INR 80,000 hai. Insurance hai, ab kya karun?</div>
+<div class="expect">Hospitalization, high urgency, reply in Hinglish. Cover INR 55,000 (room capped at INR 15,000, INR 5,000 consumables excluded, INR 5,000 deductible). INR 80,000 - 55,000 - 10,000 = <b>INR 15,000 gap</b>. Best option: <b>Claim + 3-month plan (91.4)</b>, then specialist (83.8), savings (69.3), wait (57.5), full loan (44.3). Approval shows claim, document request, INR 10,000 payment link, INR 15,000 loan with its Key Fact Statement. Partner updates arrive until <b>Resolved</b>.</div>
+<p>Also try:</p>
+<div class="prompt">My father is admitted in hospital and the bill is INR 80,000. What should I do?</div>
+<div class="prompt">मेरे पापा अस्पताल में हैं। बिल 80,000 रुपये है।</div>
+<div class="expect">English reply for the first; the Devanagari message is still recognised as a hospital case. Pick Hindi or Tamil in the language picker to get the explanation translated (amounts unchanged).</div>
+
+<h3>Follow-up questions on an open case (OpenAI, tick "Allow Saathi AI")</h3>
+<div class="prompt">Why is the 3-month plan better than using my savings?
+Mujhe kitna loan lena padega?
+What documents are still missing for the claim?
+What happens if I don't approve anything?
+Why is my room charge not fully covered?</div>
+<div class="expect">Answers use only this case's facts and numbers (for example INR 15,000 gap, INR 501 cost, INR 3,000 left in savings). If the model invents a number, Saathi replaces the answer with its own explanation and logs it in the Trust ledger.</div>
+
+<h3>Unrecognised UPI debit (fraud)</h3>
+<div class="prompt">Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?</div>
+<div class="expect">Two INR 8,500 debits listed. Pick the 2:14 AM QuickKart one, "I don't recognize this": signals are unrecognised device, first-time payee, unusual hour. Best option: <b>Open a dispute + secure the account (95.5)</b>. After approval, provisional credit arrives on the timeline. Choosing "This was me" closes the case with nothing filed.</div>
+
+<h3>Failed UPI payment, refund missing (declarative YAML playbook)</h3>
+<div class="prompt">INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.</div>
+<div class="expect">Picker shows the failed INR 2,450 electricity payment ("This is the payment"). Facts: 3 days since debit, T+1 deadline, <b>2 days late, INR 200 compensation</b>. Best option: <b>Raise a refund trace and claim compensation (95.8)</b>. Agents tab shows playbook <code>failed_upi_refund</code> as "Declarative YAML".</div>
+
+<h3>EMI shortfall before payday</h3>
+<div class="prompt">Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?</div>
+<div class="expect">INR 12,000 EMI due 5 Oct, INR 7,400 available, <b>INR 4,600 short</b>, salary on 10 Oct. Best option: <b>Move the EMI date past payday (85.3)</b> for a INR 250 fee; then specialist, a INR 4,600 bridge loan, savings (below buffer), and letting it bounce (most expensive).</div>
+
+<h3>Anything else</h3>
+<div class="prompt">Help me plan my monthly money.</div>
+<div class="expect">No playbook matches, so a specialist route with a CRM handoff ticket is offered.</div>
+
+<h3>Upload your own bill (Evidence tab)</h3>
+<p>Start a hospital case, then upload this as a .txt file (or a photo of a printed bill with OCR consent):</p>
+<div class="prompt">City Care Hospital - Final Bill
+Room charges (3 days)  36,000
+Doctor visits  12,500
+Medicines &amp; consumables  18,250
+Lab tests  8,250
+Grand Total  75,000</div>
+<div class="expect">Saathi reads 4 lines and INR 75,000 and asks you to confirm. After "Yes, this is correct": room capped at INR 15,000, cover INR 49,000, <b>gap INR 16,000</b>, with a note that consumables were not itemised. Uploading a policy instead pauses automated steps until a specialist verifies it.</div>
+
+<h3>Other things to try</h3>
+<table>
+  <tr><th style="width:32%">Try</th><th>What you should see</th></tr>
+  <tr><td>Sign in as <b>Arjun</b> (1357), run the hospital prompt</td><td>Recommendation flips to <b>Claim + use emergency savings</b>: product neutrality, no credit pushed.</td></tr>
+  <tr><td>Home tab: <b>Turn on alerts</b></td><td>"Your INR 12,000 EMI is due in 2 days, INR 4,600 short", "Unusual INR 8,500 debit", "Failed INR 2,450 payment not refunded"; <b>See my options</b> opens the case.</td></tr>
+  <tr><td>Untick consent, start a case, then <b>Grant consent</b></td><td>Graph pauses at the consent gate with zero tool calls, then resumes.</td></tr>
+  <tr><td>Change the language to Tamil and start a case</td><td>Explanation in Tamil; "Original (English)" under it; amounts identical.</td></tr>
+  <tr><td>Press the mic, speak in Hindi</td><td>Transcript appears in the message box for review before sending.</td></tr>
+  <tr><td>Passport tab: <b>Download PDF</b></td><td>One-page Resolution Passport ready to save or print.</td></tr>
+  <tr><td>Support login (9999): open a Human review case</td><td>Pick up, verify documents, recommend an option, message the customer.</td></tr>
+  <tr><td>Trust ledger tab</td><td>Every MCP call with allow or deny, approvals with payload hash, partner callbacks.</td></tr>
+</table>
+
+<h2 id="demo"><span class="num">07</span>Demo script (about 8 minutes)</h2>
+<div class="note">Before every rehearsal: <code>npm run reset</code> (so alerts reappear), then <code>npm run demo</code>, then open <code>http://127.0.0.1:8000</code>.</div>
+<ol class="steps">
+  <li><b>Opening line:</b> "Financial apps make you choose the product. Saathi starts with your problem."</li>
+  <li><b>Home (30 s):</b> sign in as Riya, show the Financial Twin headline and the bills inbox going negative before payday. Turn on alerts.</li>
+  <li><b>Hospital (2 min):</b> tick consent, press the RECOVER chip (or speak it). Show the gap tiles and open "How the cover was calculated".</li>
+  <li><b>Options (1 min):</b> compare the five paths, open "Why this score?", point out commission is never an input.</li>
+  <li><b>Approve (1 min):</b> Review &amp; approve: payment link, loan Key Fact Statement, payload hash. Approve and switch to Timeline as partner updates arrive.</li>
+  <li><b>Agents and trust (1 min):</b> Agents tab (nodes, MCP tools, AA consent, playbook allowlist), then Trust ledger.</li>
+  <li><b>Ask Saathi (30 s):</b> "Why is the 3-month plan better than using my savings?" Switch language to Hindi for the reply.</li>
+  <li><b>Platform proof (1 min):</b> Failed UPI refund (pure YAML), then UPI fraud dispute. Same engine, no new code.</li>
+  <li><b>Passport and handoff (30 s):</b> Download the Passport PDF; sign in as support and pick up a case.</li>
+  <li><b>Close:</b> "One conversation, one financial context, one action plan, one timeline." Optional: Arjun's recommendation flip.</li>
+</ol>
+
+<h2 id="trust"><span class="num">08</span>Trust rules enforced in code</h2>
+<div class="grid2">
+  <div class="card"><h4>Consent and approval</h4><ul><li>Nothing is read without purpose-bound case consent (revocable)</li><li>Writes need a 5-minute approval token bound to case, action, person, and payload hash</li><li>A changed amount or step invalidates the approval</li><li>Each approved write executes at most once</li><li>Voice, AI answers, and OCR each need their own consent</li></ul></div>
+  <div class="card"><h4>Gateway checks on every tool call</h4><ul><li>Tool on the allowlist and declared by the active playbook</li><li>Strict input schema, same case only</li><li>Only the owner (or the assigned specialist, read-only)</li><li>Partners re-check: payment link within what the customer can pay, refund compensation within INR 100/day after T+1, dispute amount equals the debit</li></ul></div>
+  <div class="card"><h4>AI boundaries</h4><ul><li>The model never calculates; the explainer only uses decision numbers</li><li>OpenAI answers are checked for invented numbers and replaced if found</li><li>Translations keep formula lines verbatim and fall back if an amount changes</li><li>Contact details are redacted before any external call</li></ul></div>
+  <div class="card"><h4>Privacy and audit</h4><ul><li>Original uploads and audio are never stored</li><li>Partners see only the tool arguments and the customer ID</li><li>The audit log stores tool, scope, decision, and references, never document contents or keys</li><li>Customers cannot read each other's cases (404)</li></ul></div>
+</div>
+
+<h2 id="run"><span class="num">09</span>Run it, accounts, and settings</h2>
+<table>
+  <tr><th style="width:30%">Command</th><th>Purpose</th></tr>
+  <tr><td><code>npm install</code></td><td>Install dependencies (needed after pulling: LangGraph.js, MCP SDK, yaml were added)</td></tr>
+  <tr><td><code>npm run dev</code></td><td>Development: web on :5173, API on :8000</td></tr>
+  <tr><td><code>npm run reset</code></td><td>Clear demo cases so alerts reappear</td></tr>
+  <tr><td><code>npm run demo</code></td><td>Build and serve everything on :8000 with no file watcher (use for presenting)</td></tr>
+  <tr><td><code>npm test</code> / <code>npm run typecheck</code></td><td>60 backend tests / type checks for both projects</td></tr>
+  <tr><td><code>npx @modelcontextprotocol/inspector</code></td><td>Open a partner server: Streamable HTTP, <code>http://127.0.0.1:8000/mcp/insurer</code>, headers <code>Authorization: Bearer &lt;token&gt;</code> and <code>x-saathi-customer: demo-customer-01</code> (token printed at startup or set via <code>MCP_PARTNER_TOKEN</code>)</td></tr>
+</table>
+<table>
+  <tr><th>Demo account</th><th>Passcode</th><th>Use it to show</th></tr>
+  <tr><td><code>demo-customer-01</code> (Riya)</td><td>2468</td><td>Hero journeys, tight savings, EMI and refund cases, alerts</td></tr>
+  <tr><td><code>demo-customer-02</code> (Arjun)</td><td>1357</td><td>Healthy savings, recommendation flips to savings</td></tr>
+  <tr><td><code>support-agent-01</code></td><td>9999</td><td>Specialist desk</td></tr>
+</table>
+<p>Key <code>.env</code> settings: <code>OPENAI_API_KEY</code> + <code>OPENAI_ENABLED=true</code>, <code>SARVAM_API_KEY</code> + <code>SARVAM_ENABLED=true</code>, <code>SARVAM_TRANSLATE_MODEL=sarvam-translate:v1</code>, <code>DEMO_DATE=2026-10-03</code> (keeps the EMI two days away), <code>MCP_PARTNER_TOKEN</code>, optional <code>MCP_URL_&lt;SERVER&gt;</code> and n8n settings. Never commit <code>.env</code>.</p>
+
+<h2 id="limits"><span class="num">10</span>Limits and what is next</h2>
+<div class="warn"><b>Before demo day:</b> walk through every screen in a real browser, including phone width; the UI has been type-checked and built but not visually reviewed by the developer assistant. Rotate the OpenAI and Sarvam keys after the hackathon (they were shared in a chat).</div>
+<div class="grid2">
+  <div class="card"><h4>Honest limits of this prototype</h4><ul><li>All partner outcomes (claim, loan, dispute, refund) are simulated</li><li>Synthetic data only; demo passcodes are not secrets</li><li>Policy retrieval is a keyword index (Cognee not connected)</li><li>Lender offers are labelled fixtures (Mochatrade not connected)</li><li>Scanned PDFs are not rendered (photos are OCR'd)</li><li>SQLite and in-process events instead of Postgres and Redis</li><li>Security and consent are prototype design, not certification</li></ul></div>
+  <div class="card"><h4>Next steps in the plan</h4><ul><li><b>Cash-flow Copilot</b>: 7/30-day forecast, shortfall day, one tap into the right playbook</li><li><b>"Can I afford it?"</b>: cash vs EMI vs wait scenarios with buffer impact</li><li><b>Trust plane upgrades</b>: consent IDs with 72h expiry, hash-chained audit ledger with a verify button, circuit breaker, response sanitiser</li><li><b>Saathi Health Score</b> and <b>Emergency mode</b></li><li><b>Demo-proofing</b>: golden scenario tests, latency budget display, rehearsal</li></ul></div>
+</div>
+
+<footer>Paytm Saathi / Team Swamit Labs / Track 2: AI-Powered Financial Journeys. Prepared from the code at commit c25e85d. Synthetic demonstration; no real claim, credit, payment, or partner action is performed.</footer>
+</div>
+</body>
+</html>
