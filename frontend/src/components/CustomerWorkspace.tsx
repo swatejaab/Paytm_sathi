@@ -10,7 +10,7 @@ export function CustomerWorkspace({
   onSeedUsed,
 }: {
   integrations: IntegrationStatus;
-  seed?: { text: string; nonce: number } | null;
+  seed?: { text: string; nonce: number; hint?: boolean } | null;
   onSeedUsed?: () => void;
 }) {
   const [cases, setCases] = useState<CaseSummary[]>([]);

@@ -105,7 +105,13 @@ export async function confirmTransaction(
   }
   if (!hasConsent(record, READ_CONSENT)) throw new HttpError(403, 'Grant consent before Saathi reads transaction details.');
 
-  addMessage(record, 'user', `${transactionId}: ${recognized ? 'I recognize this payment.' : 'I do not recognize this payment.'}`);
+  const picked = question.candidates.find((candidate) => candidate.transaction_id === transactionId)!;
+  const label = `₹${picked.amount_inr.toLocaleString('en-IN')} to ${picked.counterparty}`;
+  addMessage(
+    record,
+    'user',
+    question.mode === 'select' ? `It's the ${label} payment.` : recognized ? `I made the ${label} payment.` : `I did not make the ${label} payment.`,
+  );
   record.pending_question = null;
 
   if (recognized && question.mode !== 'select') {

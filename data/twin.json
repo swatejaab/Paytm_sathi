@@ -7,13 +7,13 @@
           "name": "Index fund SIP",
           "kind": "mutual_fund",
           "value_inr": 62000,
-          "source": "Synthetic MF statement"
+          "source": "MF statement"
         },
         {
           "name": "Public Provident Fund",
           "kind": "ppf",
           "value_inr": 40000,
-          "source": "Synthetic PPF passbook"
+          "source": "PPF passbook"
         }
       ],
       "credit_cards": [
@@ -22,7 +22,7 @@
           "outstanding_inr": 13500,
           "limit_inr": 40000,
           "due_date": "2026-10-07",
-          "source": "Synthetic card statement"
+          "source": "Card statement"
         }
       ],
       "insurance": [
@@ -101,13 +101,13 @@
           "name": "Equity mutual funds",
           "kind": "mutual_fund",
           "value_inr": 320000,
-          "source": "Synthetic MF statement"
+          "source": "MF statement"
         },
         {
           "name": "Fixed deposit",
           "kind": "fd",
           "value_inr": 100000,
-          "source": "Synthetic bank statement"
+          "source": "Bank statement"
         }
       ],
       "credit_cards": [
@@ -116,7 +116,7 @@
           "outstanding_inr": 8200,
           "limit_inr": 150000,
           "due_date": "2026-10-09",
-          "source": "Synthetic card statement"
+          "source": "Card statement"
         }
       ],
       "insurance": [

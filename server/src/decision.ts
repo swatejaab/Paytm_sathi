@@ -1005,7 +1005,11 @@ export function legacyClassifyEvent(message: string): { event_type: EventType; u
   return { event_type: 'general_financial_support', urgency: 'low' };
 }
 
+const AMOUNT_UNITS: Record<string, number> = { crore: 1e7, cr: 1e7, lakh: 1e5, lakhs: 1e5, lac: 1e5, l: 1e5, k: 1e3, thousand: 1e3, hazar: 1e3, hazaar: 1e3 };
+
 export function parseStatedAmount(message: string): number | null {
+  const unit = /(\d+(?:\.\d+)?)\s*(crore|cr|lakhs?|lac|l|k|thousand|hazaa?r)\b/i.exec(message);
+  if (unit) return Math.round(Number(unit[1]) * AMOUNT_UNITS[unit[2]!.toLowerCase()]!);
   const match =
     /(?:₹|\binr\b|\brs\.?)\s*([0-9][0-9,]*)/i.exec(message) ?? /\b([0-9][0-9,]{2,})\s*(?:₹|inr|rs\b|rupees|rupaye|रुपये|रुपए|रु)/i.exec(message);
   if (!match) return null;

@@ -140,6 +140,7 @@ export interface UserPreferences {
   dismissed_alerts?: string[];
   // Choices the customer asked Saathi to remember; each is revocable and still recorded per case.
   consents?: Partial<StandingConsents>;
+  goals?: { id: string; goal: string; target_inr: number; saved_inr: number; target_date: string }[];
 }
 
 export function standingConsents(userId: string): StandingConsents {
@@ -156,4 +157,8 @@ export function savePreferences(userId: string, preferences: UserPreferences): v
   db()
     .prepare('INSERT INTO user_preferences (user_id, payload) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload')
     .run(userId, JSON.stringify(preferences));
+}
+
+export function deleteCase(caseId: string): void {
+  db().prepare('DELETE FROM cases WHERE case_id = ?').run(caseId);
 }

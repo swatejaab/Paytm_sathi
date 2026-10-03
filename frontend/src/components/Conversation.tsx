@@ -4,27 +4,13 @@ import type { CaseRecord, CaseSummary, IntegrationStatus } from '../types';
 import { AlertsPanel } from './AlertsPanel';
 import { MicButton, SpeakButton } from './Voice';
 
-const DEMOS = [
-  {
-    label: 'Hospital demo',
-    icon: '🏥',
-    message: 'Papa hospital mein hain. Bill INR 80,000 hai. Insurance hai, ab kya karun?',
-  },
-  {
-    label: 'Unrecognized UPI',
-    icon: '⚠️',
-    message: 'Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?',
-  },
-  {
-    label: 'Failed UPI refund',
-    icon: '↩️',
-    message: 'INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.',
-  },
-  {
-    label: 'EMI shortfall',
-    icon: '📅',
-    message: 'Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?',
-  },
+// Topic chips only set a prompt; the customer types their own situation.
+const TOPICS = [
+  { label: 'Hospital bill', icon: '🏥', hint: 'Who is admitted, and how much is the hospital bill?' },
+  { label: 'Unknown payment', icon: '⚠️', hint: "Which payment don't you recognise? Share the amount." },
+  { label: 'Refund stuck', icon: '↩️', hint: 'Which payment failed, and for how much?' },
+  { label: 'EMI help', icon: '📅', hint: 'Which EMI is due, and how much are you short?' },
+  { label: 'Term insurance', icon: '☂️', hint: 'Tell me about the life cover you want for your family.' },
 ];
 
 interface Props {
@@ -37,7 +23,7 @@ interface Props {
   onAsk: (message: string, language: string) => Promise<void>;
   onOpenCase: (caseId: string) => void;
   onNewCase: () => void;
-  seed?: { text: string; nonce: number } | null;
+  seed?: { text: string; nonce: number; hint?: boolean } | null;
 }
 
 const readPref = (key: string, fallback: string) => {
@@ -57,6 +43,8 @@ const writePref = (key: string, value: string) => {
 
 export function Conversation({ activeCase, cases, busy, error, integrations, onSubmit, onAsk, onOpenCase, onNewCase, seed }: Props) {
   const [draft, setDraft] = useState('');
+  const [hint, setHint] = useState('Tell Saathi what happened, in your own words…');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [consent, setConsent] = useState(false);
   const [language, setLanguage] = useState(() => readPref('saathi.language', ''));
   const [voiceConsent, setVoiceConsent] = useState(false);
@@ -69,7 +57,12 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
 
   // A question started on the Home screen lands here as a draft, so the customer still chooses consent and sends it.
   useEffect(() => {
-    if (seed) setDraft(seed.text);
+    if (!seed) return;
+    if (seed.hint) {
+      setHint(seed.text);
+      setDraft('');
+    } else setDraft(seed.text);
+    inputRef.current?.focus();
   }, [seed]);
 
   const messages = activeCase?.messages ?? [
@@ -149,9 +142,19 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
       </div>
 
       <div className="demo-buttons">
-        {DEMOS.map((demo) => (
-          <button key={demo.label} className="btn btn-demo" disabled={busy} onClick={() => void send(demo.message)}>
-            <span aria-hidden>{demo.icon}</span> {demo.label}
+        {TOPICS.map((topic) => (
+          <button
+            key={topic.label}
+            className="btn btn-demo"
+            disabled={busy}
+            onClick={() => {
+              onNewCase();
+              setHint(topic.hint);
+              setDraft('');
+              inputRef.current?.focus();
+            }}
+          >
+            <span aria-hidden>{topic.icon}</span> {topic.label}
           </button>
         ))}
       </div>
@@ -163,7 +166,7 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
         <span>
           <strong>Allow Saathi to read my case records</strong>
           <small>
-            Purpose: prepare resolution options. Saathi reads the synthetic policy, bill, and account records for this case only.
+            Purpose: prepare resolution options. Saathi reads your policy, bill, and account records for this case only.
             You can revoke it at any time. Without it, the case is saved but nothing is read.
           </small>
         </span>
@@ -217,7 +220,8 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={followUp ? 'Ask about this case, e.g. "Why is this plan recommended?"' : 'Papa hospital mein hain... what happened?'}
+          ref={inputRef}
+          placeholder={followUp ? 'Ask a follow-up about this case…' : hint}
           rows={2}
           maxLength={2000}
         />
@@ -241,8 +245,8 @@ export function Conversation({ activeCase, cases, busy, error, integrations, onS
       </div>
       <p className="muted small">
         {followUp
-          ? 'Questions go to this case. Choose "New case" above to start another. Use synthetic details only.'
-          : 'Each message opens a new case. Use synthetic details only.'}
+          ? 'Questions go to this case. Choose "New case" above to start another.'
+          : 'Each message opens a new case.'}
       </p>
     </section>
   );

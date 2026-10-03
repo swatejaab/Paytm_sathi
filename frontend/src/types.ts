@@ -392,6 +392,7 @@ export interface FinancialTwin {
   insurance: { policy: string; kind: string; cover_inr: number; premium_inr: number; renewal_date: string; insurer: string; days_to_renewal: number }[];
   renewals_due: string[];
   goals: {
+    id?: string | null;
     goal: string;
     target_inr: number;
     saved_inr: number;
@@ -525,4 +526,10 @@ export interface ScoreSimulation {
   delta: number;
   band_after: string;
   changed: { id: string; label: string; delta: number }[];
+}
+
+export interface StandingConsents {
+  records: boolean;
+  ai: boolean;
+  voice: boolean;
 }

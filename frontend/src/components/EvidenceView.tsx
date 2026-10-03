@@ -154,7 +154,7 @@ export function EvidenceView({ caseRecord, integrations, readOnly, busy, run }: 
         <details className="card-inset">
           <summary>Add a bill or policy</summary>
           <p className="muted small">
-            Text-based PDF, TXT, JSON, or a JPG/PNG photo of a page. Maximum 5 MB each, four per case. Use synthetic files only.
+            Text-based PDF, TXT, JSON, or a JPG/PNG photo of a page. Maximum 5 MB each, four per case.
             Uploaded documents pause automated steps until a specialist verifies them.
           </p>
           <div className="upload-grid">

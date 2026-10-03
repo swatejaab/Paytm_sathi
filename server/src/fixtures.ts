@@ -124,7 +124,7 @@ export const fixtures = {
 
 export const PARTNERS = {
   insurer: fixtures.documents.policy.insurer,
-  hospital: 'Synthetic hospital records desk (demo)',
+  hospital: 'Hospital records desk',
   lender: fixtures.lending.partner,
   payments: fixtures.payments.partner,
 } as const;

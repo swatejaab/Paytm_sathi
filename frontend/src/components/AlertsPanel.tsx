@@ -37,7 +37,7 @@ export function AlertsPanel({ busy, onStart, refreshKey }: Props) {
       <div className="alert-optin">
         <span>
           <strong>Let Saathi watch for problems.</strong> Get a heads-up about EMI shortfalls and suspicious debits before they
-          hurt. Saathi checks your own synthetic records; nothing is shared.
+          hurt. Saathi checks only your own records; nothing is shared.
         </span>
         <button className="btn" onClick={async () => apply(await api.setAlerts(true))}>
           Turn on alerts

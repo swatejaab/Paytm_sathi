@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { api } from '../api';
+import type { Theme } from '../theme';
 import type { CaseRecord, IntegrationStatus, Session } from '../types';
 import { Icon, type IconName } from './Icon';
 import { MobileCase } from './MobileCase';
@@ -24,23 +25,25 @@ interface Props {
   onLogin: (session: Session) => void;
   onLogout: () => void;
   onWebView: () => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 // The app view: a mobile banking experience with bottom navigation. Shown in a phone frame on desktops.
-export function MobileApp({ session, integrations, onLogin, onLogout, onWebView }: Props) {
+export function MobileApp({ session, integrations, onLogin, onLogout, onWebView, theme, onToggleTheme }: Props) {
   const [tab, setTab] = useState<Tab>('home');
   const [insight, setInsight] = useState<InsightSection>('forecast');
   const [activeCase, setActiveCase] = useState<CaseRecord | null>(null);
   const [caseOpen, setCaseOpen] = useState(false);
-  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [topic, setTopic] = useState<{ hint: string; nonce: number } | null>(null);
 
   const updateCase = useCallback((record: CaseRecord | null) => setActiveCase(record), []);
   const onCaseChange = useCallback((record: CaseRecord) => setActiveCase(record), []);
 
   if (!session) return <MobileLogin onLogin={onLogin} />;
 
-  const ask = (message?: string) => {
-    if (message) setSeed({ text: message, nonce: Date.now() });
+  const ask = (hint: string) => {
+    setTopic({ hint, nonce: Date.now() });
     setTab('saathi');
   };
   const openCase = async (caseId: string) => {
@@ -54,7 +57,7 @@ export function MobileApp({ session, integrations, onLogin, onLogout, onWebView 
         {tab === 'home' && (
           <MobileHome
             user={session.user}
-            onAsk={ask}
+            onTopic={ask}
             onOpen={(next, section) => {
               if (section) setInsight(section);
               setTab(next);
@@ -63,17 +66,18 @@ export function MobileApp({ session, integrations, onLogin, onLogout, onWebView 
         )}
         {tab === 'saathi' && (
           <MobileSaathi
+            user={session.user}
             integrations={integrations}
             activeCase={activeCase}
             onCase={updateCase}
             onOpenCase={() => setCaseOpen(true)}
-            seed={seed}
-            onSeedUsed={() => setSeed(null)}
+            topic={topic}
+            onTopicUsed={() => setTopic(null)}
           />
         )}
-        {tab === 'insights' && <MobileInsights section={insight} onSection={setInsight} onAsk={(message) => ask(message)} />}
+        {tab === 'insights' && <MobileInsights section={insight} onSection={setInsight} onAsk={() => ask('Tell Saathi about your EMI and how much you are short.')} />}
         {tab === 'activity' && <MobileActivity onOpen={(caseId) => void openCase(caseId)} refreshKey={activeCase?.updated_at ?? ''} />}
-        {tab === 'profile' && <MobileProfile user={session.user} onLogout={onLogout} onWebView={onWebView} />}
+        {tab === 'profile' && <MobileProfile user={session.user} onLogout={onLogout} onWebView={onWebView} theme={theme} onToggleTheme={onToggleTheme} />}
       </main>
 
       {caseOpen && activeCase && (
@@ -89,6 +93,8 @@ export function MobileApp({ session, integrations, onLogin, onLogout, onWebView 
             className={`${tab === item.id ? 'active' : ''} ${item.id === 'saathi' ? 'center' : ''}`}
             onClick={() => {
               setCaseOpen(false);
+              // The Saathi tab always opens a fresh chat; earlier chats live in its history drawer.
+              if (item.id === 'saathi') setActiveCase(null);
               setTab(item.id);
             }}
             aria-current={tab === item.id ? 'page' : undefined}

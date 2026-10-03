@@ -3,7 +3,7 @@
   "profiles": {
     "demo-customer-01": {
       "profile_id": "PROFILE-DEMO-01",
-      "source": "Synthetic demo customer profile",
+      "source": "Customer profile",
       "available_to_pay_inr": 10000,
       "monthly_income_inr": 90000,
       "monthly_essential_expenses_inr": 52000,
@@ -14,7 +14,7 @@
     },
     "demo-customer-02": {
       "profile_id": "PROFILE-DEMO-02",
-      "source": "Synthetic demo customer profile",
+      "source": "Customer profile",
       "available_to_pay_inr": 10000,
       "monthly_income_inr": 120000,
       "monthly_essential_expenses_inr": 60000,

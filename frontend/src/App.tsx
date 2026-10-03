@@ -4,6 +4,7 @@ import { CustomerWorkspace } from './components/CustomerWorkspace';
 import { HomeView } from './components/HomeView';
 import { MobileApp } from './mobile/MobileApp';
 import { readViewMode, saveViewMode, ViewToggle, type ViewMode } from './mobile/ViewToggle';
+import { ThemeToggle, useTheme } from './theme';
 import { Login } from './components/Login';
 import { SupportQueue } from './components/SupportQueue';
 import { TopBar } from './components/TopBar';
@@ -24,11 +25,12 @@ export default function App() {
   const [integrations, setIntegrations] = useState<IntegrationStatus>(OFFLINE);
   const [tab, setTab] = useState<'home' | 'saathi'>('home');
   const [view, setViewState] = useState<ViewMode>(readViewMode);
+  const [theme, toggleTheme] = useTheme();
   const setView = (mode: ViewMode) => {
     saveViewMode(mode);
     setViewState(mode);
   };
-  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [seed, setSeed] = useState<{ text: string; nonce: number; hint?: boolean } | null>(null);
 
   const logout = useCallback(() => {
     saveSession(null);
@@ -72,12 +74,17 @@ export default function App() {
     return (
       <div className="phone-stage">
         <div className="stage-bar">
-          <span className="stage-brand">Paytm Saathi</span>
-          <ViewToggle mode={view} onChange={setView} />
+          <span className="stage-brand">
+            Paytm <b>Saathi</b>
+          </span>
+          <span className="stage-actions">
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            <ViewToggle mode={view} onChange={setView} />
+          </span>
         </div>
         <div className="phone-frame">
           <div className="phone-screen">
-            <MobileApp session={session} integrations={integrations} onLogin={login} onLogout={logout} onWebView={() => setView('web')} />
+            <MobileApp session={session} integrations={integrations} onLogin={login} onLogout={logout} onWebView={() => setView('web')} theme={theme} onToggleTheme={toggleTheme} />
           </div>
         </div>
       </div>
@@ -91,11 +98,13 @@ export default function App() {
         apiOnline={apiOnline}
         integrations={integrations}
         onLogout={logout}
-        viewToggle={<ViewToggle mode={view} onChange={setView} />}
+        viewToggle={
+          <>
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            <ViewToggle mode={view} onChange={setView} />
+          </>
+        }
       />
-      <div className="demo-banner">
-        Synthetic demo data only. Claim, credit, and payment outcomes are simulated; partners make the real decisions.
-      </div>
       {!session ? (
         <Login onLogin={login} apiOnline={apiOnline} />
       ) : session.user.role === 'support' ? (
@@ -116,6 +125,10 @@ export default function App() {
               displayName={session.user.display_name}
               onAsk={(text) => {
                 setSeed({ text, nonce: Date.now() });
+                setTab('saathi');
+              }}
+              onTopic={(text) => {
+                setSeed({ text, nonce: Date.now(), hint: true });
                 setTab('saathi');
               }}
             />

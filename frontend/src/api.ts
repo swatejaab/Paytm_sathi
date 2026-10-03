@@ -1,5 +1,6 @@
 import type {
   AgentNodeInfo,
+  StandingConsents,
   CreditScore,
   ScoreSimulation,
   AffordabilityAssessment,
@@ -73,7 +74,7 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
   try {
     response = await fetch(path, { ...init, headers, body });
   } catch {
-    throw new ApiError(0, 'Saathi API is unreachable. Start the backend with "npm run dev".');
+    throw new ApiError(0, 'Saathi is not reachable right now. Please try again in a moment.');
   }
   const text = await response.text();
   let data: unknown = null;
@@ -137,9 +138,14 @@ export const api = {
   confirmBill: (caseId: string, document_id: string, confirmed: boolean, total_inr?: number) =>
     post<CaseRecord>(`/api/cases/${caseId}/bill-confirmation`, { document_id, confirmed, ...(total_inr ? { total_inr } : {}) }),
   twin: () => request<FinancialTwin>('/api/twin'),
-  forecast: (salaryDelayDays = 0, skip: string[] = []) =>
+  deleteCase: (caseId: string) => request<{ deleted: string }>(`/api/cases/${caseId}`, { method: 'DELETE' }),
+  consents: () => request<StandingConsents>('/api/consents'),
+  setConsents: (choices: Partial<StandingConsents>) => post<StandingConsents>('/api/consents', choices),
+  addGoal: (goal: { goal: string; target_inr: number; target_date: string; saved_inr?: number }) => post<FinancialTwin['goals']>('/api/goals', goal),
+  deleteGoal: (goalId: string) => request<FinancialTwin['goals']>(`/api/goals/${encodeURIComponent(goalId)}`, { method: 'DELETE' }),
+  forecast: (salaryDelayDays = 0, skip: string[] = [], horizonDays = 30) =>
     request<CashForecast>(
-      `/api/forecast?salary_delay_days=${salaryDelayDays}${skip.length ? `&skip=${encodeURIComponent(skip.join(','))}` : ''}`,
+      `/api/forecast?salary_delay_days=${salaryDelayDays}&horizon_days=${horizonDays}${skip.length ? `&skip=${encodeURIComponent(skip.join(','))}` : ''}`,
     ),
   creditScore: () => post<CreditScore>('/api/credit/score', { consent: true }),
   simulateScore: (action: ScoreSimulation['action']) => post<ScoreSimulation>('/api/credit/simulate', { consent: true, action }),

@@ -248,7 +248,7 @@ function ApprovalPanel({ caseRecord, action, busy, run }: { caseRecord: CaseReco
           <thead>
             <tr>
               <th>Step</th>
-              <th>Partner (simulated)</th>
+              <th>Partner</th>
               <th>Amount</th>
             </tr>
           </thead>
@@ -332,7 +332,7 @@ function ActionProgress({ action }: { action: CaseAction }) {
     <div className="progress card-inset">
       <div className="row space-between">
         <h3>{action.title}</h3>
-        <span className="badge">{action.channel === 'n8n' ? 'via n8n' : 'simulated partner'}</span>
+        <span className="badge">{action.channel === 'n8n' ? 'via n8n' : 'partner sandbox'}</span>
       </div>
       {action.partner_requests.map((request) => (
         <div key={request.tool} className={`partner-request pr-${request.status}`}>
@@ -414,7 +414,7 @@ function TransactionPicker({ caseRecord, busy, readOnly, run }: Props) {
   return (
     <div className="card-inset">
       <h3>{question.prompt}</h3>
-      <p className="muted small">Saathi loaded these from the payments MCP (synthetic). Nothing is filed until you approve.</p>
+      <p className="muted small">Saathi pulled these from your recent payments. Nothing is filed until you approve.</p>
       <div className="txn-list">
         {question.candidates.map((transaction) => (
           <div key={transaction.transaction_id} className="txn">

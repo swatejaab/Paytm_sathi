@@ -4,7 +4,7 @@
   "accounts": {
     "demo-customer-01": {
       "salary": {
-        "source": "Synthetic payroll schedule",
+        "source": "Payroll schedule",
         "usual_credit_day": 1,
         "expected_date": "2026-10-10",
         "amount_inr": 90000,
@@ -27,7 +27,7 @@
     },
     "demo-customer-02": {
       "salary": {
-        "source": "Synthetic payroll schedule",
+        "source": "Payroll schedule",
         "usual_credit_day": 1,
         "expected_date": "2026-10-01",
         "amount_inr": 120000,

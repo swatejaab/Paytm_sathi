@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { Session, SessionUser } from '../types';
+import { HeroArt } from './HeroArt';
 import { Icon } from './Icon';
 
 const DEMO_PINS: Record<string, string> = {
@@ -36,7 +37,7 @@ export function MobileLogin({ onLogin }: { onLogin: (session: Session) => void }
     api
       .demoUsers()
       .then((result) => setUsers(result.users))
-      .catch(() => setError('Saathi is offline. Start the server and retry.'));
+      .catch(() => setError('Saathi is not reachable right now. Please try again.'));
   }, []);
 
   useEffect(() => {
@@ -61,11 +62,14 @@ export function MobileLogin({ onLogin }: { onLogin: (session: Session) => void }
   return (
     <div className="m-login">
       <div className="m-login-hero">
-        <div className="m-logo">
-          <Icon name="sparkle" size={26} />
+        <div className="m-brand-row">
+          <span className="m-wordmark">
+            Paytm <b>Saathi</b>
+          </span>
         </div>
-        <h1>Paytm Saathi</h1>
-        <p>Life happened? Tell Saathi.</p>
+        <HeroArt />
+        <h1>Your money companion</h1>
+        <p>Claims, loans, payments and protection, sorted in one chat.</p>
       </div>
 
       {!chosen ? (
@@ -85,7 +89,7 @@ export function MobileLogin({ onLogin }: { onLogin: (session: Session) => void }
           </div>
           {error && <p className="m-error">{error}</p>}
           <p className="m-fineprint">
-            <Icon name="lock" size={14} /> Demo app with synthetic data
+            <Icon name="lock" size={14} /> Secured with your PIN
           </p>
         </div>
       ) : (
@@ -101,7 +105,7 @@ export function MobileLogin({ onLogin }: { onLogin: (session: Session) => void }
               <span key={index} className={index < pin.length ? 'filled' : ''} />
             ))}
           </div>
-          {error ? <p className="m-error">{error}</p> : <p className="m-hint">Demo PIN {DEMO_PINS[chosen.user_id]}</p>}
+          {error ? <p className="m-error">{error}</p> : <p className="m-hint">Hint: {DEMO_PINS[chosen.user_id]}</p>}
           <div className="m-keypad">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key, index) =>
               key ? (

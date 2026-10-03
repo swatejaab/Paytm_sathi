@@ -58,7 +58,7 @@ export function createApp() {
   app.use(
     cors({
       origin: settings.frontendOrigins,
-      methods: ['GET', 'POST', 'OPTIONS'],
+      methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Authorization', 'Content-Type', 'Mcp-Session-Id', 'Mcp-Protocol-Version', 'x-saathi-customer'],
     }),
   );

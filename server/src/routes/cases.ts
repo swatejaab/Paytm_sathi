@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { approveAction, cancelAction, prepareAction } from '../actions';
 import { getPrincipal, requireAuth } from '../auth';
 import { onCaseUpdate } from '../caseEvents';
+import { HttpError } from '../errors';
+import { loadCaseForOwner } from '../caseStore';
 import { loadCaseForRead } from '../caseStore';
-import { listAudit, listCases } from '../db';
+import { deleteCase, listAudit, listCases, recordAudit } from '../db';
 import { parseBody } from '../errors';
 import { buildPassport } from '../passport';
 import { addSpecialistNote, claimCase, resolveBySpecialist, reviewCase } from '../support';
@@ -169,4 +171,13 @@ const billConfirmationSchema = z
 caseRouter.post('/cases/:caseId/bill-confirmation', requireAuth('document:upload'), async (req, res) => {
   const body = parseBody(billConfirmationSchema, req.body);
   res.json(await confirmBill(getPrincipal(req), String(req.params.caseId), body));
+});
+
+caseRouter.delete('/cases/:caseId', requireAuth('case:read'), (req, res) => {
+  const principal = getPrincipal(req);
+  const record = loadCaseForOwner(principal, String(req.params.caseId), 'case:read');
+  if (record.status === 'in_progress') throw new HttpError(409, 'Partner steps are still running; delete this chat after it finishes.');
+  deleteCase(record.case_id);
+  recordAudit({ case_id: record.case_id, actor: principal.sub, event: 'case_deleted' });
+  res.json({ deleted: record.case_id });
 });

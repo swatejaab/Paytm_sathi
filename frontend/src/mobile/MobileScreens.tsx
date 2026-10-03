@@ -4,7 +4,8 @@ import { AffordCard } from '../components/AffordCard';
 import { CreditScoreCard } from '../components/CreditScoreCard';
 import { ForecastCard } from '../components/ForecastCard';
 import { EVENT_LABELS, LANGUAGES, STATUS_LABELS } from '../format';
-import type { CaseSummary, EventType, SessionUser } from '../types';
+import type { Theme } from '../theme';
+import type { CaseSummary, EventType, SessionUser, StandingConsents } from '../types';
 import { Icon, type IconName } from './Icon';
 import { initials } from './MobileLogin';
 
@@ -94,9 +95,19 @@ interface ProfileProps {
   user: SessionUser;
   onLogout: () => void;
   onWebView: () => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
-export function MobileProfile({ user, onLogout, onWebView }: ProfileProps) {
+export function MobileProfile({ user, onLogout, onWebView, theme, onToggleTheme }: ProfileProps) {
+  const [consents, setConsents] = useState<StandingConsents | null>(null);
+  useEffect(() => {
+    api.consents().then(setConsents).catch(() => setConsents(null));
+  }, []);
+  const toggleConsent = async (key: keyof StandingConsents) => {
+    if (!consents) return;
+    setConsents(await api.setConsents({ [key]: !consents[key] }));
+  };
   const [language, setLanguage] = useState(() => {
     try {
       return localStorage.getItem('saathi.language') ?? '';
@@ -156,19 +167,32 @@ export function MobileProfile({ user, onLogout, onWebView }: ProfileProps) {
             </button>
           </li>
           <li>
+            <Icon name={theme === 'dark' ? 'moon' : 'sun'} />
+            <span>Dark theme</span>
+            <button className={`m-switch ${theme === 'dark' ? 'on' : ''}`} role="switch" aria-checked={theme === 'dark'} onClick={onToggleTheme}>
+              <span />
+            </button>
+          </li>
+          {([['records', 'Read my records'], ['ai', 'AI answers'], ['voice', 'Voice input']] as const).map(([key, label]) => (
+            <li key={key}>
+              <Icon name={key === 'voice' ? 'mic' : key === 'ai' ? 'sparkle' : 'lock'} />
+              <span>
+                {label}
+                <small className="m-setting-note">{consents?.[key] ? 'Allowed, no need to ask' : 'Ask me each time'}</small>
+              </span>
+              <button className={`m-switch ${consents?.[key] ? 'on' : ''}`} role="switch" aria-checked={Boolean(consents?.[key])} disabled={!consents} onClick={() => void toggleConsent(key)}>
+                <span />
+              </button>
+            </li>
+          ))}
+          <li>
             <Icon name="monitor" />
             <span>Switch to web view</span>
             <button className="m-link" onClick={onWebView}>
               Open
             </button>
           </li>
-          <li>
-            <Icon name="lock" />
-            <span>Privacy</span>
-            <small className="m-muted">Consent per case</small>
-          </li>
         </ul>
-        <p className="m-fineprint">Synthetic demo data. Claims, loans and refunds are simulated; partners make the real decisions.</p>
         <button className="m-btn ghost danger" onClick={onLogout}>
           <Icon name="logout" size={18} /> Sign out
         </button>

@@ -27,7 +27,7 @@ export function TopBar({ session, apiOnline, integrations, onLogout, viewToggle 
         </span>
         <div>
           <strong>Paytm Saathi</strong>
-          <small>Financial first aid / Track 2</small>
+          <small>Your money companion</small>
         </div>
       </div>
       <div className="topbar-status">
@@ -36,7 +36,7 @@ export function TopBar({ session, apiOnline, integrations, onLogout, viewToggle 
         <Pill ok={integrations.sarvam_available} label="Sarvam voice" title="Hindi/Hinglish transcription" />
         <Pill
           ok={true}
-          label={integrations.partner_channel === 'n8n' ? 'Partners: n8n' : 'Partners: simulated'}
+          label={integrations.partner_channel === 'n8n' ? 'Partners: n8n' : 'Partners: sandbox'}
           title="Approved actions are sent through this channel"
         />
       </div>

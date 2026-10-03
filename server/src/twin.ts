@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, settings } from './config';
-import { recordAudit } from './db';
+import { getPreferences, recordAudit } from './db';
 import { formatDay, formatInr } from './decision';
 import { fixtures } from './fixtures';
 
@@ -70,7 +70,7 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
   while (salaryDate < today) salaryDate = addMonths(salaryDate, 1);
 
   const obligations: TwinObligation[] = [
-    ...more.obligations.map((item) => ({ ...item, source: 'Synthetic bills and mandates' })),
+    ...more.obligations.map((item) => ({ ...item, source: 'Bills and mandates' })),
     ...(loans?.loans ?? []).map((loan) => ({
       title: `${loan.product} EMI`,
       kind: 'emi',
@@ -154,7 +154,10 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
     obligations,
     insurance: more.insurance.map((policy) => ({ ...policy, days_to_renewal: dayDiff(today, policy.renewal_date) })),
     renewals_due: renewalSoon.map((policy) => policy.policy),
-    goals: more.goals.map((goal) => {
+    goals: [
+      ...more.goals.map((goal) => ({ ...goal, id: null as string | null })),
+      ...(getPreferences(customerId).goals ?? []),
+    ].map((goal) => {
       const months = Math.max(Math.round(dayDiff(today, goal.target_date) / 30.4), 1);
       const remaining = Math.max(goal.target_inr - goal.saved_inr, 0);
       return {
@@ -165,7 +168,7 @@ export function buildTwin(customerId: string, options: { audit?: boolean } = {})
       };
     }),
     household: more.household ?? null,
-    notice: 'Synthetic demo data. Saathi reads these records for you; nothing here is shared without your consent.',
+    notice: 'Saathi reads these records for you; nothing here is shared without your consent.',
   };
 }
 

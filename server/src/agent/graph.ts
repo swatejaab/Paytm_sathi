@@ -119,6 +119,14 @@ function billLines(lines: { line: number; description: string; amount_inr: numbe
   }));
 }
 
+// The bill the customer described: their stated total and room days, if they gave them.
+function billRequest(record: CaseRecord): Record<string, number> {
+  const text = record.message_for_rules ?? record.customer_message;
+  const stated = parseStatedAmount(text);
+  const days = /(\d{1,2})\s*(?:days?|din|nights?)\b/i.exec(text);
+  return { ...(stated && stated >= 1000 ? { stated_total_inr: stated } : {}), ...(days ? { room_days: Number(days[1]) } : {}) };
+}
+
 function playbookPassage(playbook: Playbook): EvidencePassage {
   return {
     document_id: playbook.playbook_id,
@@ -223,7 +231,7 @@ const policyRag = node('policy_rag', async (_state, context) => {
 
 const billAuditor = node('bill_auditor', async (state, context) => {
   const { record } = context;
-  const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill');
+  const bill = await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill', billRequest(record));
   const lineTotal = bill.lines.reduce((sum, line) => sum + line.amount_inr, 0);
   const coverage = await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
   const missing = state.gathered.checklist?.missing ?? [];
@@ -240,7 +248,7 @@ const billAuditor = node('bill_auditor', async (state, context) => {
     documents: sampleHospitalDocuments(),
     retrieved_evidence: state.gathered.clauses ?? [],
     missing_documents: missing,
-    notice: 'Synthetic sample evidence; not a real coverage decision.',
+    notice: 'Estimate from your records; the insurer makes the final coverage decision.',
   };
   addTimeline(record, {
     status: 'evidence_ready',
@@ -291,7 +299,7 @@ const transactionAuditor = node('transaction_auditor', async (state, context) =>
     missing_documents: [],
     transaction,
     playbook,
-    notice: 'Synthetic transaction and playbook; dispute outcomes are simulated.',
+    notice: 'Dispute outcomes come from the bank; Saathi prepares and tracks the request.',
   };
   addTimeline(record, {
     status: 'evidence_ready',
@@ -321,7 +329,7 @@ const emiAuditor = node('emi_auditor', async (state, context) => {
     retrieved_evidence: playbook ? [playbookPassage(playbook)] : [],
     missing_documents: [],
     playbook,
-    notice: 'Synthetic loan account, salary schedule, and playbook; lender outcomes are simulated.',
+    notice: 'The lender makes the final decision; Saathi prepares and tracks the request.',
   };
   addTimeline(record, {
     status: 'evidence_ready',
@@ -403,7 +411,7 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
         total_inr: confirmed.total_inr,
         lines: confirmed.lines,
       }
-    : (state.gathered.bill ?? await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill'));
+    : (state.gathered.bill ?? await callTool<SampleDocuments['bill']>(context, 'hospital.get_bill', billRequest(record)));
   const coverage =
     (confirmed ? undefined : state.gathered.coverage) ??
     await callTool<Coverage>(context, 'insurer.check_coverage', { bill_total_inr: bill.total_inr, lines: billLines(bill.lines) });
@@ -431,6 +439,12 @@ async function hospitalDecision(state: State, context: RunContext): Promise<stri
     verification: verificationNeeded(record),
   });
   record.decision.coverage_breakdown = coverage.assessment;
+  if ((bill as { estimated?: boolean }).estimated) {
+    record.decision.warnings = [
+      ...record.decision.warnings,
+      'Line items are estimated from the amount you gave. Upload the itemised bill for exact cover.',
+    ];
+  }
   return `Formula ${record.decision.formula_version}; cover ${formatInr(coverage.estimated_coverage_inr)} (${coverage.assessment.rules_version}); gap ${formatInr(record.decision.calculation?.exact_gap_inr ?? 0)}`;
 }
 

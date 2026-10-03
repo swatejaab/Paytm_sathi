@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
+import { HeroArt } from '../mobile/HeroArt';
 import type { Session, SessionUser } from '../types';
 
 const DEMO_PASSCODES: Record<string, string> = {
@@ -45,6 +46,7 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
   return (
     <main className="login">
       <section className="login-hero">
+        <HeroArt className="login-art" />
         <p className="eyebrow">Life happened?</p>
         <h1>From money problem to approved resolution.</h1>
         <p className="lead">
@@ -67,7 +69,7 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
         </div>
       </section>
       <form className="card login-card" onSubmit={submit}>
-        <h2>Sign in to the demo</h2>
+        <h2>Sign in to Saathi</h2>
         <p className="muted small">The demo signs you in with a short-lived JWT. Every case is checked for ownership.</p>
         <div className="user-choices">
           {(users.length ? users : Object.keys(DEMO_PASSCODES).map((id) => ({ user_id: id, display_name: id, role: 'customer' as const }))).map(
@@ -101,14 +103,14 @@ export function Login({ onLogin, apiOnline }: { onLogin: (session: Session) => v
             autoComplete="off"
             value={passcode}
             onChange={(event) => setPasscode(event.target.value)}
-            placeholder={`Synthetic passcode: ${DEMO_PASSCODES[userId] ?? ''}`}
+            placeholder={`PIN (hint: ${DEMO_PASSCODES[userId] ?? ''})`}
           />
         </label>
         {error && <p className="alert alert-error">{error}</p>}
         <button className="btn btn-primary btn-block" disabled={busy || !passcode}>
           {busy ? 'Signing in...' : 'Sign in'}
         </button>
-        {apiOnline === false && <p className="alert alert-warn">The API is offline. Run <code>npm run dev</code> from the repository root.</p>}
+        {apiOnline === false && <p className="alert alert-warn">Saathi is not reachable right now. Please try again shortly.</p>}
       </form>
     </main>
   );

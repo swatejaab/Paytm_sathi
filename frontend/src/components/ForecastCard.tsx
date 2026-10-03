@@ -3,7 +3,7 @@ import { api, ApiError } from '../api';
 import { inr } from '../format';
 import type { CashForecast } from '../types';
 
-const PAD = { top: 34, right: 20, bottom: 30, left: 72 };
+const PAD = { top: 30, right: 16, bottom: 28, left: 56 };
 
 const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
@@ -19,86 +19,107 @@ function BalanceChart({ forecast }: { forecast: CashForecast }) {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const HEIGHT = WIDTH < 600 ? 230 : 280;
+  const HEIGHT = WIDTH < 600 ? 250 : 300;
   const days = forecast.days;
+  const inflow = days.map((day) => day.events.filter((event) => event.direction === 'in').reduce((sum, event) => sum + event.amount_inr, 0));
+  const outflow = days.map((day) => day.events.filter((event) => event.direction === 'out').reduce((sum, event) => sum + event.amount_inr, 0));
   const values = days.map((day) => day.balance_inr);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const span = max - min || 1;
+  const min = Math.min(0, ...values, ...outflow.map((value) => -value));
+  const max = Math.max(0, ...values, ...inflow);
+  const pad = (max - min) * 0.08 || 1000;
+  const top = max + pad;
+  const bottom = min - pad;
   const innerW = WIDTH - PAD.left - PAD.right;
   const innerH = HEIGHT - PAD.top - PAD.bottom;
-  const x = (index: number) => PAD.left + (index / Math.max(days.length - 1, 1)) * innerW;
-  const y = (value: number) => PAD.top + ((max - value) / span) * innerH;
+  const slot = innerW / days.length;
+  const x = (index: number) => PAD.left + slot * index + slot / 2;
+  const y = (value: number) => PAD.top + ((top - value) / (top - bottom)) * innerH;
   const zeroY = y(0);
+  const barW = Math.max(Math.min(slot * 0.6, 18), 3);
 
-  // Step line: the balance holds until the next event day.
-  const path = days
-    .map((day, index) => (index === 0 ? `M${x(0)},${y(day.balance_inr)}` : `H${x(index)}V${y(day.balance_inr)}`))
-    .join('');
-  const area = `${path}H${x(days.length - 1)}V${zeroY}H${x(0)}Z`;
+  const line = days.map((day, index) => `${index === 0 ? 'M' : 'L'}${x(index)},${y(day.balance_inr)}`).join('');
+  const area = `${line}L${x(days.length - 1)},${zeroY}L${x(0)},${zeroY}Z`;
+  const step = Math.pow(10, Math.floor(Math.log10(Math.max(top - bottom, 1)))) / 2;
+  const ticks: number[] = [];
+  for (let tick = Math.ceil(bottom / step) * step; tick <= top; tick += step) ticks.push(tick);
+  const labelEvery = Math.ceil(days.length / (WIDTH < 600 ? 4 : 8));
   const lowIndex = days.findIndex((day) => day.date === forecast.lowest.date);
   const paydayIndex = days.findIndex((day) => day.date === forecast.payday);
-  const ticks = [max, (max + min) / 2, min].map((value) => Math.round(value / 1000) * 1000);
+  const hovered = hover === null ? null : days[hover]!;
+  const compact = (value: number) => `${value < 0 ? '−' : ''}₹${Math.abs(value) >= 100000 ? `${(Math.abs(value) / 100000).toFixed(1)}L` : `${Math.round(Math.abs(value) / 1000)}k`}`;
 
   const onMove = (event: PointerEvent<SVGRectElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
-    const ratio = (event.clientX - box.left) / box.width;
-    setHover(Math.max(0, Math.min(days.length - 1, Math.round(ratio * (days.length - 1)))));
+    const index = Math.floor(((event.clientX - box.left) / box.width) * days.length);
+    setHover(Math.max(0, Math.min(days.length - 1, index)));
   };
-  const hovered = hover === null ? null : days[hover]!;
 
   return (
-    <div className="chart-wrap" ref={wrapRef}>
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Projected balance for ${days.length} days. ${forecast.headline}`}>
+    <div className="bi-chart" ref={wrapRef}>
+      <div className="bi-legend" aria-hidden>
+        <span><i className="sw line" /> Balance</span>
+        <span><i className="sw in" /> Money in</span>
+        <span><i className="sw out" /> Money out</span>
+      </div>
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Balance and cash flow for ${days.length} days. ${forecast.headline}`}>
+        <defs>
+          <linearGradient id="bi-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#118dff" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#118dff" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
         {ticks.map((tick) => (
           <g key={tick}>
-            <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} className="chart-grid" />
-            <text x={PAD.left - 8} y={y(tick) + 4} textAnchor="end" className="chart-axis">
-              {inr(tick)}
+            <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'bi-zero' : 'bi-grid'} />
+            <text x={PAD.left - 8} y={y(tick) + 4} textAnchor="end" className="bi-axis">
+              {compact(tick)}
             </text>
           </g>
         ))}
-        {min < 0 && (
-          <>
-            <rect x={PAD.left} y={zeroY} width={innerW} height={HEIGHT - PAD.bottom - zeroY} className="chart-negative" />
-            <text x={WIDTH - PAD.right - 6} y={HEIGHT - PAD.bottom - 6} textAnchor="end" className="chart-negative-label">
-              Below zero
+        {days.map((day, index) =>
+          index % labelEvery === 0 || index === days.length - 1 ? (
+            <text key={day.date} x={x(index)} y={HEIGHT - 8} textAnchor="middle" className="bi-axis">
+              {shortDate(day.date)}
             </text>
-          </>
+          ) : null,
         )}
-        <path d={area} className="chart-area" />
-        <line x1={PAD.left} x2={WIDTH - PAD.right} y1={zeroY} y2={zeroY} className="chart-zero" />
-        <path d={path} className="chart-line" />
+        <path d={area} fill="url(#bi-area)" />
+        {days.map((day, index) => (
+          <g key={`bars-${day.date}`} opacity={hover === null || hover === index ? 1 : 0.45}>
+            {inflow[index]! > 0 && (
+              <rect x={x(index) - barW / 2} y={y(inflow[index]!)} width={barW} height={zeroY - y(inflow[index]!)} rx={3} className="bi-in" />
+            )}
+            {outflow[index]! > 0 && (
+              <rect x={x(index) - barW / 2} y={zeroY} width={barW} height={y(-outflow[index]!) - zeroY} rx={3} className="bi-out" />
+            )}
+          </g>
+        ))}
+        <path d={line} className="bi-line" />
         {paydayIndex >= 0 && (
           <g>
-            <line x1={x(paydayIndex)} x2={x(paydayIndex)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="chart-payday" />
-            <text x={x(paydayIndex)} y={PAD.top - 10} textAnchor="middle" className="chart-payday-label">
-              Payday {shortDate(forecast.payday)}
+            <line x1={x(paydayIndex)} x2={x(paydayIndex)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="bi-marker" />
+            <text x={x(paydayIndex)} y={PAD.top - 10} textAnchor="middle" className="bi-marker-label">
+              Payday
             </text>
           </g>
         )}
         {lowIndex >= 0 && forecast.lowest.balance_inr < 0 && (
           <g>
-            <circle cx={x(lowIndex)} cy={y(forecast.lowest.balance_inr)} r={5} className="chart-low" />
+            <circle cx={x(lowIndex)} cy={y(forecast.lowest.balance_inr)} r={5} className="bi-low" />
             <text
               x={x(lowIndex) - PAD.left < 130 ? x(lowIndex) + 10 : x(lowIndex) - 10}
-              y={y(forecast.lowest.balance_inr) - 8}
+              y={y(forecast.lowest.balance_inr) + 4}
               textAnchor={x(lowIndex) - PAD.left < 130 ? 'start' : 'end'}
-              className="chart-low-label"
+              className="bi-low-label"
             >
-              Lowest {inr(forecast.lowest.balance_inr)}
+              Lowest {compact(forecast.lowest.balance_inr)}
             </text>
           </g>
         )}
-        {[0, Math.floor((days.length - 1) / 2), days.length - 1].map((index) => (
-          <text key={index} x={x(index)} y={HEIGHT - 10} textAnchor={index === 0 ? 'start' : index === days.length - 1 ? 'end' : 'middle'} className="chart-axis">
-            {shortDate(days[index]!.date)}
-          </text>
-        ))}
         {hovered && (
           <g pointerEvents="none">
-            <line x1={x(hover!)} x2={x(hover!)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="chart-crosshair" />
-            <circle cx={x(hover!)} cy={y(hovered.balance_inr)} r={4.5} className="chart-dot" />
+            <line x1={x(hover!)} x2={x(hover!)} y1={PAD.top} y2={HEIGHT - PAD.bottom} className="bi-crosshair" />
+            <circle cx={x(hover!)} cy={y(hovered.balance_inr)} r={4.5} className="bi-dot" />
           </g>
         )}
         <rect
@@ -116,7 +137,7 @@ function BalanceChart({ forecast }: { forecast: CashForecast }) {
             if (event.key === 'ArrowRight') setHover((current) => Math.min((current ?? -1) + 1, days.length - 1));
             if (event.key === 'ArrowLeft') setHover((current) => Math.max((current ?? 1) - 1, 0));
           }}
-          aria-label="Move across the chart to read each day's balance"
+          aria-label="Move across the chart to read each day"
         />
       </svg>
       {hovered && (
@@ -139,18 +160,19 @@ export function ForecastCard({ onAsk }: { onAsk: (message: string) => void }) {
   const [forecast, setForecast] = useState<CashForecast | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [delay, setDelay] = useState(0);
+  const [horizon, setHorizon] = useState(30);
   const [skip, setSkip] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     api
-      .forecast(delay, skip)
+      .forecast(delay, skip, horizon)
       .then((result) => !cancelled && setForecast(result))
       .catch((caught) => !cancelled && setError(caught instanceof ApiError ? caught.message : 'Could not build the forecast.'));
     return () => {
       cancelled = true;
     };
-  }, [delay, skip]);
+  }, [delay, skip, horizon]);
 
   const optional = useMemo(() => (forecast?.items ?? []).filter((item) => item.flexible), [forecast]);
   if (error) return <section className="card home-section"><p className="alert alert-error">{error}</p></section>;
@@ -176,6 +198,31 @@ export function ForecastCard({ onAsk }: { onAsk: (message: string) => void }) {
         </div>
       </div>
       <p className={forecast.crunch_inr > 0 ? 'alert alert-warn' : 'alert alert-info'}>{forecast.headline}</p>
+      <div className="bi-kpis">
+        <div>
+          <small>Opening</small>
+          <strong>{inr(forecast.opening_balance_inr)}</strong>
+        </div>
+        <div>
+          <small>Lowest</small>
+          <strong className={forecast.lowest.balance_inr < 0 ? 'neg' : ''}>{inr(forecast.lowest.balance_inr)}</strong>
+        </div>
+        <div>
+          <small>Payday</small>
+          <strong>{shortDate(forecast.payday)}</strong>
+        </div>
+        <div>
+          <small>End of period</small>
+          <strong>{inr(forecast.end_balance_inr)}</strong>
+        </div>
+      </div>
+      <div className="bi-filter" role="radiogroup" aria-label="Period">
+        {[7, 14, 30].map((days) => (
+          <button key={days} role="radio" aria-checked={horizon === days} className={horizon === days ? 'active' : ''} onClick={() => setHorizon(days)}>
+            {days}D
+          </button>
+        ))}
+      </div>
       <BalanceChart forecast={forecast} />
 
       <div className="whatif">

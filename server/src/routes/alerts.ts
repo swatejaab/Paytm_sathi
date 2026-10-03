@@ -36,7 +36,11 @@ alertRouter.get('/twin', requireAuth('case:create'), (req, res) => {
 });
 
 const forecastQuery = z
-  .object({ salary_delay_days: z.coerce.number().int().min(0).max(20).optional(), skip: z.string().max(600).optional() })
+  .object({
+    salary_delay_days: z.coerce.number().int().min(0).max(20).optional(),
+    horizon_days: z.coerce.number().int().refine((value) => [7, 14, 30].includes(value)).optional(),
+    skip: z.string().max(600).optional(),
+  })
   .strict();
 
 alertRouter.get('/forecast', requireAuth('case:create'), (req, res) => {
@@ -45,7 +49,7 @@ alertRouter.get('/forecast', requireAuth('case:create'), (req, res) => {
   const forecast = buildForecast(principal.sub, {
     salary_delay_days: query.salary_delay_days,
     skip: query.skip ? query.skip.split(',').filter(Boolean) : [],
-  });
+  }, query.horizon_days ?? 30);
   if (!forecast) throw new HttpError(404, 'No synthetic financial profile exists for this customer.');
   recordAudit({ actor: principal.sub, event: 'forecast_viewed', detail: { what_if: forecast.what_if } });
   res.json(forecast);
@@ -100,4 +104,30 @@ alertRouter.post('/consents', requireAuth('case:create'), (req, res) => {
   savePreferences(principal.sub, { ...preferences, consents: { ...preferences.consents, ...body } });
   recordAudit({ actor: principal.sub, event: 'standing_consent_updated', detail: body });
   res.json(standingConsents(principal.sub));
+});
+
+const goalSchema = z
+  .object({
+    goal: z.string().trim().min(2).max(60),
+    target_inr: z.number().int().positive().max(100_000_000),
+    target_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    saved_inr: z.number().int().min(0).max(100_000_000).default(0),
+  })
+  .strict();
+
+alertRouter.post('/goals', requireAuth('case:create'), (req, res) => {
+  const body = parseBody(goalSchema, req.body);
+  const principal = getPrincipal(req);
+  const preferences = getPreferences(principal.sub);
+  const goals = [...(preferences.goals ?? []), { id: `GOAL-${Date.now().toString(36).toUpperCase()}`, ...body }].slice(-12);
+  savePreferences(principal.sub, { ...preferences, goals });
+  recordAudit({ actor: principal.sub, event: 'goal_added', detail: { goal: body.goal } });
+  res.status(201).json(buildTwin(principal.sub, { audit: false })?.goals ?? []);
+});
+
+alertRouter.delete('/goals/:goalId', requireAuth('case:create'), (req, res) => {
+  const principal = getPrincipal(req);
+  const preferences = getPreferences(principal.sub);
+  savePreferences(principal.sub, { ...preferences, goals: (preferences.goals ?? []).filter((goal) => goal.id !== String(req.params.goalId)) });
+  res.json(buildTwin(principal.sub, { audit: false })?.goals ?? []);
 });

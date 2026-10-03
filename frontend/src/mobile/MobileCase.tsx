@@ -99,10 +99,17 @@ export function MobileCase({ caseRecord, integrations, onChange, onClose }: Prop
             <div className="m-subtabs">
               {(['passport', 'agents', 'ledger'] as More[]).map((id) => (
                 <button key={id} className={more === id ? 'active' : ''} onClick={() => setMore(id)}>
-                  {id === 'passport' ? 'Passport' : id === 'agents' ? 'How AI worked' : 'Trust ledger'}
+                  {id === 'passport' ? 'Case summary' : id === 'agents' ? 'How Saathi worked' : 'Activity log'}
                 </button>
               ))}
             </div>
+            <p className="m-more-intro">
+              {more === 'passport'
+                ? 'Your case summary in one place. Share it with the hospital, insurer or a specialist so you never repeat your story.'
+                : more === 'agents'
+                  ? 'Step by step, how Saathi worked on your case: what it checked, which records it read, and how long each step took.'
+                  : 'A record of every action on your case: what was allowed, what was blocked, and what you approved.'}
+            </p>
             {more === 'passport' && <PassportView caseRecord={caseRecord} />}
             {more === 'agents' && <AgentView caseRecord={caseRecord} />}
             {more === 'ledger' && <AuditView caseRecord={caseRecord} />}

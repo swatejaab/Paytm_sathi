@@ -5,18 +5,21 @@ import type { FinancialTwin } from '../types';
 import { AffordCard } from './AffordCard';
 import { CreditScoreCard } from './CreditScoreCard';
 import { AlertsPanel } from './AlertsPanel';
+import { GoalSheet } from '../mobile/MobileHome';
 import { ForecastCard } from './ForecastCard';
 
 interface Props {
   displayName: string;
   onAsk: (message: string) => void;
+  onTopic: (hint: string) => void;
 }
 
 const MODES: { mode: string; hint: string; message: string }[] = [
-  { mode: 'RECOVER', hint: 'Hospital bill', message: 'Papa hospital mein hain. Bill INR 80,000 hai. Insurance hai, ab kya karun?' },
-  { mode: 'PROTECT', hint: 'Payment I did not make', message: 'Mere account se INR 8,500 ka UPI payment hua jo maine nahi kiya. Kya karun?' },
-  { mode: 'RECOVER', hint: 'Failed payment refund', message: 'INR 2,450 ka UPI payment failed ho gaya, paise kat gaye par refund nahi aaya.' },
-  { mode: 'PLAN', hint: 'EMI before payday', message: 'Salary delayed hai, is mahine EMI bharne ke paise kam hain. Kya options hain?' },
+  { mode: 'RECOVER', hint: 'Hospital bill', message: 'Who is admitted, and how much is the hospital bill?' },
+  { mode: 'PROTECT', hint: 'Payment I did not make', message: "Which payment don't you recognise? Share the amount." },
+  { mode: 'RECOVER', hint: 'Failed payment refund', message: 'Which payment failed, and for how much?' },
+  { mode: 'PLAN', hint: 'EMI before payday', message: 'Which EMI is due, and how much are you short?' },
+  { mode: 'PROTECT', hint: 'Term insurance', message: 'Tell me about the life cover you want for your family.' },
 ];
 
 const KIND_ICON: Record<string, string> = {
@@ -42,10 +45,11 @@ function whenLabel(days: number, date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-export function HomeView({ displayName, onAsk }: Props) {
+export function HomeView({ displayName, onAsk, onTopic }: Props) {
   const [twin, setTwin] = useState<FinancialTwin | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [goalForm, setGoalForm] = useState(false);
 
   useEffect(() => {
     api
@@ -119,7 +123,7 @@ export function HomeView({ displayName, onAsk }: Props) {
             <span>Can I afford it?</span>
           </button>
           {MODES.map((item) => (
-            <button key={`${item.mode}-${item.hint}`} className="mode-chip" onClick={() => onAsk(item.message)}>
+            <button key={`${item.mode}-${item.hint}`} className="mode-chip" onClick={() => onTopic(item.message)}>
               <strong>{item.mode}</strong>
               <span>{item.hint}</span>
             </button>
@@ -143,7 +147,7 @@ export function HomeView({ displayName, onAsk }: Props) {
                 </p>
               </div>
               <div className="alert-card-actions">
-                <button className="btn btn-primary" onClick={() => onAsk(MODES.find((item) => item.mode === 'PLAN')!.message)}>
+                <button className="btn btn-primary" onClick={() => onTopic(MODES.find((item) => item.mode === 'PLAN')!.message)}>
                   See my options
                 </button>
               </div>
@@ -188,7 +192,7 @@ export function HomeView({ displayName, onAsk }: Props) {
         </section>
       </div>
 
-      <ForecastCard onAsk={onAsk} />
+      <ForecastCard onAsk={onTopic} />
       <AffordCard />
       <CreditScoreCard />
 
@@ -207,7 +211,12 @@ export function HomeView({ displayName, onAsk }: Props) {
 
       <div className="home-grid">
         <section className="card home-section">
-          <h3>Goals</h3>
+          <div className="row space-between">
+            <h3>Goals</h3>
+            <button className="link" onClick={() => setGoalForm(true)}>
+              + Add goal
+            </button>
+          </div>
           {twin.goals.map((goal) => (
             <div key={goal.goal} className="goal">
               <div className="row space-between">
@@ -245,6 +254,16 @@ export function HomeView({ displayName, onAsk }: Props) {
           <p className="muted small">Source: {twin.cash_flow.source}. {twin.notice}</p>
         </section>
       </div>
+      {goalForm && (
+        <GoalSheet
+          fixed
+          onClose={() => setGoalForm(false)}
+          onSaved={() => {
+            setGoalForm(false);
+            api.twin().then(setTwin).catch(() => undefined);
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -35,6 +35,6 @@ export function buildPassport(record: CaseRecord): ResolutionPassport {
     recommended_option: recommended?.title ?? null,
     consents: record.consents,
     notice:
-      'Synthetic demo packet. Saathi prepares and coordinates; insurers decide claims and regulated lenders decide credit.',
+      'Saathi prepares and coordinates; insurers decide claims and regulated lenders decide credit.',
   };
 }

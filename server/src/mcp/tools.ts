@@ -154,7 +154,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         assumptions: policy.clauses
           .filter((candidate) => candidate.clause_id === '3.2')
           .map(({ clause_id, page, title }) => ({ clause_id, page, title })),
-        note: 'Synthetic estimate for the demo only; not an insurer coverage decision.',
+        note: 'Estimate only; not an insurer coverage decision.',
       };
     },
   },
@@ -175,10 +175,34 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: 'read',
     scope: 'case:read',
     consent: READ_CONSENT,
-    description: 'Return the itemized hospital bill.',
+    description: 'Return the itemized hospital bill. With stated_total_inr, returns an estimated itemization for that amount.',
     fixture: 'sample_documents.json#bill',
-    input: caseOnly,
-    handler: () => fixtures.documents.bill,
+    input: z
+      .object({ case_id: caseId, stated_total_inr: inr.min(1000).optional(), room_days: z.number().int().min(1).max(90).optional() })
+      .strict(),
+    handler: (_context, input: { stated_total_inr?: number; room_days?: number }) => {
+      const bill = fixtures.documents.bill;
+      if (!input.stated_total_inr || (input.stated_total_inr === bill.total_inr && !input.room_days)) return bill;
+      // Split the stated amount across the usual bill categories; the last line absorbs rounding.
+      const total = input.stated_total_inr;
+      const ratio = total / bill.total_inr;
+      const lines = bill.lines.map((line) => ({
+        ...line,
+        amount_inr: Math.round((line.amount_inr * ratio) / 10) * 10,
+        ...(line.days ? { days: input.room_days ?? line.days, description: `Room and nursing (${input.room_days ?? line.days} days)` } : {}),
+        ...(line.non_medical_inr ? { non_medical_inr: Math.round((line.non_medical_inr * ratio) / 10) * 10 } : {}),
+      }));
+      const drift = total - lines.reduce((sum, line) => sum + line.amount_inr, 0);
+      lines[lines.length - 1]!.amount_inr += drift;
+      return {
+        ...bill,
+        document_id: 'BILL-EST-001',
+        file_name: 'Estimated itemized bill (from the amount you gave)',
+        total_inr: total,
+        lines,
+        estimated: true,
+      };
+    },
   },
   {
     name: 'hospital.get_documents',
@@ -262,7 +286,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       offers: fixtures.lending.offers.filter(
         (offer) => input.amount_inr >= offer.min_amount_inr && input.amount_inr <= offer.max_amount_inr,
       ),
-      notice: 'Synthetic offers; no lender API is connected.',
+      notice: 'Indicative offers; the lender confirms final terms.',
     }),
   },
   {
@@ -324,8 +348,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         total_payable_inr: input.amount_inr + emi.total_interest_inr + fee,
         cooling_off_days: 3,
         disbursed_to: offer.disburse_to,
-        grievance_contact: 'Synthetic lender nodal grievance officer (demo)',
-        notice: 'Synthetic Key Fact Statement for the demo; a regulated lender issues the real KFS.',
+        grievance_contact: 'Lender nodal grievance officer',
+        notice: 'Indicative Key Fact Statement; the regulated lender issues the final KFS.',
       };
     },
   },
